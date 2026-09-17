@@ -25,6 +25,13 @@ class Pedido(Base):
 
     id: Mapped[uuid.UUID] = pk_uuid()
     colaborador_id: Mapped[uuid.UUID] = fk_uuid("colaboradores.id")
+    # Identidade congelada na criação. O colaborador muda de empresa e pode
+    # mudar de vínculo; quando vira PJ, a matrícula é apagada do cadastro. Sem
+    # congelar aqui, o consumo antigo seria reexportado com a identidade nova.
+    # codparc não entra: identifica a pessoa e não muda com essas transições.
+    empresa_id: Mapped[uuid.UUID] = fk_uuid("empresas.id")
+    vinculo: Mapped[str] = mapped_column(String(10), nullable=False)
+    matricula: Mapped[int | None] = mapped_column(Integer, nullable=True)
     valor_total: Mapped[Decimal] = dinheiro()
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pendente")
     codigo_retirada: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -88,6 +95,10 @@ class Almoco(Base):
 
     id: Mapped[uuid.UUID] = pk_uuid()
     colaborador_id: Mapped[uuid.UUID] = fk_uuid("colaboradores.id")
+    # Identidade congelada na criação — mesmo motivo do pedido.
+    empresa_id: Mapped[uuid.UUID] = fk_uuid("empresas.id")
+    vinculo: Mapped[str] = mapped_column(String(10), nullable=False)
+    matricula: Mapped[int | None] = mapped_column(Integer, nullable=True)
     codigo_barras: Mapped[str] = mapped_column(String(40), nullable=False, unique=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pendente")
     origem: Mapped[str] = mapped_column(String(20), nullable=False, server_default="totem")

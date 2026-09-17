@@ -4,12 +4,40 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Index, Integer, String, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, criado_em, dinheiro, fk_uuid, pk_uuid
 
 PAPEIS = ("colaborador", "refeitorio", "admin")
+VINCULOS = ("clt", "pj")
+
+
+class Empresa(Base):
+    """Empresa do grupo, espelhando o cadastro do Sankhya.
+
+    `codemp` decide em qual empresa a despesa é lançada. Antes isto era um campo
+    de texto livre no colaborador — um acento trocado mandava o lançamento para
+    a empresa errada, sem erro nenhum aparecer.
+    """
+
+    __tablename__ = "empresas"
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    codemp: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    nome: Mapped[str] = mapped_column(String(160), nullable=False)
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    criado_em: Mapped[datetime] = criado_em()
 
 
 class Departamento(Base):
@@ -27,22 +55,46 @@ class CategoriaProduto(Base):
 
 
 class Colaborador(Base):
-    """`matricula` é obrigatória e única por ser a chave de integração com o
-    Sankhya — sem ela o colaborador não casa no ERP."""
+    """Todo colaborador tem `codparc` — é o que identifica a pessoa no Sankhya.
+    Só o CLT tem, além disso, `matricula`; o PJ não tem nenhuma.
+
+    `codigo` é coisa separada: a credencial de login, criada pelo admin junto
+    com a senha provisória. Não tem relação com o ERP.
+
+    `codparc` é obrigatório: ninguém entra no sistema sem estar cadastrado como
+    parceiro no Sankhya. Isso garante que toda competência fecha sem pendência
+    de identificação, ao custo de o cadastro no ERP ter de vir antes do acesso.
+    """
 
     __tablename__ = "colaboradores"
     __table_args__ = (
         CheckConstraint(f"papel in {PAPEIS}", name="papel_valido"),
+        CheckConstraint(f"vinculo in {VINCULOS}", name="vinculo_valido"),
+        CheckConstraint(
+            "(vinculo = 'clt' and matricula is not null) or "
+            "(vinculo = 'pj' and matricula is null)",
+            name="matricula_conforme_vinculo",
+        ),
+        # A matrícula repete entre empresas — no Sankhya ela só é única dentro
+        # de uma. NULL não colide com NULL, então vários PJ convivem aqui.
+        UniqueConstraint("empresa_id", "matricula", name="uq_colaboradores_empresa_matricula"),
         Index("ix_colaboradores_ativo_nome", "ativo", "nome_completo"),
     )
 
     id: Mapped[uuid.UUID] = pk_uuid()
     nome_completo: Mapped[str] = mapped_column(String(160), nullable=False)
+
+    # credencial de login
     codigo: Mapped[str] = mapped_column(String(40), nullable=False, unique=True, index=True)
-    matricula: Mapped[str] = mapped_column(String(40), nullable=False, unique=True, index=True)
+
+    # identificação no Sankhya
+    codparc: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, index=True)
+    vinculo: Mapped[str] = mapped_column(String(10), nullable=False, server_default="clt")
+    matricula: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    empresa_id: Mapped[uuid.UUID] = fk_uuid("empresas.id")
+
     papel: Mapped[str] = mapped_column(String(20), nullable=False, server_default="colaborador")
     departamento_id: Mapped[uuid.UUID | None] = fk_uuid("departamentos.id", obrigatorio=False)
-    empresa: Mapped[str] = mapped_column(String(120), nullable=False, server_default="Grupo F8")
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)

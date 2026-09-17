@@ -11,6 +11,7 @@ from app.models.cadastro import (
     CategoriaProduto,
     Colaborador,
     Departamento,
+    Empresa,
     PrecoAlmoco,
     Produto,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "CategoriaProduto",
     "Colaborador",
     "Departamento",
+    "Empresa",
     "Exportacao",
     "ItemPedido",
     "LogAcesso",
