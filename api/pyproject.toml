@@ -1,0 +1,44 @@
+[project]
+name = "f8-store-api"
+version = "0.1.0"
+description = "API da Loja Interna F8 — consumo interno e exportação para o Sankhya"
+requires-python = ">=3.12"
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14",
+    # psycopg 3. O extra [binary] evita precisar de toolchain C na imagem.
+    "psycopg[binary]>=3.2",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "argon2-cffi>=23.1",
+    "pyjwt>=2.10",
+    "openpyxl>=3.1",
+    "structlog>=24.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.28",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

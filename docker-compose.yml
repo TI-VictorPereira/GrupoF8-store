@@ -1,0 +1,25 @@
+# Desenvolvimento. O banco é o Neon — não há Postgres aqui.
+# Subir com:  docker compose up --build
+
+services:
+  api:
+    build: ./api
+    env_file: ./api/.env
+    ports:
+      - "8000:8000"
+    volumes:
+      # Código montado para o --reload pegar as alterações. O diretório do
+      # pacote instalado é preservado para o -e não ser sobrescrito.
+      - ./api/app:/app/app
+      - ./api/alembic:/app/alembic
+      - ./api/tests:/app/tests
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
