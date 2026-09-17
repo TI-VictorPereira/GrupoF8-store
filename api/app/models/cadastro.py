@@ -101,6 +101,18 @@ class Colaborador(Base):
     senha_provisoria: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
+    # A temporária deixa de valer sozinha: papel com senha anotada não pode
+    # continuar sendo credencial válida semanas depois do reset.
+    senha_provisoria_expira_em: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Corte de sessão. Todo token emitido antes deste instante para de valer.
+    # Sem isso, resetar a senha de alguém que já estava dentro não o expulsa —
+    # ele seguiria com a sessão aberta por até 12h, que é justamente o caso em
+    # que o reset foi pedido.
+    tokens_validos_apos: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     criado_em: Mapped[datetime] = criado_em()
     atualizado_em: Mapped[datetime] = mapped_column(

@@ -10,9 +10,12 @@ import uuid
 from fastapi import FastAPI, Request
 from sqlalchemy import text
 
+from app.core import contexto
 from app.core.config import obter_config
 from app.core.db import engine
-from app.core.log import configurar_log, correlacao_atual, log
+from app.core.log import configurar_log, log
+from app.excecoes import handlers
+from app.routers import auth
 
 config = obter_config()
 configurar_log(config.log_nivel)
@@ -30,7 +33,17 @@ app = FastAPI(
 @app.middleware("http")
 async def correlacao_e_acesso(request: Request, call_next):
     correlacao = uuid.uuid4()
-    correlacao_atual.set(correlacao)
+    # Atrás do Caddy e do Cloudflare, request.client é o proxy — o IP real vem
+    # no cabeçalho. Por isso o proxy TEM de sobrescrever o X-Forwarded-For:
+    # se ele apenas repassar, qualquer cliente forja o próprio IP e escapa do
+    # limite por tentativa. Se o cabeçalho vier inválido, cai no cliente real.
+    encaminhado = (request.headers.get("x-forwarded-for") or "").split(",")[0]
+    contexto.definir(
+        correlacao_id=correlacao,
+        ip=contexto.normalizar_ip(encaminhado)
+        or (request.client.host if request.client else None),
+        user_agent=request.headers.get("user-agent"),
+    )
     inicio = time.perf_counter()
 
     resposta = await call_next(request)
@@ -44,6 +57,10 @@ async def correlacao_e_acesso(request: Request, call_next):
     )
     resposta.headers["x-correlacao-id"] = str(correlacao)
     return resposta
+
+
+handlers.registrar(app)
+app.include_router(auth.rotas)
 
 
 @app.get("/saude", tags=["infra"])

@@ -17,12 +17,30 @@ config.set_main_option("sqlalchemy.url", obter_config().url_para_alembic)
 
 target_metadata = Base.metadata
 
+# Índices únicos parciais sobre expressão, criados à mão nas migrations. Não
+# existem nos modelos, então o autogenerate os enxerga como "sobrando" e gera um
+# drop_index a cada revisão nova. Aplicar isso sem reparar mata regra de negócio
+# em silêncio: o sistema continua funcionando e só falha com dois usuários
+# simultâneos. Ignorar aqui é o que impede o acidente.
+INDICES_MANUAIS = {
+    "almocos_um_por_dia",
+    "pedidos_codigo_retirada_pendente_uk",
+    "exportacoes_competencia_ativa_uk",
+}
+
+
+def incluir_objeto(objeto, nome, tipo, reflexo, comparador):
+    if tipo == "index" and nome in INDICES_MANUAIS:
+        return False
+    return True
+
 
 def executar_offline() -> None:
     context.configure(
         url=config.get_main_option("sqlalchemy.url"),
         target_metadata=target_metadata,
         literal_binds=True,
+        include_object=incluir_objeto,
         compare_type=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -41,6 +59,7 @@ def executar_online() -> None:
             connection=conexao,
             target_metadata=target_metadata,
             compare_type=True,
+            include_object=incluir_objeto,
             compare_server_default=True,
         )
         with context.begin_transaction():

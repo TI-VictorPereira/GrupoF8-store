@@ -13,22 +13,10 @@ portador: quem tem o número consegue um almoço. Registrar só os últimos díg
 
 import logging
 import sys
-import uuid
-from contextvars import ContextVar
 
 import structlog
 
-# Atravessa as três camadas: é ele que liga um cancelamento ao request que o
-# causou e ao stack trace do erro.
-correlacao_atual: ContextVar[uuid.UUID | None] = ContextVar("correlacao_atual", default=None)
-
-
-def obter_correlacao() -> uuid.UUID:
-    valor = correlacao_atual.get()
-    if valor is None:
-        valor = uuid.uuid4()
-        correlacao_atual.set(valor)
-    return valor
+from app.core.contexto import correlacao_atual
 
 
 def _injetar_correlacao(_logger, _metodo, evento: dict) -> dict:
