@@ -8,7 +8,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { ErroApi, api, type Eu } from "@/api/cliente";
+import { ErroApi, api } from "@/api/cliente";
+import type { Eu } from "@/interfaces/sessao";
 
 export const CHAVE_EU = ["eu"] as const;
 
@@ -16,7 +17,6 @@ export function useSessao() {
   const consulta = useQuery({
     queryKey: CHAVE_EU,
     queryFn: () => api.get<Eu>("/auth/eu"),
-    // 401 aqui não é falha: é a resposta correta para quem não entrou ainda.
     retry: false,
     staleTime: 30_000,
   });

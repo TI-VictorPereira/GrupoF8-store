@@ -59,33 +59,3 @@ export const api = {
   patch: <T>(caminho: string, corpo?: Corpo) => pedir<T>("PATCH", caminho, corpo),
   remover: <T>(caminho: string) => pedir<T>("DELETE", caminho),
 };
-
-// --- formatos que o front consome -------------------------------------------
-// Provisórios: serão substituídos pelos tipos gerados do OpenAPI
-// (`npm run api:tipos`) assim que a superfície da API estabilizar.
-
-export type Papel = "colaborador" | "refeitorio" | "admin";
-
-export interface Empresa {
-  id: string;
-  codemp: number;
-  nome: string;
-}
-
-export interface Eu {
-  id: string;
-  nome_completo: string;
-  codigo: string;
-  papel: Papel;
-  senha_provisoria: boolean;
-  empresa: Empresa | null;
-}
-
-export interface ProdutoVitrine {
-  id: string;
-  nome: string;
-  categoria_id: string | null;
-  preco_venda: string;
-  estoque: number;
-  foto_url: string | null;
-}

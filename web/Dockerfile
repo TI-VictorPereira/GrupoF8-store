@@ -2,8 +2,11 @@ FROM node:24-alpine
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install
+# O lockfile entra junto e o `npm ci` instala exatamente o que está nele: a
+# mesma imagem sai igual hoje, na máquina do colega e no deploy. Esta camada
+# só refaz quando as dependências mudam.
+COPY package.json package-lock.json ./
+RUN npm ci
 
 COPY . .
 
