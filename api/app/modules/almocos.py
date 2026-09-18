@@ -275,3 +275,45 @@ def registrar_manual(sessao: Session, ator: Ator, colaborador_id: uuid.UUID) -> 
         dados_novos={"status": "confirmado", "origem": "manual"},
     )
     return almoco
+
+
+@dataclass
+class ColaboradorParaAlmoco:
+    id: uuid.UUID
+    nome_completo: str
+    codigo: str
+    departamento: str | None
+
+
+def buscar_colaboradores(sessao: Session, ator: Ator, busca: str) -> list[ColaboradorParaAlmoco]:
+    """Busca mínima para o lançamento manual no painel.
+
+    Existe separada de `colaboradores.listar` porque o refeitório precisa achar
+    a pessoa, não conhecer o cadastro dela: aqui saem nome, código e
+    departamento, e nada de codparc, matrícula, papel ou empresa — que é o que
+    a listagem do admin devolve.
+    """
+    if ator.papel not in {"admin", "refeitorio"}:
+        raise SemPermissao()
+
+    termo = busca.strip()
+    # Duas letras evitam que o campo vire uma listagem de todo mundo a cada
+    # tecla; o teto de 20 evita que vire com três.
+    if len(termo) < 2:
+        return []
+
+    padrao = f"%{termo}%"
+    linhas = sessao.execute(
+        select(Colaborador.id, Colaborador.nome_completo, Colaborador.codigo, Departamento.nome)
+        .outerjoin(Departamento, Departamento.id == Colaborador.departamento_id)
+        .where(
+            Colaborador.ativo.is_(True),
+            Colaborador.nome_completo.ilike(padrao) | Colaborador.codigo.ilike(padrao),
+        )
+        .order_by(Colaborador.nome_completo)
+        .limit(20)
+    ).all()
+    return [
+        ColaboradorParaAlmoco(id=i, nome_completo=nome, codigo=codigo, departamento=dep)
+        for i, nome, codigo, dep in linhas
+    ]

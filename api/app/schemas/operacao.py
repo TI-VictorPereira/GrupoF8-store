@@ -102,3 +102,14 @@ class LinhaPainelSaida(BaseModel):
     colaborador_nome: str
     colaborador_codigo: str
     departamento: str | None
+
+
+class ColaboradorParaAlmocoSaida(BaseModel):
+    """O mínimo para o painel identificar a pessoa no lançamento manual."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    nome_completo: str
+    codigo: str
+    departamento: str | None

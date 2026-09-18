@@ -161,3 +161,59 @@ def test_cancelamento_e_auditoria_caem_juntos_no_rollback(dados, produto):
                 )
             )
         )
+
+
+def test_colaborador_nao_busca_pessoas_para_lancamento(cliente, dados):
+    _liberar_colaborador(dados)
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+    r = cliente.get("/almocos/colaboradores", params={"busca": "Fulano"})
+
+    assert r.status_code == 403
+    assert r.json()["codigo"] == "sem_permissao"
+
+
+def test_busca_do_painel_nao_expoe_cadastro(cliente, dados):
+    """O refeitório precisa identificar a pessoa, não conhecer o cadastro dela.
+
+    Se um dia alguém trocar esta rota pela listagem do admin, este teste cai —
+    é o que impede codparc e matrícula de vazarem para o balcão.
+    """
+    _liberar_colaborador(dados, papel="refeitorio")
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+    r = cliente.get("/almocos/colaboradores", params={"busca": "Fulano"})
+
+    assert r.status_code == 200
+    achado = r.json()[0]
+    assert achado["nome_completo"] == "Fulano de Teste"
+    assert set(achado) == {"id", "nome_completo", "codigo", "departamento"}
+
+
+def test_busca_do_painel_ignora_termo_curto_e_inativo(cliente, dados):
+    _liberar_colaborador(dados, papel="refeitorio")
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+    assert cliente.get("/almocos/colaboradores", params={"busca": "F"}).json() == []
+    # "Beltrano Inativo" existe no banco, mas está desativado
+    assert cliente.get("/almocos/colaboradores", params={"busca": "Beltrano"}).json() == []
+
+
+def test_desfazer_confirmacao_permite_confirmar_de_novo(cliente, dados):
+    """Leitura por engano volta para pendente — a pessoa não fica sem almoço."""
+    _liberar_colaborador(dados, papel="refeitorio")
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+    codigo_barras = cliente.post("/almocos/gerar").json()["codigo_barras"]
+
+    assert cliente.post("/almocos/confirmar", json={"codigo_barras": codigo_barras}).json()[
+        "status"
+    ] == "confirmado"
+    repetido = cliente.post("/almocos/confirmar", json={"codigo_barras": codigo_barras})
+    assert repetido.status_code == 409
+    assert repetido.json()["codigo"] == "almoco_ja_confirmado"
+
+    almoco_id = cliente.get("/almocos/hoje").json()[0]["almoco"]["id"]
+    assert cliente.post(f"/almocos/{almoco_id}/desfazer").json()["status"] == "pendente"
+    assert cliente.post("/almocos/confirmar", json={"codigo_barras": codigo_barras}).json()[
+        "status"
+    ] == "confirmado"

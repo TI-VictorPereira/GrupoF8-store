@@ -9,6 +9,7 @@ from app.models.operacao import Almoco
 from app.modules import almocos
 from app.schemas.operacao import (
     AlmocoSaida,
+    ColaboradorParaAlmocoSaida,
     EntradaAlmocoManual,
     EntradaConfirmacaoAlmoco,
     LinhaPainelSaida,
@@ -61,3 +62,11 @@ def desfazer(
 ) -> Almoco:
     """Corrige leitura feita por engano. Volta para pendente, não cancela."""
     return almocos.desfazer_confirmacao(sessao, ator, almoco_id)
+
+
+@rotas.get("/colaboradores", response_model=list[ColaboradorParaAlmocoSaida])
+def colaboradores_para_lancamento(
+    busca: str, ator: RefeitorioOuAdminLiberado, sessao: Sessao
+) -> list[almocos.ColaboradorParaAlmoco]:
+    """Só para o lançamento manual. Devolve menos que a listagem do admin."""
+    return almocos.buscar_colaboradores(sessao, ator, busca)

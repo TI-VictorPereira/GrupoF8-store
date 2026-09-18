@@ -33,19 +33,17 @@ services:
       - api
     ports:
       - "8800:5175"
+    # Só o que é editado a quente é montado. /app/node_modules fica sendo o da
+    # imagem, sem volume por cima — assim mexer em package.json e subir com
+    # --build basta para as dependências novas aparecerem.
     volumes:
       - ./web/src:/app/src
       - ./web/index.html:/app/index.html
       - ./web/vite.config.ts:/app/vite.config.ts
-      # node_modules fica só no container: o volume nomeado impede que a pasta
-      # do host (vazia, e de outro sistema operacional) sobreponha a instalada.
-      - node_modules_web:/app/node_modules
+      - ./web/tsconfig.json:/app/tsconfig.json
     command: npm run dev
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-
-volumes:
-  node_modules_web:

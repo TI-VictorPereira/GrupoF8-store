@@ -19,6 +19,7 @@ from app.routers import (
     almocos,
     auth,
     colaboradores,
+    consumo,
     estoque,
     organizacao,
     pedidos,
@@ -77,6 +78,7 @@ app.include_router(estoque.rotas)
 app.include_router(produtos.rotas)
 app.include_router(colaboradores.rotas)
 app.include_router(organizacao.rotas)
+app.include_router(consumo.rotas)
 
 
 @app.get("/saude", tags=["infra"])
