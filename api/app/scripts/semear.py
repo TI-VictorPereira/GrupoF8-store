@@ -27,6 +27,9 @@ from app.models.cadastro import (
     Produto,
 )
 
+# TODO: nomes inventados. Substituir pelos departamentos reais.
+DEPARTAMENTOS = ["Administrativo", "Produção", "Logística"]
+
 CATEGORIAS = ["Energético", "Refrigerante", "Água", "Picolé"]
 
 PRODUTOS = [
@@ -38,10 +41,12 @@ PRODUTOS = [
 ]
 
 PESSOAS = [
-    # nome, código, codparc, matrícula, papel
-    ("Administrador F8", "1000", 1000, 1000, "admin"),
-    ("Refeitório F8", "2000", 2000, 2000, "refeitorio"),
-    ("Colaborador de Teste", "3000", 3000, 3000, "colaborador"),
+    # nome, código, codparc, matrícula, papel, codemp
+    ("Administrador F8", "1000", 1000, 1000, "admin", 1),
+    ("Refeitório F8", "2000", 2000, 2000, "refeitorio", 1),
+    ("Colaborador de Teste", "3000", 3000, 3000, "colaborador", 1),
+    ("Colaborador Outra Empresa", "3001", 3001, 3000, "colaborador", 23),
+    ("Prestador PJ", "4000", 4000, None, "colaborador", 14),
 ]
 
 
@@ -63,10 +68,14 @@ def semear() -> None:
     senhas: dict[str, str] = {}
 
     with FabricaDeSessao() as s:
-        empresa, _ = _obter_ou_criar(s, Empresa, {"codemp": 1}, nome="Grupo F8")
+        empresas = {e.codemp: e for e in s.scalars(select(Empresa))}
+        if not empresas:
+            raise SystemExit(
+                "Nenhuma empresa no banco. Rode antes: alembic upgrade head"
+            )
 
         departamentos = {}
-        for nome in ["Administrativo", "Produção", "Logística"]:
+        for nome in DEPARTAMENTOS:
             dep, _ = _obter_ou_criar(s, Departamento, {"nome": nome})
             departamentos[nome] = dep
 
@@ -94,7 +103,7 @@ def semear() -> None:
                 PrecoAlmoco(valor=Decimal("0.00"), vigencia_inicio=date(date.today().year, 1, 1))
             )
 
-        for nome, codigo, codparc, matricula, papel in PESSOAS:
+        for nome, codigo, codparc, matricula, papel, codemp in PESSOAS:
             pessoa = s.scalar(select(Colaborador).where(Colaborador.codigo == codigo))
             if pessoa:
                 continue
@@ -105,15 +114,13 @@ def semear() -> None:
                     nome_completo=nome,
                     codigo=codigo,
                     codparc=codparc,
-                    vinculo="clt",
+                    vinculo="clt" if matricula is not None else "pj",
                     matricula=matricula,
-                    empresa_id=empresa.id,
+                    empresa_id=empresas[codemp].id,
                     papel=papel,
                     departamento_id=departamentos["Administrativo"].id,
                     ativo=True,
                     senha_hash=seguranca.gerar_hash(senha),
-                    # Provisória: o primeiro acesso obriga a troca, igual ao
-                    # fluxo real de reset feito pelo admin.
                     senha_provisoria=True,
                     sessao_versao=0,
                 )
@@ -123,14 +130,18 @@ def semear() -> None:
 
     print()
     print("Banco de desenvolvimento pronto.")
-    print(f"  empresa      : Grupo F8 (codemp 1)")
+    print(f"  empresas     : {len(empresas)} (vindas da migration)")
     print(f"  produtos     : {len(PRODUTOS)} itens com estoque")
     print()
     if senhas:
         print("  Senhas provisórias — anote, elas não aparecem de novo:")
-        for nome, codigo, *_ , papel in PESSOAS:
+        for nome, codigo, _parc, matricula, papel, codemp in PESSOAS:
             if codigo in senhas:
-                print(f"    {papel:<12} código {codigo}   senha {senhas[codigo]}")
+                marca = f"matr. {matricula}" if matricula else "PJ, sem matrícula"
+                print(
+                    f"    {papel:<12} código {codigo}  senha {senhas[codigo]}"
+                    f"   empresa {codemp:<3} {marca}"
+                )
         print()
         print("  No primeiro login o sistema exige a troca da senha.")
     else:

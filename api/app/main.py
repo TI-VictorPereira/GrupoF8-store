@@ -15,7 +15,15 @@ from app.core.config import obter_config
 from app.core.db import engine
 from app.core.log import configurar_log, log
 from app.excecoes import handlers
-from app.routers import almocos, auth, colaboradores, estoque, pedidos, produtos
+from app.routers import (
+    almocos,
+    auth,
+    colaboradores,
+    estoque,
+    organizacao,
+    pedidos,
+    produtos,
+)
 
 config = obter_config()
 configurar_log(config.log_nivel)
@@ -68,6 +76,7 @@ app.include_router(almocos.rotas)
 app.include_router(estoque.rotas)
 app.include_router(produtos.rotas)
 app.include_router(colaboradores.rotas)
+app.include_router(organizacao.rotas)
 
 
 @app.get("/saude", tags=["infra"])
