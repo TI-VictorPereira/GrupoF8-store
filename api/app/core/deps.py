@@ -42,7 +42,7 @@ def obter_ator(
 
     # Reset de senha e troca de senha movem o corte: tokens emitidos antes
     # param de valer na hora, em todos os aparelhos.
-    if seguranca.token_anterior_ao_corte(dados, colaborador.tokens_validos_apos):
+    if seguranca.token_de_sessao_cortada(dados, colaborador.sessao_versao):
         raise NaoAutenticado()
 
     return Ator(
@@ -79,6 +79,21 @@ def exige_senha_definitiva(sessao: Sessao, ator: AtorAtual) -> Ator:
     return ator
 
 
+def exige_papel_com_senha_definitiva(*papeis: str) -> Callable[[Ator], Ator]:
+    """Combina a troca obrigatória de senha com a autorização por papel."""
+
+    def verificar(ator: Annotated[Ator, Depends(exige_senha_definitiva)]) -> Ator:
+        if ator.papel not in papeis:
+            raise SemPermissao(detalhes={"papeis_aceitos": list(papeis)})
+        return ator
+
+    return verificar
+
+
 SomenteAdmin = Annotated[Ator, Depends(exige_papel("admin"))]
 AdminOuRefeitorio = Annotated[Ator, Depends(exige_papel("admin", "refeitorio"))]
 AtorLiberado = Annotated[Ator, Depends(exige_senha_definitiva)]
+AdminLiberado = Annotated[Ator, Depends(exige_papel_com_senha_definitiva("admin"))]
+RefeitorioOuAdminLiberado = Annotated[
+    Ator, Depends(exige_papel_com_senha_definitiva("admin", "refeitorio"))
+]

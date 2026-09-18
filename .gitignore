@@ -33,3 +33,10 @@ dist-ssr
 
 # Segredos da API (Neon, JWT). O .env.example tem os placeholders.
 api/.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/

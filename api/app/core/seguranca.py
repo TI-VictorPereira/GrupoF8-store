@@ -13,7 +13,12 @@ from app.core.config import obter_config
 _config = obter_config()
 
 # Padrões da biblioteca: argon2id, com custo já adequado.
-_hasher = PasswordHasher()
+# Em teste o custo cai para o mínimo — ver `senha_hash_rapido` na configuração.
+_hasher = (
+    PasswordHasher(time_cost=1, memory_cost=8, parallelism=1)
+    if _config.senha_hash_rapido
+    else PasswordHasher()
+)
 
 # Hash descartável, usado para gastar o mesmo tempo quando o código não existe.
 # Sem isso, uma resposta rápida denuncia que o código não está cadastrado — e o
@@ -67,7 +72,9 @@ def precisa_rehash(hash_armazenado: str) -> bool:
         return True
 
 
-def criar_token(colaborador_id: uuid.UUID, papel: str, tipo: TipoToken) -> str:
+def criar_token(
+    colaborador_id: uuid.UUID, papel: str, tipo: TipoToken, sessao_versao: int
+) -> str:
     agora = datetime.now(timezone.utc)
     if tipo == "acesso":
         expira = agora + timedelta(minutes=_config.acesso_expira_minutos)
@@ -79,6 +86,7 @@ def criar_token(colaborador_id: uuid.UUID, papel: str, tipo: TipoToken) -> str:
             "sub": str(colaborador_id),
             "papel": papel,
             "tipo": tipo,
+            "sv": sessao_versao,
             "iat": agora,
             "exp": expira,
             "jti": str(uuid.uuid4()),
@@ -109,10 +117,6 @@ def agora_em_segundos() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
 
 
-def token_anterior_ao_corte(dados: dict, corte: datetime | None) -> bool:
-    if corte is None:
-        return False
-    emitido_em = dados.get("iat")
-    if emitido_em is None:
-        return True
-    return datetime.fromtimestamp(emitido_em, tz=timezone.utc) < corte
+def token_de_sessao_cortada(dados: dict, sessao_versao: int) -> bool:
+    """Compara exato. Token sem a versão é de antes desta regra e não vale."""
+    return dados.get("sv") != sessao_versao

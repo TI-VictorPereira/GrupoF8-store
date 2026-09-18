@@ -94,6 +94,13 @@ def cliente():
         yield c
 
 
+@pytest.fixture
+def outro_cliente():
+    """Segundo aparelho do mesmo usuário, com jogo de cookies independente."""
+    with TestClient(app, headers={"x-forwarded-for": IP_TESTE}) as c:
+        yield c
+
+
 def eventos_de(codigo: str) -> list[tuple[str, str | None]]:
     with FabricaDeSessao() as s:
         return list(

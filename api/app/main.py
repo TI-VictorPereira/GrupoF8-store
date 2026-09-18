@@ -15,7 +15,7 @@ from app.core.config import obter_config
 from app.core.db import engine
 from app.core.log import configurar_log, log
 from app.excecoes import handlers
-from app.routers import auth
+from app.routers import almocos, auth, colaboradores, estoque, pedidos, produtos
 
 config = obter_config()
 configurar_log(config.log_nivel)
@@ -40,8 +40,7 @@ async def correlacao_e_acesso(request: Request, call_next):
     encaminhado = (request.headers.get("x-forwarded-for") or "").split(",")[0]
     contexto.definir(
         correlacao_id=correlacao,
-        ip=contexto.normalizar_ip(encaminhado)
-        or (request.client.host if request.client else None),
+        ip=contexto.normalizar_ip(encaminhado) or (request.client.host if request.client else None),
         user_agent=request.headers.get("user-agent"),
     )
     inicio = time.perf_counter()
@@ -61,6 +60,11 @@ async def correlacao_e_acesso(request: Request, call_next):
 
 handlers.registrar(app)
 app.include_router(auth.rotas)
+app.include_router(pedidos.rotas)
+app.include_router(almocos.rotas)
+app.include_router(estoque.rotas)
+app.include_router(produtos.rotas)
+app.include_router(colaboradores.rotas)
 
 
 @app.get("/saude", tags=["infra"])

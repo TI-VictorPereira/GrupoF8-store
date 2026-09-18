@@ -95,13 +95,13 @@ def renovar(
 
     # Mesma checagem da dependência: o refresh não pode ser o buraco por onde
     # uma sessão cortada volta à vida.
-    if seguranca.token_anterior_ao_corte(dados, colaborador.tokens_validos_apos):
+    if seguranca.token_de_sessao_cortada(dados, colaborador.sessao_versao):
         raise NaoAutenticado()
 
     _gravar_sessao(
         resposta,
-        seguranca.criar_token(colaborador.id, colaborador.papel, "acesso"),
-        seguranca.criar_token(colaborador.id, colaborador.papel, "refresh"),
+        seguranca.criar_token(colaborador.id, colaborador.papel, "acesso", colaborador.sessao_versao),
+        seguranca.criar_token(colaborador.id, colaborador.papel, "refresh", colaborador.sessao_versao),
     )
     return _montar_eu(sessao, colaborador)
 
@@ -123,8 +123,18 @@ def logout(ator: AtorAtual, resposta: Response) -> Mensagem:
 
 
 @rotas.post("/senha", response_model=Mensagem)
-def trocar_senha(dados: EntradaTrocaSenha, ator: AtorAtual, sessao: Sessao) -> Mensagem:
-    servico.trocar_senha_propria(sessao, ator, dados.senha_atual, dados.senha_nova)
+def trocar_senha(
+    dados: EntradaTrocaSenha, ator: AtorAtual, resposta: Response, sessao: Sessao
+) -> Mensagem:
+    colaborador = servico.trocar_senha_propria(sessao, ator, dados.senha_atual, dados.senha_nova)
+    # A troca moveu o corte de sessão e invalidou todos os tokens anteriores,
+    # inclusive o desta aba. Emitir cookies novos mantém quem trocou logado e
+    # derruba só os outros aparelhos.
+    _gravar_sessao(
+        resposta,
+        seguranca.criar_token(colaborador.id, colaborador.papel, "acesso", colaborador.sessao_versao),
+        seguranca.criar_token(colaborador.id, colaborador.papel, "refresh", colaborador.sessao_versao),
+    )
     return Mensagem(mensagem="Senha alterada.")
 
 

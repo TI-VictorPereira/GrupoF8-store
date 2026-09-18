@@ -1,18 +1,6 @@
 """Trilha de auditoria e log de acesso.
-
-Duas decisões que valem releitura antes de mexer aqui:
-
-1. SEM TRIGGER. A escrita é responsabilidade do serviço, na mesma transação da
-   mudança. Comportamento disparado pelo banco é invisível para quem lê o
-   código do serviço.
-
-2. Os campos de usuário são COPIADOS, não referenciados. Sem isso toda consulta
-   precisa de join — e pior: se o colaborador for renomeado ou inativado, a
-   trilha antiga passa a mentir sobre quem era aquela pessoa na época.
-   Auditoria guarda o retrato do momento.
-
-Append-only por convenção. Sem expurgo e sem particionamento: o volume é de
-~40 MB/ano. Não há tela de consulta — a leitura é por SQL, sob demanda.
+log_auditoria é para quem investiga. log_acesso é para quem ataca.
+gravados para não perder o histórico, mesmo que o colaborador seja apagado. O log de aplicação
 """
 
 import uuid

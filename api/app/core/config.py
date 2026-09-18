@@ -40,6 +40,13 @@ class Config(BaseSettings):
     max_tentativas: int = 5
     bloqueio_minutos: int = 2
     senha_tamanho_minimo: int = 8
+    senha_provisoria_validade_horas: int = 48
+
+    # Só para a suíte de testes. O argon2 é lento de propósito — é isso que
+    # protege a senha — mas essa dureza não acrescenta nada num teste, e sozinha
+    # responde por quase todo o tempo da suíte. Default seguro: quem esquecer de
+    # ligar tem testes lentos, nunca hash fraco em produção.
+    senha_hash_rapido: bool = False
 
     # --- almoço --------------------------------------------------------------
     almoco_validade_minutos: int = 15

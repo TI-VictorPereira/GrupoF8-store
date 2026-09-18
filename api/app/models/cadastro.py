@@ -106,12 +106,18 @@ class Colaborador(Base):
     senha_provisoria_expira_em: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    # Corte de sessão. Todo token emitido antes deste instante para de valer.
-    # Sem isso, resetar a senha de alguém que já estava dentro não o expulsa —
-    # ele seguiria com a sessão aberta por até 12h, que é justamente o caso em
-    # que o reset foi pedido.
-    tokens_validos_apos: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+    # Corte de sessão. O token carrega a versão com que foi emitido; qualquer
+    # divergência o invalida. Resetar a senha, trocar a senha ou inativar o
+    # acesso incrementam este número e derrubam tudo que estava aberto.
+    #
+    # É contador e não data de propósito: o `iat` do JWT só tem precisão de
+    # segundo, então um corte por timestamp deixa passar todo token emitido
+    # dentro do mesmo segundo — justamente a sessão que se quer expulsar.
+    # `default` além do `server_default`: o default do banco só vale no INSERT,
+    # então um objeto recém-construído teria None aqui e o incremento estouraria
+    # antes de chegar ao banco.
+    sessao_versao: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
     )
 
     criado_em: Mapped[datetime] = criado_em()

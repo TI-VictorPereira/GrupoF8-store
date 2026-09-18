@@ -1,7 +1,11 @@
-from app.core.db import FabricaDeSessao
-from app.models.auditoria import LogAcesso
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import select
 
+from app.core import seguranca
+from app.core.db import FabricaDeSessao
+from app.models.auditoria import LogAcesso
+from app.models.cadastro import Colaborador
 from tests.conftest import CODIGO, CODIGO_FANTASMA, CODIGO_INATIVO, IP_TESTE, SENHA, eventos_de
 
 
@@ -105,7 +109,8 @@ def test_troca_de_senha_limpa_a_flag_de_provisoria(cliente, dados):
     cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
 
     nova = "outra-senha-forte-456"
-    assert cliente.post("/auth/senha", json={"senha_atual": SENHA, "senha_nova": nova}).status_code == 200
+    resposta = cliente.post("/auth/senha", json={"senha_atual": SENHA, "senha_nova": nova})
+    assert resposta.status_code == 200
     assert cliente.get("/auth/eu").json()["senha_provisoria"] is False
 
     cliente.post("/auth/logout")
@@ -125,6 +130,65 @@ def test_senha_nova_precisa_ser_diferente_e_ter_tamanho_minimo(cliente, dados):
     assert curta.json()["detalhes"]["minimo"] == 8
     assert igual.json()["codigo"] == "senha_repetida"
     assert errada.json()["codigo"] == "senha_atual_incorreta"
+
+
+def test_troca_de_senha_derruba_os_outros_aparelhos(cliente, outro_cliente, dados):
+    """O motivo do corte de sessão existir.
+
+    Sem ele, resetar ou trocar a senha de alguém que já estava dentro não o
+    expulsa — a sessão antiga seguiria válida por até 12h, que é exatamente o
+    caso em que a troca costuma ser pedida.
+    """
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+    outro_cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+    assert outro_cliente.get("/auth/eu").status_code == 200
+
+    cliente.post("/auth/senha", json={"senha_atual": SENHA, "senha_nova": "senha-nova-forte-789"})
+
+    # o aparelho que trocou continua dentro
+    assert cliente.get("/auth/eu").status_code == 200
+    # o outro cai na hora
+    assert outro_cliente.get("/auth/eu").status_code == 401
+    # e não volta pelo refresh
+    assert outro_cliente.post("/auth/refresh").status_code == 401
+
+
+def test_senha_temporaria_vencida_nao_entra(cliente, dados):
+    """A senha está correta, mas passou da validade de 48h."""
+    with FabricaDeSessao() as s:
+        colaborador = s.get(Colaborador, dados["ativo"])
+        colaborador.senha_provisoria = True
+        colaborador.senha_provisoria_expira_em = datetime.now(timezone.utc) - timedelta(hours=1)
+        s.commit()
+
+    r = cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+    assert r.status_code == 401
+    assert r.json()["codigo"] == "senha_provisoria_expirada"
+    assert ("login_negado", "provisoria_expirada") in eventos_de(CODIGO)
+
+
+def test_senha_temporaria_dentro_do_prazo_entra(cliente, dados):
+    with FabricaDeSessao() as s:
+        colaborador = s.get(Colaborador, dados["ativo"])
+        colaborador.senha_provisoria = True
+        colaborador.senha_provisoria_expira_em = datetime.now(timezone.utc) + timedelta(hours=47)
+        s.commit()
+
+    r = cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+    assert r.status_code == 200
+    assert r.json()["senha_provisoria"] is True
+
+
+def test_senha_temporaria_gerada_e_legivel_e_aleatoria():
+    """Sem 0/O, 1/l/I — ela é ditada por telefone ou copiada de um papel."""
+    amostras = {seguranca.gerar_senha_temporaria() for _ in range(200)}
+
+    assert len(amostras) == 200  # sem repetição em 200 sorteios
+    for senha in amostras:
+        assert len(senha) == 9 and senha[4] == "-"
+        assert not set(senha) & set("O0Il1S5Z2")
 
 
 def test_logout_encerra_a_sessao(cliente, dados):
@@ -151,6 +215,35 @@ def test_token_de_acesso_nao_serve_de_refresh(cliente, dados):
     cliente.cookies.set("f8_refresh", cliente.cookies.get("f8_acesso"))
 
     assert cliente.post("/auth/refresh").status_code == 401
+
+
+def test_corte_de_sessao_invalida_acesso_e_refresh(cliente, dados):
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+    # Incrementar a versão basta: a comparação é exata e não depende de
+    # relógio, então não há janela de um segundo para um token escapar.
+    with FabricaDeSessao() as s:
+        colaborador = s.get(Colaborador, dados["ativo"])
+        colaborador.sessao_versao += 1
+        s.commit()
+
+    assert cliente.get("/auth/eu").status_code == 401
+    assert cliente.post("/auth/refresh").status_code == 401
+
+
+def test_senha_provisoria_expirada_recusa_login(cliente, dados):
+    with FabricaDeSessao() as s:
+        colaborador = s.get(Colaborador, dados["ativo"])
+        colaborador.senha_provisoria_expira_em = seguranca.agora_em_segundos() - timedelta(
+            seconds=1
+        )
+        s.commit()
+
+    r = cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+    assert r.status_code == 401
+    assert r.json()["codigo"] == "senha_provisoria_expirada"
+    assert ("login_negado", "provisoria_expirada") in eventos_de(CODIGO)
 
 
 def test_cabecalho_de_ip_forjado_nao_derruba_a_requisicao(cliente, dados):

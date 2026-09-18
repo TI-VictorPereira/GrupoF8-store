@@ -7,6 +7,7 @@ ver `registro.py`.
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -19,6 +20,7 @@ from app.excecoes import (
     CredenciaisInvalidas,
     SenhaAtualIncorreta,
     SenhaFraca,
+    SenhaProvisoriaExpirada,
     SenhaRepetida,
 )
 from app.models.acesso import SolicitacaoSenha
@@ -112,8 +114,8 @@ def autenticar(sessao: Session, codigo: str, senha: str, ip: str | None) -> Sess
 
     return SessaoEmitida(
         colaborador=colaborador,
-        token_acesso=seguranca.criar_token(colaborador.id, colaborador.papel, "acesso"),
-        token_refresh=seguranca.criar_token(colaborador.id, colaborador.papel, "refresh"),
+        token_acesso=seguranca.criar_token(colaborador.id, colaborador.papel, "acesso", colaborador.sessao_versao),
+        token_refresh=seguranca.criar_token(colaborador.id, colaborador.papel, "refresh", colaborador.sessao_versao),
     )
 
 
@@ -123,7 +125,9 @@ def registrar_logout(ator: Ator) -> None:
     )
 
 
-def trocar_senha_propria(sessao: Session, ator: Ator, senha_atual: str, senha_nova: str) -> None:
+def trocar_senha_propria(
+    sessao: Session, ator: Ator, senha_atual: str, senha_nova: str
+) -> Colaborador:
     colaborador = sessao.get(Colaborador, ator.id)
     if colaborador is None:
         raise CredenciaisInvalidas()
@@ -142,10 +146,15 @@ def trocar_senha_propria(sessao: Session, ator: Ator, senha_atual: str, senha_no
 
     colaborador.senha_hash = seguranca.gerar_hash(senha_nova)
     colaborador.senha_provisoria = False
+    colaborador.senha_provisoria_expira_em = None
+    # Trocar a senha derruba os outros aparelhos. Quem trocou continua dentro
+    # porque o router emite cookies novos com a versão já incrementada.
+    colaborador.sessao_versao = (colaborador.sessao_versao or 0) + 1
 
     registro.acesso(
         codigo=ator.codigo, evento="senha_trocada", usuario_id=ator.id, usuario_nome=ator.nome
     )
+    return colaborador
 
 
 def solicitar_nova_senha(sessao: Session, codigo: str, nome_informado: str | None) -> None:
