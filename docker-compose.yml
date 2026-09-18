@@ -1,12 +1,15 @@
 # Desenvolvimento. O banco é o Neon — não há Postgres aqui.
 # Subir com:  docker compose up --build
+#
+# Portas na faixa 88xx de propósito: esta máquina já roda outros containers
+# (a Hub F8 API na 8000, frontends na 5173/5174 e um Postgres na 5432).
 
 services:
   api:
     build: ./api
     env_file: ./api/.env
     ports:
-      - "8000:8000"
+      - "8801:8000"
     volumes:
       # Código montado para o --reload pegar as alterações. O diretório do
       # pacote instalado é preservado para o -e não ser sobrescrito.
@@ -23,3 +26,26 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  web:
+    build: ./web
+    depends_on:
+      - api
+    ports:
+      - "8800:5175"
+    volumes:
+      - ./web/src:/app/src
+      - ./web/index.html:/app/index.html
+      - ./web/vite.config.ts:/app/vite.config.ts
+      # node_modules fica só no container: o volume nomeado impede que a pasta
+      # do host (vazia, e de outro sistema operacional) sobreponha a instalada.
+      - node_modules_web:/app/node_modules
+    command: npm run dev
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  node_modules_web:

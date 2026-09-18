@@ -24,7 +24,10 @@ app = FastAPI(
     title="Loja Interna F8",
     description="Consumo interno (loja e refeitório) e exportação para o Sankhya.",
     version="0.1.0",
-    root_path="/api",
+    # Em produção o Caddy serve a API sob /api no mesmo domínio do front. Em
+    # desenvolvimento não há proxy, e declarar o prefixo aqui faria a página de
+    # documentação procurar o openapi.json num caminho que não existe.
+    root_path="/api" if config.ambiente == "producao" else "",
     docs_url="/docs" if config.ambiente == "desenvolvimento" else None,
     redoc_url=None,
 )
