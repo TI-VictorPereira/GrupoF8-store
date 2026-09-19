@@ -14,7 +14,15 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.excecoes import CodigoDuplicado, DadosInvalidos, NaoEncontrado, SemPermissao
+from app.excecoes import (
+    CategoriaNaoEncontrada,
+    CodigoDuplicado,
+    FotoUrlLonga,
+    NomeObrigatorio,
+    ProdutoNaoEncontrado,
+    SemPermissao,
+    ValorNegativo,
+)
 from app.models.cadastro import CategoriaProduto, Produto
 from app.modules import auditoria
 from app.modules.auditoria import Ator
@@ -37,21 +45,19 @@ def _exigir_admin(ator: Ator) -> None:
 
 def _validar(sessao: Session, dados: DadosProduto) -> None:
     if not dados.nome.strip():
-        raise DadosInvalidos("O nome do produto é obrigatório.")
+        raise NomeObrigatorio(detalhes={"entidade": "produto"})
     if dados.preco_venda < 0 or dados.custo < 0:
-        raise DadosInvalidos("Preço e custo não podem ser negativos.")
+        raise ValorNegativo()
     if dados.categoria_id and sessao.get(CategoriaProduto, dados.categoria_id) is None:
-        raise NaoEncontrado("Categoria não encontrada.")
+        raise CategoriaNaoEncontrada()
     # A foto vive no object storage; a coluna guarda só a URL. Base64 aqui
     # significaria arrastar a imagem inteira em toda listagem da loja.
     if dados.foto_url and len(dados.foto_url) > 500:
-        raise DadosInvalidos("A foto deve ser enviada ao storage; aqui vai apenas a URL.")
+        raise FotoUrlLonga()
 
 
 def _retrato(produto: Produto) -> dict[str, Any]:
-    # Dinheiro sempre com duas casas. Sem isso, o valor lido do objeto em
-    # memória sai "5" e o lido do banco sai "5.00" — na trilha de auditoria
-    # isso parece uma alteração de preço que nunca aconteceu.
+
     return {
         "nome": produto.nome,
         "codigo": produto.codigo,
@@ -119,7 +125,7 @@ def alterar(sessao: Session, ator: Ator, produto_id: uuid.UUID, dados: DadosProd
 
     produto = sessao.get(Produto, produto_id)
     if produto is None:
-        raise NaoEncontrado("Produto não encontrado.")
+        raise ProdutoNaoEncontrado()
 
     antes = _retrato(produto)
     produto.nome = dados.nome.strip()
@@ -154,7 +160,7 @@ def definir_ativo(sessao: Session, ator: Ator, produto_id: uuid.UUID, ativo: boo
     _exigir_admin(ator)
     produto = sessao.get(Produto, produto_id)
     if produto is None:
-        raise NaoEncontrado("Produto não encontrado.")
+        raise ProdutoNaoEncontrado()
     if produto.ativo == ativo:
         return produto
 

@@ -1,6 +1,7 @@
 """Pedidos: estoque atômico, snapshots e operações administrativas."""
 
 import secrets
+from dataclasses import dataclass
 import uuid
 from collections import Counter
 from datetime import UTC, datetime
@@ -12,14 +13,14 @@ from sqlalchemy.orm import Session
 
 from app.excecoes import (
     CarrinhoVazio,
+    CodigoRetiradaIndisponivel,
     ColaboradorInativo,
-    Conflito,
     EstoqueInsuficiente,
     PedidoNaoPendente,
     ProdutoIndisponivel,
     SemPermissao,
 )
-from app.models.cadastro import CategoriaProduto, Colaborador, Produto
+from app.models.cadastro import CategoriaProduto, Colaborador, Departamento, Produto
 from app.models.operacao import ItemPedido, Pedido
 from app.modules import auditoria
 from app.modules.auditoria import Ator
@@ -93,10 +94,7 @@ def finalizar(sessao: Session, ator: Ator, itens: list[tuple[uuid.UUID, int]]) -
         pedido = candidato
         break
     if pedido is None:
-        # Dez colisões seguidas em 1 milhão de códigos é praticamente
-        # impossível; ainda assim, isso é conflito de estado e não defeito —
-        # o usuário recebe 409 com mensagem útil, não um 500 mudo.
-        raise Conflito("Não foi possível gerar um código de retirada. Tente novamente.")
+        raise CodigoRetiradaIndisponivel()
 
     for produto, quantidade, categoria in snapshots:
         sessao.add(
@@ -184,3 +182,50 @@ def cancelar(sessao: Session, ator: Ator, pedido_id: uuid.UUID, motivo: str) -> 
         dados_novos={"status": "cancelado", "motivo": motivo},
     )
     return pedido
+
+
+@dataclass
+class LinhaPedido:
+    """Pedido com itens e quem comprou, para a tela de entregas."""
+
+    pedido: Pedido
+    itens: list[ItemPedido]
+    colaborador_nome: str
+    colaborador_codigo: str
+    departamento: str | None
+
+
+def listar_pendentes_detalhado(sessao: Session, ator: Ator) -> list[LinhaPedido]:
+    """O que o balcão de entrega precisa ver: o pedido e o nome de quem retira.
+
+    Os itens vêm num SELECT só. Buscar por pedido custaria uma ida ao banco
+    por linha da tela — com o Neon, cada uma dessas custa mais de 100 ms.
+    """
+    if not ator.eh_admin:
+        raise SemPermissao()
+
+    linhas = sessao.execute(
+        select(Pedido, Colaborador.nome_completo, Colaborador.codigo, Departamento.nome)
+        .join(Colaborador, Colaborador.id == Pedido.colaborador_id)
+        .outerjoin(Departamento, Departamento.id == Colaborador.departamento_id)
+        .where(Pedido.status == "pendente")
+        .order_by(Pedido.criado_em)
+    ).all()
+    if not linhas:
+        return []
+
+    por_pedido: dict[uuid.UUID, list[ItemPedido]] = {}
+    ids = [pedido.id for pedido, *_ in linhas]
+    for item in sessao.scalars(select(ItemPedido).where(ItemPedido.pedido_id.in_(ids))):
+        por_pedido.setdefault(item.pedido_id, []).append(item)
+
+    return [
+        LinhaPedido(
+            pedido=pedido,
+            itens=por_pedido.get(pedido.id, []),
+            colaborador_nome=nome,
+            colaborador_codigo=codigo,
+            departamento=dep,
+        )
+        for pedido, nome, codigo, dep in linhas
+    ]

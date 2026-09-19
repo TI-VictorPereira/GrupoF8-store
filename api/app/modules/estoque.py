@@ -6,11 +6,11 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.excecoes import (
-    DadosInvalidos,
     EstoqueInsuficiente,
-    NaoEncontrado,
-    ProdutoIndisponivel,
+    ProdutoNaoEncontrado,
+    QuantidadeInvalida,
     SemPermissao,
+    TipoDeAjusteInvalido,
 )
 from app.models.cadastro import Produto
 from app.models.operacao import AjusteEstoque
@@ -26,11 +26,9 @@ def ajustar(
     # Entrada inválida não é "produto indisponível" — devolver o código errado
     # faz o front tratar como falta de estoque e esconde o defeito real.
     if tipo not in {"entrada", "baixa"}:
-        raise DadosInvalidos("Tipo de ajuste inválido.", detalhes={"tipo": tipo})
+        raise TipoDeAjusteInvalido(detalhes={"tipo": tipo})
     if quantidade <= 0:
-        raise DadosInvalidos(
-            "A quantidade do ajuste precisa ser positiva.", detalhes={"quantidade": quantidade}
-        )
+        raise QuantidadeInvalida(detalhes={"quantidade": quantidade})
 
     valores = {"estoque": Produto.estoque + quantidade}
     condicoes = [Produto.id == produto_id]
@@ -44,7 +42,7 @@ def ajustar(
     if produto is None:
         existente = sessao.get(Produto, produto_id)
         if existente is None:
-            raise NaoEncontrado("Produto não encontrado.")
+            raise ProdutoNaoEncontrado()
         raise EstoqueInsuficiente(detalhes={"produto_id": str(produto_id)})
 
     anterior = produto.estoque - quantidade if tipo == "entrada" else produto.estoque + quantidade

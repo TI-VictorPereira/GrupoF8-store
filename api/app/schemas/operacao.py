@@ -94,8 +94,7 @@ class EntradaAlmocoManual(BaseModel):
 class LinhaPainelSaida(BaseModel):
     """Linha do painel do refeitório: o almoço mais quem é a pessoa.
 
-    O nome vem por join e não está congelado no almoço — para o painel
-    interessa quem a pessoa é agora, não quem era no momento da geração.
+   
     """
 
     almoco: AlmocoSaida
@@ -112,4 +111,13 @@ class ColaboradorParaAlmocoSaida(BaseModel):
     id: uuid.UUID
     nome_completo: str
     codigo: str
+    departamento: str | None
+
+
+class LinhaPedidoSaida(BaseModel):
+    """Linha da tela de entregas: o pedido mais quem vem retirar."""
+
+    pedido: PedidoDetalheSaida
+    colaborador_nome: str
+    colaborador_codigo: str
     departamento: str | None

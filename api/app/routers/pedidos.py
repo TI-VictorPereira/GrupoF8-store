@@ -11,6 +11,7 @@ from app.modules import pedidos
 from app.schemas.operacao import (
     EntradaCancelamento,
     EntradaPedido,
+    LinhaPedidoSaida,
     PedidoDetalheSaida,
     PedidoSaida,
 )
@@ -34,9 +35,19 @@ def meus_pedidos(ator: AtorLiberado, sessao: Sessao) -> list[PedidoDetalheSaida]
     return [_detalhe(sessao, pedido) for pedido in pedidos.listar_proprios(sessao, ator)]
 
 
-@rotas.get("/pendentes", response_model=list[PedidoDetalheSaida])
-def pendentes(ator: AdminLiberado, sessao: Sessao) -> list[PedidoDetalheSaida]:
-    return [_detalhe(sessao, pedido) for pedido in pedidos.listar_pendentes(sessao, ator)]
+@rotas.get("/pendentes", response_model=list[LinhaPedidoSaida])
+def pendentes(ator: AdminLiberado, sessao: Sessao) -> list[LinhaPedidoSaida]:
+    return [
+        LinhaPedidoSaida(
+            pedido=PedidoDetalheSaida.model_validate(
+                {**linha.pedido.__dict__, "itens": linha.itens}
+            ),
+            colaborador_nome=linha.colaborador_nome,
+            colaborador_codigo=linha.colaborador_codigo,
+            departamento=linha.departamento,
+        )
+        for linha in pedidos.listar_pendentes_detalhado(sessao, ator)
+    ]
 
 
 @rotas.post("/{pedido_id}/entregar", response_model=PedidoSaida)

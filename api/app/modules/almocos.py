@@ -16,9 +16,10 @@ from app.excecoes import (
     AlmocoExpirado,
     AlmocoJaConfirmado,
     AlmocoJaGeradoHoje,
+    AlmocoNaoConfirmado,
+    AlmocoNaoEncontrado,
     CodigoDeBarrasInvalido,
-    Conflito,
-    NaoEncontrado,
+    ColaboradorNaoEncontrado,
     SemPermissao,
 )
 from app.models.cadastro import Colaborador, Departamento, PrecoAlmoco
@@ -68,16 +69,6 @@ def _preco_vigente(sessao: Session, agora: datetime) -> Decimal:
 
 def _codigo_barras() -> str:
     """14 dígitos aleatórios.
-
-    Numérico de propósito: o código é lido por leitor de mão no totem, e o
-    campo do painel trabalha em modo numérico. Letras maiúsculas/minúsculas e
-    símbolos dependem da configuração de teclado do leitor e falham em parte
-    dos aparelhos — além de deixarem o CODE128 bem mais largo na tela do
-    celular, porque só a variante numérica compacta dois dígitos por símbolo.
-
-    Aleatório de propósito: o protótipo usava data-hora + 2 dígitos, ou seja 90
-    possibilidades por segundo — dava para adivinhar um código válido e almoçar
-    na conta de outra pessoa. Com 14 dígitos isso deixa de existir.
     """
     return f"{secrets.randbelow(10**14):014d}"
 
@@ -98,7 +89,7 @@ def gerar(sessao: Session, ator: Ator) -> Almoco:
 
     colaborador = sessao.get(Colaborador, ator.id)
     if colaborador is None or not colaborador.ativo:
-        raise NaoEncontrado()
+        raise ColaboradorNaoEncontrado()
 
     almoco = Almoco(
         colaborador_id=colaborador.id,
@@ -198,9 +189,9 @@ def desfazer_confirmacao(sessao: Session, ator: Ator, almoco_id: uuid.UUID) -> A
 
     almoco = sessao.get(Almoco, almoco_id)
     if almoco is None:
-        raise NaoEncontrado("Almoço não encontrado.")
+        raise AlmocoNaoEncontrado()
     if almoco.status != "confirmado":
-        raise Conflito("Só é possível desfazer um almoço confirmado.")
+        raise AlmocoNaoConfirmado()
 
     almoco.status = "pendente"
     almoco.confirmado_em = None
@@ -225,7 +216,7 @@ def registrar_manual(sessao: Session, ator: Ator, colaborador_id: uuid.UUID) -> 
     agora = _agora()
     colaborador = sessao.get(Colaborador, colaborador_id)
     if colaborador is None or not colaborador.ativo:
-        raise NaoEncontrado()
+        raise ColaboradorNaoEncontrado()
 
     existente = _almoco_hoje(sessao, colaborador_id, agora)
     if existente is not None:

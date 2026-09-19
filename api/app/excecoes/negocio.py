@@ -75,3 +75,61 @@ class MatriculaDuplicada(Conflito):
 class CodparcDuplicado(Conflito):
     codigo = "codparc_duplicado"
     mensagem = "Já existe um colaborador com este código de parceiro."
+
+
+class AlmocoNaoConfirmado(Conflito):
+    """Desfazer só faz sentido no que foi confirmado."""
+
+    codigo = "almoco_nao_confirmado"
+    mensagem = "Só é possível desfazer um almoço confirmado."
+
+
+class AutoInativacao(Conflito):
+    """Inativar o próprio acesso deixaria o admin fora do sistema que ele
+    administra — e possivelmente sem ninguém para reverter."""
+
+    codigo = "auto_inativacao"
+    mensagem = "Você não pode inativar o próprio acesso."
+
+
+class SolicitacaoJaTratada(Conflito):
+    codigo = "solicitacao_ja_tratada"
+    mensagem = "Esta solicitação já foi tratada."
+
+
+class EmpresaComColaboradores(Conflito):
+    """Inativar com gente dentro deixaria colaboradores sem empresa válida para
+    lançar consumo — o erro só apareceria no fechamento do mês."""
+
+    codigo = "empresa_com_colaboradores"
+    mensagem = "Há colaboradores ativos nesta empresa. Transfira-os antes."
+
+
+class CodempDuplicado(Conflito):
+    codigo = "codemp_duplicado"
+    mensagem = "Já existe uma empresa com este código."
+
+
+class DepartamentoDuplicado(Conflito):
+    codigo = "departamento_duplicado"
+    mensagem = "Já existe um departamento com este nome."
+
+
+class CadastroDuplicado(Conflito):
+    """Violação de unicidade que não caiu em nenhuma das específicas.
+
+    Existe para o tradutor de IntegrityError ter um destino nomeado em vez de
+    devolver `Conflito` cru — se este código aparecer no log, falta uma classe.
+    """
+
+    codigo = "cadastro_duplicado"
+    mensagem = "Cadastro conflita com um registro existente."
+
+
+class CodigoRetiradaIndisponivel(Conflito):
+    """Dez colisões seguidas em 1 milhão de códigos é praticamente impossível;
+    ainda assim é conflito de estado, não defeito: 409 com mensagem útil em vez
+    de um 500 mudo."""
+
+    codigo = "codigo_retirada_indisponivel"
+    mensagem = "Não foi possível gerar um código de retirada. Tente novamente."

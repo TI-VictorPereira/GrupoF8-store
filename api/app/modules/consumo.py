@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import obter_config
-from app.excecoes import DadosInvalidos
+from app.excecoes import CompetenciaInvalida
 from app.models.operacao import Almoco, ItemPedido, Pedido
 from app.modules.auditoria import Ator
 
@@ -42,7 +42,7 @@ def _intervalo(competencia: str) -> tuple[datetime, datetime]:
         ano, mes = (int(p) for p in competencia.split("-"))
         primeiro = date(ano, mes, 1)
     except (ValueError, TypeError):
-        raise DadosInvalidos("Competência inválida. Use o formato AAAA-MM.") from None
+        raise CompetenciaInvalida() from None
 
     fuso = ZoneInfo(_config.fuso)
     inicio = datetime(primeiro.year, primeiro.month, 1, tzinfo=fuso)

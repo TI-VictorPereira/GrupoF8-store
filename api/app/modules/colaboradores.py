@@ -1,8 +1,4 @@
 """Cadastro de colaboradores, importação em massa e reset de senha.
-
-Tudo aqui é restrito ao administrador. O reset de senha nunca devolve uma senha
-escolhida por gente: o sistema sorteia, mostra uma vez e obriga a troca no
-primeiro acesso — admin que digita senha provisória digita `123456`.
 """
 
 import uuid
@@ -17,13 +13,23 @@ from sqlalchemy.orm import Session
 from app.core import seguranca
 from app.core.config import obter_config
 from app.excecoes import (
+    AutoInativacao,
+    CadastroDuplicado,
     CodigoDuplicado,
     CodparcDuplicado,
-    Conflito,
-    DadosInvalidos,
+    ColaboradorNaoEncontrado,
+    DepartamentoNaoEncontrado,
+    EmpresaNaoEncontrada,
+    ImportacaoGrandeDemais,
+    ImportacaoVazia,
     MatriculaDuplicada,
-    NaoEncontrado,
+    MatriculaNaoPermitida,
+    MatriculaObrigatoria,
+    PapelInvalido,
     SemPermissao,
+    SolicitacaoJaTratada,
+    SolicitacaoNaoEncontrada,
+    VinculoInvalido,
 )
 from app.models.acesso import SolicitacaoSenha
 from app.models.cadastro import Colaborador, Departamento, Empresa
@@ -72,23 +78,23 @@ def _traduzir_duplicidade(erro: IntegrityError) -> Exception:
         return MatriculaDuplicada()
     if "codigo" in detalhe:
         return CodigoDuplicado()
-    return Conflito("Cadastro conflita com um registro existente.")
+    return CadastroDuplicado()
 
 
 def _validar(sessao: Session, dados: DadosColaborador) -> None:
     if dados.vinculo not in {"clt", "pj"}:
-        raise DadosInvalidos("Vínculo inválido.", detalhes={"vinculo": dados.vinculo})
+        raise VinculoInvalido(detalhes={"vinculo": dados.vinculo})
     if dados.papel not in {"colaborador", "refeitorio", "admin"}:
-        raise DadosInvalidos("Papel inválido.", detalhes={"papel": dados.papel})
+        raise PapelInvalido(detalhes={"papel": dados.papel})
     # O banco tem o mesmo CHECK; aqui é só para a mensagem ser útil.
     if dados.vinculo == "clt" and dados.matricula is None:
-        raise DadosInvalidos("Colaborador CLT precisa de matrícula.")
+        raise MatriculaObrigatoria()
     if dados.vinculo == "pj" and dados.matricula is not None:
-        raise DadosInvalidos("Colaborador PJ não tem matrícula.")
+        raise MatriculaNaoPermitida()
     if sessao.get(Empresa, dados.empresa_id) is None:
-        raise NaoEncontrado("Empresa não encontrada.")
+        raise EmpresaNaoEncontrada()
     if dados.departamento_id and sessao.get(Departamento, dados.departamento_id) is None:
-        raise NaoEncontrado("Departamento não encontrado.")
+        raise DepartamentoNaoEncontrado()
 
 
 def _retrato(colaborador: Colaborador) -> dict[str, Any]:
@@ -142,7 +148,7 @@ def obter(sessao: Session, ator: Ator, colaborador_id: uuid.UUID) -> Colaborador
     _exigir_admin(ator)
     colaborador = sessao.get(Colaborador, colaborador_id)
     if colaborador is None:
-        raise NaoEncontrado("Colaborador não encontrado.")
+        raise ColaboradorNaoEncontrado()
     return colaborador
 
 
@@ -263,7 +269,7 @@ def definir_ativo(
     _exigir_admin(ator)
     colaborador = obter(sessao, ator, colaborador_id)
     if colaborador.id == ator.id and not ativo:
-        raise Conflito("Você não pode inativar o próprio acesso.")
+        raise AutoInativacao()
     if colaborador.ativo == ativo:
         return colaborador
 
@@ -317,9 +323,9 @@ def importar(
     """
     _exigir_admin(ator)
     if not linhas:
-        raise DadosInvalidos("Nenhuma linha para importar.")
+        raise ImportacaoVazia()
     if len(linhas) > 500:
-        raise DadosInvalidos("Importe no máximo 500 linhas por vez.")
+        raise ImportacaoGrandeDemais()
 
     resultado = ResultadoImportacao()
     for indice, dados in enumerate(linhas, start=1):
@@ -367,9 +373,9 @@ def atender_solicitacao(sessao: Session, ator: Ator, solicitacao_id: uuid.UUID) 
     _exigir_admin(ator)
     solicitacao = sessao.get(SolicitacaoSenha, solicitacao_id)
     if solicitacao is None:
-        raise NaoEncontrado("Solicitação não encontrada.")
+        raise SolicitacaoNaoEncontrada()
     if solicitacao.status != "aberta":
-        raise Conflito("Esta solicitação já foi tratada.")
+        raise SolicitacaoJaTratada()
 
     colaborador = sessao.scalar(
         select(Colaborador).where(Colaborador.codigo == solicitacao.codigo)
@@ -377,7 +383,7 @@ def atender_solicitacao(sessao: Session, ator: Ator, solicitacao_id: uuid.UUID) 
     if colaborador is None:
         # O pedido é aberto sem validar o código, de propósito: a tela de login
         # não pode revelar quais existem. A conferência acontece aqui.
-        raise NaoEncontrado("Não existe colaborador com o código informado.")
+        raise ColaboradorNaoEncontrado("Não existe colaborador com o código informado.")
 
     senha = redefinir_senha(sessao, ator, colaborador.id)
     solicitacao.status = "atendida"
@@ -390,9 +396,9 @@ def descartar_solicitacao(sessao: Session, ator: Ator, solicitacao_id: uuid.UUID
     _exigir_admin(ator)
     solicitacao = sessao.get(SolicitacaoSenha, solicitacao_id)
     if solicitacao is None:
-        raise NaoEncontrado("Solicitação não encontrada.")
+        raise SolicitacaoNaoEncontrada()
     if solicitacao.status != "aberta":
-        raise Conflito("Esta solicitação já foi tratada.")
+        raise SolicitacaoJaTratada()
 
     solicitacao.status = "descartada"
     solicitacao.atendido_em = datetime.now(timezone.utc)
