@@ -1,9 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, XCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
-import { ErroApi, api } from "@/api/cliente";
+import { api } from "@/api/cliente";
 import { Carregando } from "@/componentes/Carregando";
 import { Vazio } from "@/componentes/Vazio";
+import { Badge } from "@/componentes/ui/badge";
+import { Button } from "@/componentes/ui/button";
+import { Card, CardContent } from "@/componentes/ui/card";
+import { Input } from "@/componentes/ui/input";
+import { Label } from "@/componentes/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/componentes/ui/tabs";
+import { mensagemDeErro } from "@/comum/erros";
 import { hora } from "@/comum/formato";
 import { useSair } from "@/comum/sessao";
 import type { AlmocoDoDia } from "@/interfaces/almoco";
@@ -12,12 +20,12 @@ import type { Eu } from "@/interfaces/sessao";
 
 const CHAVE_PAINEL = ["painel-almocos"] as const;
 
+// Quem lê é o operador, não o dono do almoço: por isso terceira pessoa, e por
+// isso "peça para gerar" em vez de "gere". O resto vem pronto do servidor.
 const AVISOS: Record<string, string> = {
-  codigo_barras_invalido: "Código não encontrado.",
   almoco_ja_confirmado: "Este código já foi usado hoje.",
   almoco_expirado: "Código expirado. Peça para gerar outro.",
   almoco_ja_gerado_hoje: "Esta pessoa já tem almoço lançado hoje.",
-  nao_encontrado: "Colaborador não encontrado.",
 };
 
 interface Feedback {
@@ -73,11 +81,7 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
       setFeedback({ tom: "ok", titulo: nomeDe(almoco), detalhe: "Liberado" });
       recarregar();
     },
-    onError: (erro) =>
-      setFeedback({
-        tom: "erro",
-        titulo: erro instanceof ErroApi ? (AVISOS[erro.codigo] ?? erro.message) : "Falhou",
-      }),
+    onError: (erro) => setFeedback({ tom: "erro", titulo: mensagemDeErro(erro, AVISOS) }),
     onSettled: () => {
       setCodigo("");
       campo.current?.focus();
@@ -94,11 +98,7 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
       setTermo("");
       campo.current?.focus();
     },
-    onError: (erro) =>
-      setFeedback({
-        tom: "erro",
-        titulo: erro instanceof ErroApi ? (AVISOS[erro.codigo] ?? erro.message) : "Falhou",
-      }),
+    onError: (erro) => setFeedback({ tom: "erro", titulo: mensagemDeErro(erro, AVISOS) }),
   });
 
   const desfazer = useMutation({
@@ -120,7 +120,7 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
   const linhas = painel.data ?? [];
   const contagem = useMemo(
     () => ({
-      total: linhas.length,
+      todos: linhas.length,
       pendente: linhas.filter((l) => l.almoco.status === "pendente").length,
       confirmado: linhas.filter((l) => l.almoco.status === "confirmado").length,
     }),
@@ -143,124 +143,126 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
             {contagem.confirmado} liberados · {contagem.pendente} aguardando
           </p>
         </div>
-        <button onClick={() => sair.mutate()} className="text-xs font-semibold text-suave">
+        <Button variant="ghost" size="sm" onClick={() => sair.mutate()}>
           Sair
-        </button>
+        </Button>
       </header>
 
-      <form onSubmit={enviarCodigo} className="rounded-xl border border-borda bg-card p-4">
-        <label htmlFor="codigo" className="text-xs font-semibold text-suave">
-          Código de barras
-        </label>
-        <input
-          id="codigo"
-          ref={campo}
-          value={codigo}
-          onChange={(e) => setCodigo(e.target.value)}
-          inputMode="numeric"
-          autoComplete="off"
-          autoFocus
-          placeholder="Passe o leitor ou digite"
-          // O leitor de mão digita os dígitos e manda Enter no fim: o submit do
-          // formulário já é o gatilho, sem botão nenhum no caminho.
-          className="mt-1 w-full rounded-lg border border-borda px-3 py-3 font-mono text-xl tracking-wider outline-none focus:border-ink"
-        />
-        <div className="mt-3 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setManualAberto((v) => !v)}
-            className="text-xs font-semibold text-suave underline"
-          >
-            {manualAberto ? "Fechar busca" : "Sem código? Lançar manualmente"}
-          </button>
-          <button
-            type="submit"
-            disabled={!codigo.trim() || confirmar.isPending}
-            className="rounded-lg bg-ink px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
-          >
-            {confirmar.isPending ? "Conferindo…" : "Confirmar"}
-          </button>
-        </div>
-      </form>
+      <Card>
+        <CardContent className="p-4">
+          <form onSubmit={enviarCodigo}>
+            <Label htmlFor="codigo">Código de barras</Label>
+            <Input
+              id="codigo"
+              ref={campo}
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value)}
+              inputMode="numeric"
+              autoComplete="off"
+              autoFocus
+              placeholder="Passe o leitor ou digite"
+              // O leitor de mão digita os dígitos e manda Enter no fim: o
+              // submit do formulário já é o gatilho, sem botão no caminho.
+              className="mt-1.5 h-12 font-mono text-xl tracking-wider"
+            />
+            <div className="mt-3 flex items-center justify-between">
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-xs text-suave"
+                onClick={() => setManualAberto((v) => !v)}
+              >
+                {manualAberto ? "Fechar busca" : "Sem código? Lançar manualmente"}
+              </Button>
+              <Button type="submit" disabled={!codigo.trim() || confirmar.isPending}>
+                {confirmar.isPending ? "Conferindo…" : "Confirmar"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       {feedback && (
-        <div
+        <Card
           role="status"
-          className={`mt-4 rounded-xl border px-5 py-4 ${
+          className={`mt-4 ${
             feedback.tom === "ok"
               ? "border-sucesso/30 bg-sucesso/10"
               : "border-perigo/30 bg-perigo/10"
           }`}
         >
-          <p
-            className={`text-xl font-extrabold ${
-              feedback.tom === "ok" ? "text-sucesso" : "text-perigo"
-            }`}
-          >
-            {feedback.titulo}
-          </p>
-          {feedback.detalhe && <p className="text-sm text-suave">{feedback.detalhe}</p>}
-        </div>
+          <CardContent className="flex items-center gap-3 p-4">
+            {feedback.tom === "ok" ? (
+              <CheckCircle2 className="size-8 shrink-0 text-sucesso" />
+            ) : (
+              <XCircle className="size-8 shrink-0 text-perigo" />
+            )}
+            <div className="min-w-0">
+              <p
+                className={`truncate text-xl font-extrabold ${
+                  feedback.tom === "ok" ? "text-sucesso" : "text-perigo"
+                }`}
+              >
+                {feedback.titulo}
+              </p>
+              {feedback.detalhe && <p className="text-sm text-suave">{feedback.detalhe}</p>}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {manualAberto && (
-        <div className="mt-4 rounded-xl border border-borda bg-card p-4">
-          <label htmlFor="busca" className="text-xs font-semibold text-suave">
-            Nome ou código do colaborador
-          </label>
-          <input
-            id="busca"
-            value={termo}
-            onChange={(e) => setTermo(e.target.value)}
-            autoComplete="off"
-            className="mt-1 w-full rounded-lg border border-borda px-3 py-2 text-sm outline-none focus:border-ink"
-          />
-          {termo.trim().length >= 2 && busca.data?.length === 0 && (
-            <p className="mt-3 text-sm text-suave">Ninguém encontrado.</p>
-          )}
-          <div className="mt-2">
-            {(busca.data ?? []).map((pessoa) => (
-              <button
-                key={pessoa.id}
-                onClick={() => manual.mutate(pessoa.id)}
-                disabled={manual.isPending}
-                className="flex w-full items-center justify-between border-b border-borda py-2.5 text-left last:border-b-0 disabled:opacity-50"
-              >
-                <span>
-                  <span className="block text-sm font-semibold">{pessoa.nome_completo}</span>
-                  <span className="block text-[11px] text-suave">
-                    {pessoa.codigo}
-                    {pessoa.departamento ? ` · ${pessoa.departamento}` : ""}
+        <Card className="mt-4">
+          <CardContent className="p-4">
+            <Label htmlFor="busca">Nome ou código do colaborador</Label>
+            <Input
+              id="busca"
+              value={termo}
+              onChange={(e) => setTermo(e.target.value)}
+              autoComplete="off"
+              className="mt-1.5"
+            />
+            {termo.trim().length >= 2 && busca.data?.length === 0 && (
+              <p className="mt-3 text-sm text-suave">Ninguém encontrado.</p>
+            )}
+            <div className="mt-2">
+              {(busca.data ?? []).map((pessoa) => (
+                <Button
+                  key={pessoa.id}
+                  variant="ghost"
+                  onClick={() => manual.mutate(pessoa.id)}
+                  disabled={manual.isPending}
+                  className="h-auto w-full justify-between rounded-none border-b border-borda px-2 py-2.5 text-left last:border-b-0"
+                >
+                  <span>
+                    <span className="block text-sm font-semibold">{pessoa.nome_completo}</span>
+                    <span className="block text-[11px] text-suave">
+                      {pessoa.codigo}
+                      {pessoa.departamento ? ` · ${pessoa.departamento}` : ""}
+                    </span>
                   </span>
-                </span>
-                <span className="text-xs font-bold text-suave">Lançar →</span>
-              </button>
-            ))}
-          </div>
-        </div>
+                  <span className="text-xs font-bold text-suave">Lançar →</span>
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="mt-6 flex gap-2">
-        {(
-          [
-            ["todos", `Todos (${contagem.total})`],
-            ["pendente", `Aguardando (${contagem.pendente})`],
-            ["confirmado", `Liberados (${contagem.confirmado})`],
-          ] as const
-        ).map(([valor, rotulo]) => (
-          <button
-            key={valor}
-            onClick={() => setFiltro(valor)}
-            className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold ${
-              filtro === valor ? "border-ink bg-ink text-white" : "border-borda bg-card text-suave"
-            }`}
-          >
-            {rotulo}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        value={filtro}
+        onValueChange={(v) => setFiltro(v as Filtro)}
+        className="mt-6"
+      >
+        <TabsList>
+          <TabsTrigger value="todos">Todos ({contagem.todos})</TabsTrigger>
+          <TabsTrigger value="pendente">Aguardando ({contagem.pendente})</TabsTrigger>
+          <TabsTrigger value="confirmado">Liberados ({contagem.confirmado})</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
-      <div className="mt-3 overflow-hidden rounded-xl border border-borda bg-card">
+      <Card className="mt-3 overflow-hidden">
         {painel.isLoading && <Carregando />}
         {painel.data && visiveis.length === 0 && (
           <div className="p-4">
@@ -281,29 +283,31 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
                 {almoco.origem === "manual" && " · manual"}
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-3">
+            <div className="flex shrink-0 items-center gap-2">
               {almoco.status === "confirmado" ? (
                 <>
-                  <span className="text-xs font-bold text-sucesso">
+                  <Badge className="bg-sucesso text-white hover:bg-sucesso">
                     Liberado {almoco.confirmado_em ? hora(almoco.confirmado_em) : ""}
-                  </span>
-                  <button
+                  </Badge>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-[11px] text-suave"
                     onClick={() => desfazer.mutate(almoco.id)}
                     disabled={desfazer.isPending}
-                    className="text-[11px] font-semibold text-suave underline disabled:opacity-50"
                   >
                     Desfazer
-                  </button>
+                  </Button>
                 </>
               ) : almoco.status === "pendente" ? (
-                <span className="text-xs font-semibold text-suave">Aguardando</span>
+                <Badge variant="secondary">Aguardando</Badge>
               ) : (
-                <span className="text-xs font-semibold text-muito-suave">{almoco.status}</span>
+                <Badge variant="outline">{almoco.status}</Badge>
               )}
             </div>
           </div>
         ))}
-      </div>
+      </Card>
 
       {eu.papel === "admin" && (
         <p className="mt-4 text-center text-[11px] text-muito-suave">

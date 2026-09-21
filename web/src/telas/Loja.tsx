@@ -1,20 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { Minus, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { ErroApi, api } from "@/api/cliente";
+import { api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { Cabecalho } from "@/componentes/Cabecalho";
 import { Carregando } from "@/componentes/Carregando";
 import { Moldura } from "@/componentes/Moldura";
 import { Vazio } from "@/componentes/Vazio";
+import { Button } from "@/componentes/ui/button";
+import { Card } from "@/componentes/ui/card";
+import { mensagemDeErro } from "@/comum/erros";
 import { dinheiro } from "@/comum/formato";
 import type { Categoria, PedidoCriado, ProdutoVitrine } from "@/interfaces/loja";
 
+// A tela sabe que existe um carrinho ajustável, e o servidor não. "Produto
+// inativo ou sem estoque" também não é assunto de quem está comprando.
 const AVISOS: Record<string, string> = {
   estoque_insuficiente: "Alguém levou o último antes de você. Ajuste a quantidade.",
   produto_indisponivel: "Este produto saiu da loja.",
-  carrinho_vazio: "Escolha pelo menos um item.",
 };
 
 export function Loja() {
@@ -76,7 +81,7 @@ export function Loja() {
     });
   }
 
-  const erro = finalizar.error instanceof ErroApi ? finalizar.error : null;
+  const aviso = finalizar.error ? mensagemDeErro(finalizar.error, AVISOS) : null;
 
   return (
     <Moldura>
@@ -84,23 +89,25 @@ export function Loja() {
 
       <div className="no-scrollbar flex gap-2 overflow-x-auto px-5 pt-4">
         {[{ id: "todas", nome: "Todos" }, ...(categorias.data ?? [])].map((c) => (
-          <button
+          <Button
             key={c.id}
+            size="sm"
+            variant={filtro === c.id ? "default" : "outline"}
             onClick={() => setFiltro(c.id)}
-            className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap ${
-              filtro === c.id
-                ? "border-ink bg-ink text-white"
-                : "border-borda bg-card text-suave"
-            }`}
+            className="shrink-0 rounded-full text-[11px]"
           >
             {c.nome}
-          </button>
+          </Button>
         ))}
       </div>
 
       <div className="p-5 pb-28">
         {produtos.isLoading && <Carregando texto="Carregando produtos…" />}
-        {erro && <div className="mb-3">{<Aviso>{AVISOS[erro.codigo] ?? erro.message}</Aviso>}</div>}
+        {aviso && (
+          <div className="mb-3">
+            <Aviso>{aviso}</Aviso>
+          </div>
+        )}
         {produtos.data && visiveis.length === 0 && <Vazio>Nada nesta categoria.</Vazio>}
 
         <div className="grid grid-cols-2 gap-3">
@@ -108,10 +115,7 @@ export function Loja() {
             const quantidade = carrinho[produto.id] ?? 0;
             const semEstoque = produto.estoque <= 0;
             return (
-              <article
-                key={produto.id}
-                className="overflow-hidden rounded-xl border border-borda"
-              >
+              <Card key={produto.id} className="overflow-hidden">
                 <div className="flex h-24 items-center justify-center bg-bg">
                   {produto.foto_url ? (
                     <img
@@ -134,38 +138,44 @@ export function Loja() {
                       {dinheiro(produto.preco_venda)}
                     </span>
                     {quantidade === 0 ? (
-                      <button
+                      <Button
+                        size="sm"
+                        variant="destaque"
                         disabled={semEstoque}
                         onClick={() => alterar(produto, 1)}
-                        className="rounded-lg bg-accent px-2.5 py-1.5 text-[11px] font-bold text-ink disabled:opacity-40"
+                        className="h-7 px-2.5 text-[11px]"
                       >
                         Add
-                      </button>
+                      </Button>
                     ) : (
                       <div className="flex items-center gap-1.5">
-                        <button
+                        <Button
+                          size="icon"
+                          variant="outline"
                           onClick={() => alterar(produto, -1)}
-                          className="h-6 w-6 rounded-md border border-borda font-bold"
                           aria-label="Menos um"
+                          className="h-6 w-6"
                         >
-                          −
-                        </button>
+                          <Minus />
+                        </Button>
                         <span className="w-4 text-center text-[13px] font-bold">
                           {quantidade}
                         </span>
-                        <button
+                        <Button
+                          size="icon"
+                          variant="destaque"
                           onClick={() => alterar(produto, 1)}
                           disabled={quantidade >= produto.estoque}
-                          className="h-6 w-6 rounded-md bg-accent font-bold text-ink disabled:opacity-40"
                           aria-label="Mais um"
+                          className="h-6 w-6"
                         >
-                          +
-                        </button>
+                          <Plus />
+                        </Button>
                       </div>
                     )}
                   </div>
                 </div>
-              </article>
+              </Card>
             );
           })}
         </div>
@@ -179,13 +189,13 @@ export function Loja() {
             </p>
             <p className="text-sm font-extrabold">{dinheiro(total)}</p>
           </div>
-          <button
+          <Button
             onClick={() => finalizar.mutate()}
             disabled={finalizar.isPending}
-            className="rounded-xl bg-ink px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+            className="rounded-xl px-5"
           >
             {finalizar.isPending ? "Finalizando…" : "Finalizar"}
-          </button>
+          </Button>
         </div>
       )}
     </Moldura>

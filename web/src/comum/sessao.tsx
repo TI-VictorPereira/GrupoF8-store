@@ -1,20 +1,26 @@
 /**
  * Sessão do usuário.
- *
- * Não existe token guardado no front: a sessão é um cookie httpOnly que o
- * navegador manda sozinho. Saber quem está logado é, portanto, uma pergunta
- * ao servidor — e é o TanStack Query que cuida do cache dessa resposta.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 
 import { ErroApi, api } from "@/api/cliente";
 import type { Eu } from "@/interfaces/sessao";
 
 export const CHAVE_EU = ["eu"] as const;
 
+export function encerrarSessaoLocal(cliente: QueryClient): void {
+  cliente.setQueryData(CHAVE_EU, null);
+  cliente.removeQueries({ predicate: (c) => c.queryKey[0] !== CHAVE_EU[0] });
+}
+
 export function useSessao() {
-  const consulta = useQuery({
+  const consulta = useQuery<Eu | null>({
     queryKey: CHAVE_EU,
     queryFn: () => api.get<Eu>("/auth/eu"),
     retry: false,
@@ -44,8 +50,7 @@ export function useSair() {
   const clienteConsulta = useQueryClient();
   return useMutation({
     mutationFn: () => api.post("/auth/logout"),
-    // Zera o cache inteiro: qualquer dado em memória era da sessão anterior.
-    onSettled: () => clienteConsulta.clear(),
+    onSettled: () => encerrarSessaoLocal(clienteConsulta),
   });
 }
 

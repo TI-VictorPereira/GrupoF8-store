@@ -1,22 +1,83 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-/* Identidade visual herdada do protótipo: preto e amarelo, Inter.
-   Os valores em oklch vêm do styles.css original, para a interface nova não
-   nascer com outra cara. */
-@theme {
-  --color-ink: oklch(0.15 0 90);
-  --color-ink-soft: oklch(0.191 0 90);
-  --color-bg: oklch(0.984 0.004 106.5);
-  --color-card: oklch(1 0 0);
-  --color-borda: oklch(0.922 0 90);
-  --color-accent: oklch(0.881 0.181 94);
-  --color-accent-dark: oklch(0.801 0.164 90.5);
-  --color-suave: oklch(0.51 0 90);
-  --color-muito-suave: oklch(0.627 0 90);
-  --color-perigo: oklch(0.56 0.179 25.1);
-  --color-sucesso: oklch(0.56 0.134 152.5);
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* --- contrato do shadcn --- */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* --- paleta F8, usada pelas telas --- */
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-bg: var(--bg);
+  --color-accent-dark: var(--accent-dark);
+  --color-borda: var(--border);
+  --color-suave: var(--muted-foreground);
+  --color-muito-suave: var(--muted-soft);
+  --color-perigo: var(--danger);
+  --color-sucesso: var(--success);
+  --color-info: var(--info);
 
   --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --radius: 0.625rem;
+
+  --ink: oklch(0.15 0 90);
+  --ink-soft: oklch(0.191 0 90);
+  --bg: oklch(0.984 0.004 106.5);
+  --muted-soft: oklch(0.627 0 90);
+  --danger: oklch(0.56 0.179 25.1);
+  --success: oklch(0.56 0.134 152.5);
+  --info: oklch(0.546 0.215 262.9);
+  --accent-dark: oklch(0.801 0.164 90.5);
+
+  --background: oklch(0.984 0.004 106.5);
+  --foreground: oklch(0.15 0 90);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.15 0 90);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.15 0 90);
+  --primary: oklch(0.15 0 90);
+  --primary-foreground: oklch(0.984 0.004 106.5);
+  --secondary: oklch(0.968 0.007 247.896);
+  --secondary-foreground: oklch(0.208 0.042 265.755);
+  --muted: oklch(0.968 0.007 106.5);
+  --muted-foreground: oklch(0.51 0 90);
+  /* Amarelo F8. No shadcn padrão este token é um cinza de hover; aqui ele é a
+     cor da marca, então `hover:bg-accent` fica amarelo — era assim no
+     protótipo e foi mantido de propósito. */
+  --accent: oklch(0.881 0.181 94);
+  --accent-foreground: oklch(0.15 0 90);
+  --destructive: oklch(0.56 0.179 25.1);
+  --destructive-foreground: oklch(0.984 0.003 247.858);
+  --border: oklch(0.922 0 90);
+  --input: oklch(0.922 0 90);
+  --ring: oklch(0.704 0.04 256.788);
 }
 
 @layer base {
@@ -26,4 +87,21 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
+}
+
+@layer components {
+  table.tabela-admin th {
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--muted-soft);
+    font-weight: 600;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
 }

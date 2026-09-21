@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { ErroApi, api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
+import { Button } from "@/componentes/ui/button";
 import { Cabecalho } from "@/componentes/Cabecalho";
 import { Carregando } from "@/componentes/Carregando";
 import { CodigoBarras } from "@/componentes/CodigoBarras";
@@ -36,9 +37,6 @@ export function Almoco() {
   const consulta = useQuery({
     queryKey: CHAVE,
     queryFn: () => api.get<AlmocoDoDia | null>("/almocos/meu-hoje"),
-    // Enquanto o código está pendente, o refeitório pode confirmá-lo a
-    // qualquer momento. Consultar de tempos em tempos substitui o WebSocket
-    // do protótipo: o atraso de alguns segundos aqui não incomoda ninguém.
     refetchInterval: (query) =>
       query.state.data?.status === "pendente" ? 5000 : false,
   });
@@ -94,13 +92,14 @@ export function Almoco() {
                 Gere o código na hora de ir ao refeitório — ele vale por poucos minutos.
               </p>
               {erro && <div className="mb-4">{<Aviso>{erro.message}</Aviso>}</div>}
-              <button
+              <Button
+                variant="destaque"
+                className="w-full"
                 onClick={() => gerar.mutate()}
                 disabled={gerar.isPending}
-                className="w-full rounded-lg bg-accent py-2.5 text-sm font-bold text-ink disabled:opacity-60"
               >
                 {gerar.isPending ? "Gerando…" : "Liberar almoço de hoje"}
-              </button>
+              </Button>
             </>
           )}
       </div>

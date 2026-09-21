@@ -6,6 +6,13 @@ import { Cabecalho } from "@/componentes/Cabecalho";
 import { Carregando } from "@/componentes/Carregando";
 import { Moldura } from "@/componentes/Moldura";
 import { Vazio } from "@/componentes/Vazio";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/componentes/ui/select";
 import { dataHora, dinheiro, mesPorExtenso } from "@/comum/formato";
 import type { Extrato } from "@/interfaces/consumo";
 
@@ -35,18 +42,21 @@ export function Consumo() {
       <Cabecalho titulo="Meu consumo" />
 
       <div className="px-5 pt-4">
-        <select
+        <Select
           value={competencia ?? meses.data?.[0] ?? ""}
-          onChange={(e) => setCompetencia(e.target.value)}
-          className="w-full rounded-lg border border-borda bg-card px-3 py-2 text-sm"
-          aria-label="Mês"
+          onValueChange={setCompetencia}
         >
-          {(meses.data ?? []).map((mes) => (
-            <option key={mes} value={mes}>
-              {mesPorExtenso(mes)}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger aria-label="Mês">
+            <SelectValue placeholder="Escolha o mês" />
+          </SelectTrigger>
+          <SelectContent>
+            {(meses.data ?? []).map((mes) => (
+              <SelectItem key={mes} value={mes}>
+                {mesPorExtenso(mes)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {extrato.data && (

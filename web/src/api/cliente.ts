@@ -1,15 +1,10 @@
 /**
  * Cliente HTTP da API.
  *
- * Tudo sai por `/api`, na mesma origem — o proxy do Vite em desenvolvimento e
- * o Caddy em produção fazem o mesmo caminho. Por isso `credentials: "include"`
- * não é necessário para cookie de mesma origem, mas fica explícito para o dia
- * em que alguém mover a API para outro domínio e precisar reavaliar.
- */
 
-const BASE = "/api";
 
-/** Erro previsto pela API: sempre tem `codigo` estável e `correlacao_id`. */
+import { enviar } from "@/api/config";
+
 export class ErroApi extends Error {
   constructor(
     readonly codigo: string,
@@ -26,12 +21,7 @@ export class ErroApi extends Error {
 type Corpo = Record<string, unknown> | undefined;
 
 async function pedir<T>(metodo: string, caminho: string, corpo?: Corpo): Promise<T> {
-  const resposta = await fetch(`${BASE}${caminho}`, {
-    method: metodo,
-    credentials: "same-origin",
-    headers: corpo ? { "content-type": "application/json" } : undefined,
-    body: corpo ? JSON.stringify(corpo) : undefined,
-  });
+  const resposta = await enviar(metodo, caminho, corpo);
 
   if (resposta.status === 204) return undefined as T;
 
@@ -39,8 +29,7 @@ async function pedir<T>(metodo: string, caminho: string, corpo?: Corpo): Promise
   const dados = texto ? JSON.parse(texto) : null;
 
   if (!resposta.ok) {
-    // A API padroniza o erro; a decisão no front é sempre pelo `codigo`, nunca
-    // pelo texto da mensagem — texto muda, código é contrato.
+    
     throw new ErroApi(
       dados?.codigo ?? "erro_desconhecido",
       dados?.mensagem ?? "Não foi possível completar a operação.",

@@ -40,8 +40,11 @@ export function PedidoConfirmado({ pedidoId }: { pedidoId: string }) {
 
           <div className="mt-4 rounded-xl border border-borda p-4 text-left">
             <p className="mb-2 text-[11px] text-muito-suave">{dataHora(pedido.criado_em)}</p>
-            {pedido.itens.map((item) => (
-              <div key={item.id} className="flex justify-between py-1 text-[13px]">
+            {pedido.itens.map((item, indice) => (
+              <div
+                key={`${item.produto_id ?? item.nome_produto}-${indice}`}
+                className="flex justify-between py-1 text-[13px]"
+              >
                 <span className="text-suave">
                   {item.quantidade}× {item.nome_produto}
                 </span>
