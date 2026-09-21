@@ -25,13 +25,10 @@ VINCULOS = ("clt", "pj")
 
 class Empresa(Base):
     """Empresa do grupo, espelhando o cadastro do Sankhya.
-
-    `codemp` decide em qual empresa a despesa é lançada. Antes isto era um campo
-    de texto livre no colaborador — um acento trocado mandava o lançamento para
-    a empresa errada, sem erro nenhum aparecer.
     """
 
     __tablename__ = "empresas"
+    __table_args__ = (CheckConstraint("codemp > 0", name="codemp_positivo"),)
 
     id: Mapped[uuid.UUID] = pk_uuid()
     codemp: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
@@ -57,26 +54,19 @@ class CategoriaProduto(Base):
 class Colaborador(Base):
     """Todo colaborador tem `codparc` — é o que identifica a pessoa no Sankhya.
     Só o CLT tem, além disso, `matricula`; o PJ não tem nenhuma.
-
-    `codigo` é coisa separada: a credencial de login, criada pelo admin junto
-    com a senha provisória. Não tem relação com o ERP.
-
-    `codparc` é obrigatório: ninguém entra no sistema sem estar cadastrado como
-    parceiro no Sankhya. Isso garante que toda competência fecha sem pendência
-    de identificação, ao custo de o cadastro no ERP ter de vir antes do acesso.
     """
 
     __tablename__ = "colaboradores"
     __table_args__ = (
         CheckConstraint(f"papel in {PAPEIS}", name="papel_valido"),
+        CheckConstraint("codparc > 0", name="codparc_positivo"),
+        CheckConstraint("matricula is null or matricula > 0", name="matricula_positiva"),
         CheckConstraint(f"vinculo in {VINCULOS}", name="vinculo_valido"),
         CheckConstraint(
             "(vinculo = 'clt' and matricula is not null) or "
             "(vinculo = 'pj' and matricula is null)",
             name="matricula_conforme_vinculo",
         ),
-        # A matrícula repete entre empresas — no Sankhya ela só é única dentro
-        # de uma. NULL não colide com NULL, então vários PJ convivem aqui.
         UniqueConstraint("empresa_id", "matricula", name="uq_colaboradores_empresa_matricula"),
         Index("ix_colaboradores_ativo_nome", "ativo", "nome_completo"),
     )
@@ -106,16 +96,6 @@ class Colaborador(Base):
     senha_provisoria_expira_em: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    # Corte de sessão. O token carrega a versão com que foi emitido; qualquer
-    # divergência o invalida. Resetar a senha, trocar a senha ou inativar o
-    # acesso incrementam este número e derrubam tudo que estava aberto.
-    #
-    # É contador e não data de propósito: o `iat` do JWT só tem precisão de
-    # segundo, então um corte por timestamp deixa passar todo token emitido
-    # dentro do mesmo segundo — justamente a sessão que se quer expulsar.
-    # `default` além do `server_default`: o default do banco só vale no INSERT,
-    # então um objeto recém-construído teria None aqui e o incremento estouraria
-    # antes de chegar ao banco.
     sessao_versao: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
@@ -130,6 +110,8 @@ class Produto(Base):
     __tablename__ = "produtos"
     __table_args__ = (
         CheckConstraint("estoque >= 0", name="estoque_nao_negativo"),
+        CheckConstraint("custo >= 0", name="custo_nao_negativo"),
+        CheckConstraint("preco_venda >= 0", name="preco_nao_negativo"),
     )
 
     id: Mapped[uuid.UUID] = pk_uuid()
@@ -151,6 +133,12 @@ class PrecoAlmoco(Base):
     mês, não o atual."""
 
     __tablename__ = "precos_almoco"
+    __table_args__ = (
+        CheckConstraint("valor >= 0", name="valor_nao_negativo"),
+        CheckConstraint(
+            "vigencia_fim is null or vigencia_fim >= vigencia_inicio", name="vigencia_coerente"
+        ),
+    )
 
     id: Mapped[uuid.UUID] = pk_uuid()
     valor: Mapped[Decimal] = dinheiro()

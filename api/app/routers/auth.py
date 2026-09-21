@@ -1,8 +1,4 @@
 """Rotas de autenticação — camada fina sobre o módulo auth.
-
-Nenhuma regra aqui: o router lê a entrada, chama o serviço, grava cookie e
-devolve. Os erros sobem como exceção de `app.excecoes` e viram resposta nos
-handlers.
 """
 
 import uuid
@@ -17,13 +13,13 @@ from app.excecoes import NaoAutenticado
 from app.models.cadastro import Colaborador, Empresa
 from app.modules.auth import servico
 from app.schemas.auth import (
-    EmpresaResumo,
     EntradaLogin,
     EntradaSolicitacaoSenha,
     EntradaTrocaSenha,
     Eu,
-    Mensagem,
 )
+from app.schemas.comum import Mensagem
+from app.schemas.empresa import EmpresaResumo
 
 _config = obter_config()
 

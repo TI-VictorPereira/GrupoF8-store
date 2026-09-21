@@ -1,19 +1,20 @@
 """Rotas do colaborador e do totem para almoço."""
 
 import uuid
+from datetime import date
 
 from fastapi import APIRouter
 
-from app.core.deps import AtorLiberado, RefeitorioOuAdminLiberado, Sessao
+from app.core.deps import AdminLiberado, AtorLiberado, RefeitorioOuAdminLiberado, Sessao
 from app.models.operacao import Almoco
 from app.modules import almocos
-from app.schemas.operacao import (
+from app.schemas.almoco import (
     AlmocoSaida,
-    ColaboradorParaAlmocoSaida,
     EntradaAlmocoManual,
     EntradaConfirmacaoAlmoco,
     LinhaPainelSaida,
 )
+from app.schemas.colaborador import ColaboradorResumo
 
 rotas = APIRouter(prefix="/almocos", tags=["almoços"])
 
@@ -64,9 +65,29 @@ def desfazer(
     return almocos.desfazer_confirmacao(sessao, ator, almoco_id)
 
 
-@rotas.get("/colaboradores", response_model=list[ColaboradorParaAlmocoSaida])
+@rotas.get("/colaboradores", response_model=list[ColaboradorResumo])
 def colaboradores_para_lancamento(
     busca: str, ator: RefeitorioOuAdminLiberado, sessao: Sessao
 ) -> list[almocos.ColaboradorParaAlmoco]:
     """Só para o lançamento manual. Devolve menos que a listagem do admin."""
     return almocos.buscar_colaboradores(sessao, ator, busca)
+
+
+@rotas.get("", response_model=list[LinhaPainelSaida])
+def historico(
+    de: date,
+    ate: date,
+    ator: AdminLiberado,
+    sessao: Sessao,
+    status: str | None = None,
+) -> list[LinhaPainelSaida]:
+    """Histórico por intervalo de datas locais, com os dois extremos incluídos."""
+    return [
+        LinhaPainelSaida(
+            almoco=AlmocoSaida.model_validate(linha.almoco),
+            colaborador_nome=linha.colaborador_nome,
+            colaborador_codigo=linha.colaborador_codigo,
+            departamento=linha.departamento,
+        )
+        for linha in almocos.listar_periodo(sessao, ator, de, ate, status)
+    ]

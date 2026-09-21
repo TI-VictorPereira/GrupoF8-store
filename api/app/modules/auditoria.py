@@ -1,12 +1,4 @@
 """Trilha de auditoria de negócio.
-
-Não há trigger: quem registra é o serviço, sempre na MESMA sessão da mudança.
-Como o commit acontece só na borda da requisição, o registro e o fato que ele
-descreve caem juntos ou não caem — que é exatamente o desejado, porque este log
-descreve uma MUDANÇA.
-
-O log de ACESSO segue a regra oposta e mora em `app/modules/auth/registro.py`:
-ele descreve uma tentativa e precisa sobreviver ao rollback da falha.
 """
 
 import uuid
@@ -22,12 +14,9 @@ from app.models.auditoria import LogAuditoria
 @dataclass(frozen=True)
 class Ator:
     """Quem está agindo. Parâmetro explícito de todo serviço.
-
-    Substitui a RLS do Postgres, que protegia mesmo quando alguém esquecia o
-    filtro — por isso autorização aqui só vale acompanhada de teste.
     """
 
-    id: uuid.UUID
+    id: uuid.UUID | None
     codigo: str
     nome: str
     papel: str
@@ -35,6 +24,11 @@ class Ator:
     @property
     def eh_admin(self) -> bool:
         return self.papel == "admin"
+
+
+ATOR_CONSOLE = Ator(id=None, codigo="console", nome="Console do servidor", papel="admin")
+
+ATOR_RELOGIO = Ator(id=None, codigo="relogio", nome="Expiração automática", papel="admin")
 
 
 def registrar(
@@ -66,5 +60,3 @@ def registrar(
             correlacao_id=ctx.correlacao_id,
         )
     )
-
-

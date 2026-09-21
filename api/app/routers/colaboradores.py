@@ -8,16 +8,16 @@ from app.core.deps import AdminLiberado, Sessao
 from app.models.cadastro import Colaborador
 from app.modules import colaboradores
 from app.modules.colaboradores import DadosColaborador
-from app.schemas.cadastro import (
+from app.schemas.colaborador import (
     ColaboradorComSenha,
     ColaboradorSaida,
-    EntradaAtivo,
     EntradaColaborador,
     EntradaImportacao,
     ResultadoImportacaoSaida,
     SenhaRedefinida,
     SolicitacaoSaida,
 )
+from app.schemas.comum import EntradaAtivo
 
 rotas = APIRouter(prefix="/colaboradores", tags=["colaboradores"])
 

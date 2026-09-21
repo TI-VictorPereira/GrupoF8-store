@@ -8,9 +8,9 @@ from app.core.deps import AdminLiberado, AtorLiberado, Sessao
 from app.models.cadastro import CategoriaProduto, Produto
 from app.modules import produtos
 from app.modules.produtos import DadosProduto
-from app.schemas.cadastro import (
+from app.schemas.comum import EntradaAtivo
+from app.schemas.produto import (
     CategoriaSaida,
-    EntradaAtivo,
     EntradaProduto,
     ProdutoCompleto,
     ProdutoVitrine,

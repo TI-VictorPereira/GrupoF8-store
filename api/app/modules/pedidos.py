@@ -1,29 +1,39 @@
 """Pedidos: estoque atômico, snapshots e operações administrativas."""
 
 import secrets
-from dataclasses import dataclass
 import uuid
 from collections import Counter
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import obter_config
 from app.excecoes import (
     CarrinhoVazio,
     CodigoRetiradaIndisponivel,
+    CodigoRetiradaInvalido,
     ColaboradorInativo,
     EstoqueInsuficiente,
     PedidoNaoPendente,
+    PeriodoInvalido,
     ProdutoIndisponivel,
     SemPermissao,
 )
 from app.models.cadastro import CategoriaProduto, Colaborador, Departamento, Produto
 from app.models.operacao import ItemPedido, Pedido
 from app.modules import auditoria
-from app.modules.auditoria import Ator
+from app.modules.auditoria import ATOR_RELOGIO, Ator
+
+_config = obter_config()
+
+
+def _agora() -> datetime:
+    return datetime.now(UTC)
 
 
 def _codigo_retirada() -> str:
@@ -120,36 +130,123 @@ def listar_proprios(sessao: Session, ator: Ator) -> list[Pedido]:
     )
 
 
-def listar_pendentes(sessao: Session, ator: Ator) -> list[Pedido]:
-    # O router já protege a rota, mas o serviço não pode depender de quem o
-    # chama: é aqui que mora a autorização desde que a RLS deixou de existir.
-    if not ator.eh_admin:
-        raise SemPermissao()
-    consulta = select(Pedido).where(Pedido.status == "pendente").order_by(Pedido.criado_em)
-    return list(sessao.scalars(consulta))
-
-
 def entregar(sessao: Session, ator: Ator, pedido_id: uuid.UUID) -> Pedido:
     if not ator.eh_admin:
         raise SemPermissao()
     pedido = sessao.get(Pedido, pedido_id)
     if pedido is None or pedido.status != "pendente":
         raise PedidoNaoPendente()
+    return _marcar_entregue(sessao, ator, pedido, por_codigo=False)
 
+
+def _marcar_entregue(
+    sessao: Session, ator: Ator, pedido: Pedido, *, por_codigo: bool
+) -> Pedido:
+    """Fecha a entrega.
+
+    `por_codigo` entra na auditoria porque as duas formas não valem o mesmo:
+    com código, quem retirou provou que estava presente; sem código, o
+    operador liberou por conta própria. Se um dia alguém contestar um
+    desconto, é essa diferença que a trilha precisa mostrar.
+    """
     pedido.status = "entregue"
-    pedido.entregue_em = datetime.now(UTC)
+    pedido.entregue_em = _agora()
     pedido.entregue_por = ator.id
     auditoria.registrar(
         sessao,
         ator,
-        acao="pedido.entregue",
+        acao="pedido.entregue" if por_codigo else "pedido.entregue_sem_codigo",
         entidade="pedido",
         entidade_id=pedido.id,
-        descricao=f"Confirmou a entrega do pedido {pedido.codigo_retirada}.",
+        descricao=(
+            f"Confirmou a entrega do pedido {pedido.codigo_retirada}"
+            + ("." if por_codigo else " sem conferir o código.")
+        ),
         dados_anteriores={"status": "pendente"},
-        dados_novos={"status": "entregue"},
+        dados_novos={"status": "entregue", "conferido_por_codigo": por_codigo},
     )
     return pedido
+
+
+def entregar_por_codigo(sessao: Session, ator: Ator, codigo_retirada: str) -> Pedido:
+    """Confirma a entrega pelo código que a pessoa mostra no balcão.
+
+    Substitui a lista de assinatura em papel: quem retira prova que estava ali
+    apresentando um código que só existe no aparelho dela, e o sistema guarda
+    quem confirmou, quando e qual pedido.
+
+    O índice parcial `pedidos_codigo_retirada_pendente_uk` garante que o
+    código é único entre os pendentes, então a busca nunca é ambígua — é por
+    isso que dá para entregar digitando só o código, sem escolher da lista.
+    """
+    if not ator.eh_admin:
+        raise SemPermissao()
+
+    pedido = sessao.scalar(
+        select(Pedido).where(
+            Pedido.codigo_retirada == codigo_retirada.strip(),
+            Pedido.status == "pendente",
+        )
+    )
+    if pedido is None:
+        raise CodigoRetiradaInvalido()
+    return _marcar_entregue(sessao, ator, pedido, por_codigo=True)
+
+
+def _devolver_ao_estoque(sessao: Session, pedido: Pedido) -> None:
+    itens = list(sessao.scalars(select(ItemPedido).where(ItemPedido.pedido_id == pedido.id)))
+    itens_com_produto = (item for item in itens if item.produto_id)
+    # Mesma ordem da compra: dois cancelamentos com os mesmos produtos não
+    # travam um no outro.
+    for item in sorted(itens_com_produto, key=lambda item: str(item.produto_id)):
+        sessao.execute(
+            update(Produto)
+            .where(Produto.id == item.produto_id)
+            .values(estoque=Produto.estoque + item.quantidade)
+        )
+
+
+def expirar_vencidos(sessao: Session) -> list[Pedido]:
+    """Cancela pedidos pendentes velhos demais e devolve o estoque.
+
+    Pendente segura estoque: quem compra e não retira deixa a mercadoria fora
+    da prateleira para todo mundo. Sem isto, o número na tela vai ficando
+    menor que o da geladeira e ninguém entende por quê.
+
+    Fica como `cancelado` e não como um status novo, para os relatórios e a
+    exportação continuarem com uma regra só — "não cancelado conta". O motivo
+    e a ação na auditoria distinguem do cancelamento feito por gente.
+
+    Sem ator: quem faz isto é o relógio.
+    """
+    limite = _agora() - timedelta(hours=_config.pedido_validade_horas)
+    vencidos = list(
+        sessao.scalars(
+            select(Pedido).where(Pedido.status == "pendente", Pedido.criado_em < limite)
+        )
+    )
+
+    for pedido in vencidos:
+        _devolver_ao_estoque(sessao, pedido)
+        pedido.status = "cancelado"
+        pedido.cancelado_em = _agora()
+        pedido.motivo_cancelamento = (
+            f"Expirado: não retirado em {_config.pedido_validade_horas}h."
+        )
+        auditoria.registrar(
+            sessao,
+            ATOR_RELOGIO,
+            acao="pedido.expirado",
+            entidade="pedido",
+            entidade_id=pedido.id,
+            descricao=(
+                f"Expirou o pedido {pedido.codigo_retirada} por falta de retirada "
+                f"e devolveu os itens ao estoque."
+            ),
+            dados_anteriores={"status": "pendente"},
+            dados_novos={"status": "cancelado", "motivo": "expirado"},
+        )
+    return vencidos
 
 
 def cancelar(sessao: Session, ator: Ator, pedido_id: uuid.UUID, motivo: str) -> Pedido:
@@ -159,14 +256,7 @@ def cancelar(sessao: Session, ator: Ator, pedido_id: uuid.UUID, motivo: str) -> 
     if pedido is None or pedido.status != "pendente":
         raise PedidoNaoPendente()
 
-    itens = list(sessao.scalars(select(ItemPedido).where(ItemPedido.pedido_id == pedido.id)))
-    itens_com_produto = (item for item in itens if item.produto_id)
-    for item in sorted(itens_com_produto, key=lambda item: str(item.produto_id)):
-        sessao.execute(
-            update(Produto)
-            .where(Produto.id == item.produto_id)
-            .values(estoque=Produto.estoque + item.quantidade)
-        )
+    _devolver_ao_estoque(sessao, pedido)
 
     pedido.status = "cancelado"
     pedido.cancelado_em = datetime.now(UTC)
@@ -195,22 +285,14 @@ class LinhaPedido:
     departamento: str | None
 
 
-def listar_pendentes_detalhado(sessao: Session, ator: Ator) -> list[LinhaPedido]:
-    """O que o balcão de entrega precisa ver: o pedido e o nome de quem retira.
+def _montar(sessao: Session, consulta) -> list[LinhaPedido]:
+    """Executa a consulta e anexa os itens.
 
     Os itens vêm num SELECT só. Buscar por pedido custaria uma ida ao banco
-    por linha da tela — com o Neon, cada uma dessas custa mais de 100 ms.
+    por linha da tela — no Neon, cada uma dessas passa de 100 ms, e um mês de
+    vendas tem centenas de linhas.
     """
-    if not ator.eh_admin:
-        raise SemPermissao()
-
-    linhas = sessao.execute(
-        select(Pedido, Colaborador.nome_completo, Colaborador.codigo, Departamento.nome)
-        .join(Colaborador, Colaborador.id == Pedido.colaborador_id)
-        .outerjoin(Departamento, Departamento.id == Colaborador.departamento_id)
-        .where(Pedido.status == "pendente")
-        .order_by(Pedido.criado_em)
-    ).all()
+    linhas = sessao.execute(consulta).all()
     if not linhas:
         return []
 
@@ -229,3 +311,57 @@ def listar_pendentes_detalhado(sessao: Session, ator: Ator) -> list[LinhaPedido]
         )
         for pedido, nome, codigo, dep in linhas
     ]
+
+
+def _com_pessoa():
+    return (
+        select(Pedido, Colaborador.nome_completo, Colaborador.codigo, Departamento.nome)
+        .join(Colaborador, Colaborador.id == Pedido.colaborador_id)
+        .outerjoin(Departamento, Departamento.id == Colaborador.departamento_id)
+    )
+
+
+def listar_pendentes_detalhado(sessao: Session, ator: Ator) -> list[LinhaPedido]:
+    """O que o balcão de entrega precisa ver: o pedido e o nome de quem retira.
+
+    Expira os vencidos antes de listar. Escrever numa leitura não é bonito,
+    mas o alvo é a tela que decide o que está pendente: se ela mostrasse um
+    pedido de ontem esperando retirada, o operador entregaria. O mesmo padrão
+    já é usado em `almocos.gerar`, pelo mesmo motivo — nada expira sozinho no
+    banco, e o primeiro que olha é quem descobre.
+    """
+    if not ator.eh_admin:
+        raise SemPermissao()
+    expirar_vencidos(sessao)
+    return _montar(
+        sessao,
+        _com_pessoa().where(Pedido.status == "pendente").order_by(Pedido.criado_em),
+    )
+
+
+def listar_periodo(
+    sessao: Session, ator: Ator, de: date, ate: date, status: str | None = None
+) -> list[LinhaPedido]:
+    """Vendas de um intervalo, para relatório e exportação.
+
+    Datas locais convertidas aqui, e não no router: `criado_em` é UTC, e uma
+    compra das 22h já pertence ao dia seguinte lá — sem converter, ela some do
+    relatório do dia em que de fato aconteceu.
+    """
+    if not ator.eh_admin:
+        raise SemPermissao()
+    if ate < de:
+        raise PeriodoInvalido()
+
+    fuso = ZoneInfo(_config.fuso)
+    inicio = datetime(de.year, de.month, de.day, tzinfo=fuso).astimezone(UTC)
+    fim = (datetime(ate.year, ate.month, ate.day, tzinfo=fuso) + timedelta(days=1)).astimezone(UTC)
+
+    consulta = (
+        _com_pessoa()
+        .where(Pedido.criado_em >= inicio, Pedido.criado_em < fim)
+        .order_by(Pedido.criado_em.desc())
+    )
+    if status:
+        consulta = consulta.where(Pedido.status == status)
+    return _montar(sessao, consulta)

@@ -3,7 +3,7 @@
 import secrets
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -20,6 +20,7 @@ from app.excecoes import (
     AlmocoNaoEncontrado,
     CodigoDeBarrasInvalido,
     ColaboradorNaoEncontrado,
+    PeriodoInvalido,
     SemPermissao,
 )
 from app.models.cadastro import Colaborador, Departamento, PrecoAlmoco
@@ -77,10 +78,6 @@ def gerar(sessao: Session, ator: Ator) -> Almoco:
     agora = _agora()
     existente = _almoco_hoje(sessao, ator.id, agora)
     if existente is not None:
-        # Um código pendente que passou da validade continua com status
-        # 'pendente' — nada o expira sozinho. Sem marcar aqui, o colaborador
-        # receberia de volta o código morto e ficaria sem almoço o resto do
-        # dia, porque o índice parcial impede gerar outro.
         if existente.status == "pendente" and existente.expira_em <= agora:
             existente.status = "expirado"
             sessao.flush()
@@ -156,11 +153,7 @@ def meu_de_hoje(sessao: Session, ator: Ator) -> Almoco | None:
     return _almoco_hoje(sessao, ator.id, _agora())
 
 
-def listar_do_dia(sessao: Session, ator: Ator, status: str | None = None) -> list[LinhaPainel]:
-    if ator.papel not in {"admin", "refeitorio"}:
-        raise SemPermissao()
-
-    inicio, fim = _limites_do_dia(_agora())
+def _entre(inicio: datetime, fim: datetime, status: str | None):
     consulta = (
         select(Almoco, Colaborador.nome_completo, Colaborador.codigo, Departamento.nome)
         .join(Colaborador, Colaborador.id == Almoco.colaborador_id)
@@ -168,12 +161,62 @@ def listar_do_dia(sessao: Session, ator: Ator, status: str | None = None) -> lis
         .where(Almoco.criado_em >= inicio, Almoco.criado_em < fim)
         .order_by(Almoco.criado_em.desc())
     )
-    if status:
-        consulta = consulta.where(Almoco.status == status)
+    return consulta.where(Almoco.status == status) if status else consulta
+
+
+def expirar_vencidos(sessao: Session) -> int:
+    """Marca como expirado o código pendente que passou da validade.
+
+    Nada expira sozinho no banco. O `confirmar` já recusa código vencido, mas
+    sem marcar o status o painel conta como "aguardando" gente que não vai
+    aparecer — e o índice parcial continua impedindo a pessoa de gerar outro.
+
+    Sem auditoria de propósito: aqui não se moveu estoque nem dinheiro, só o
+    tempo passou. O próprio almoço guarda `expira_em` e o status novo.
+    """
+    resultado = sessao.execute(
+        update(Almoco)
+        .where(Almoco.status == "pendente", Almoco.expira_em <= _agora())
+        .values(status="expirado")
+    )
+    return resultado.rowcount or 0
+
+
+def listar_do_dia(sessao: Session, ator: Ator, status: str | None = None) -> list[LinhaPainel]:
+    if ator.papel not in {"admin", "refeitorio"}:
+        raise SemPermissao()
+
+    # O painel é a tela que decide quem ainda está na fila; se ela mostrar um
+    # código morto, o operador fica esperando alguém que já perdeu a validade.
+    expirar_vencidos(sessao)
+    inicio, fim = _limites_do_dia(_agora())
+    return [
+        LinhaPainel(almoco=a, colaborador_nome=nome, colaborador_codigo=codigo, departamento=dep)
+        for a, nome, codigo, dep in sessao.execute(_entre(inicio, fim, status)).all()
+    ]
+
+
+def listar_periodo(
+    sessao: Session, ator: Ator, de: date, ate: date, status: str | None = None
+) -> list[LinhaPainel]:
+    """Histórico do admin. As datas são locais e o intervalo inclui os dois dias.
+
+    Converter aqui, e não no router, evita a armadilha de comparar uma data
+    local com `criado_em`, que é UTC: das 21h em diante o dia local já é o
+    seguinte em UTC e os almoços da noite cairiam no dia errado.
+    """
+    if not ator.eh_admin:
+        raise SemPermissao()
+    if ate < de:
+        raise PeriodoInvalido()
+
+    fuso = ZoneInfo(_config.fuso)
+    inicio = datetime(de.year, de.month, de.day, tzinfo=fuso).astimezone(UTC)
+    fim = (datetime(ate.year, ate.month, ate.day, tzinfo=fuso) + timedelta(days=1)).astimezone(UTC)
 
     return [
         LinhaPainel(almoco=a, colaborador_nome=nome, colaborador_codigo=codigo, departamento=dep)
-        for a, nome, codigo, dep in sessao.execute(consulta).all()
+        for a, nome, codigo, dep in sessao.execute(_entre(inicio, fim, status)).all()
     ]
 
 
