@@ -79,3 +79,8 @@ class ImportacaoVazia(DadosInvalidos):
 class ImportacaoGrandeDemais(DadosInvalidos):
     codigo = "importacao_grande_demais"
     mensagem = "Importe no máximo 500 linhas por vez."
+
+
+class PeriodoInvalido(DadosInvalidos):
+    codigo = "periodo_invalido"
+    mensagem = "A data final não pode ser anterior à inicial."

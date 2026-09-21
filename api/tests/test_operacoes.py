@@ -217,3 +217,102 @@ def test_desfazer_confirmacao_permite_confirmar_de_novo(cliente, dados):
     assert cliente.post("/almocos/confirmar", json={"codigo_barras": codigo_barras}).json()[
         "status"
     ] == "confirmado"
+
+
+def test_entrega_exige_o_codigo_da_pessoa(cliente, dados, produto):
+    """O código substitui a assinatura em papel: sem ele, não entrega."""
+    _liberar_colaborador(dados, papel="admin")
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+    criado = cliente.post(
+        "/pedidos", json={"itens": [{"produto_id": str(produto["produto"]), "quantidade": 1}]}
+    ).json()
+
+    errado = cliente.post("/pedidos/entregar", json={"codigo_retirada": "000000"})
+    assert errado.status_code == 400
+    assert errado.json()["codigo"] == "codigo_retirada_invalido"
+
+    certo = cliente.post(
+        "/pedidos/entregar", json={"codigo_retirada": criado["codigo_retirada"]}
+    )
+    assert certo.json()["status"] == "entregue"
+
+    # Código já usado não serve de novo: o índice parcial só vale entre pendentes.
+    repetido = cliente.post(
+        "/pedidos/entregar", json={"codigo_retirada": criado["codigo_retirada"]}
+    )
+    assert repetido.json()["codigo"] == "codigo_retirada_invalido"
+
+
+def test_balcao_nao_recebe_o_codigo_de_retirada(cliente, dados, produto):
+    """O código só prova presença enquanto existir apenas no aparelho da pessoa.
+
+    Se esta resposta voltar a trazê-lo, basta abrir as ferramentas do
+    navegador para entregar qualquer pedido sem ninguém aparecer — e este
+    teste é o que impede isso de voltar sem ninguém notar.
+    """
+    _liberar_colaborador(dados, papel="admin")
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+    cliente.post(
+        "/pedidos", json={"itens": [{"produto_id": str(produto["produto"]), "quantidade": 1}]}
+    )
+
+    linha = cliente.get("/pedidos/pendentes").json()[0]
+
+    assert "codigo_retirada" not in linha["pedido"]
+    # o dono continua vendo o dele
+    assert cliente.get("/pedidos/me").json()[0]["codigo_retirada"]
+
+
+def test_pedido_vencido_expira_e_devolve_o_estoque(dados, produto):
+    """Pendente segura estoque; sem expirar, a prateleira encolhe sozinha."""
+    from datetime import timedelta
+
+    with FabricaDeSessao() as s:
+        pedido = pedidos.finalizar(s, _ator(dados), [(produto["produto"], 2)])
+        pedido_id = pedido.id
+        s.commit()
+
+    with FabricaDeSessao() as s:
+        assert s.get(Produto, produto["produto"]).estoque == 8
+        # envelhece além do limite configurado
+        alvo = s.get(Pedido, pedido_id)
+        alvo.criado_em = alvo.criado_em - timedelta(hours=99)
+        s.commit()
+
+    with FabricaDeSessao() as s:
+        expirados = pedidos.expirar_vencidos(s)
+        s.commit()
+        assert [p.id for p in expirados] == [pedido_id]
+
+    with FabricaDeSessao() as s:
+        assert s.get(Produto, produto["produto"]).estoque == 10
+        assert s.get(Pedido, pedido_id).status == "cancelado"
+
+
+def test_painel_nao_conta_codigo_vencido_como_fila(cliente, dados):
+    """Código morto contado como 'aguardando' faz o balcão esperar ninguém."""
+    from datetime import UTC, datetime, timedelta
+
+    _liberar_colaborador(dados, papel="refeitorio")
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+    cliente.post("/almocos/gerar")
+
+    assert len([
+        l
+        for l in cliente.get("/almocos/hoje", params={"status": "pendente"}).json()
+        if l["colaborador_codigo"] == CODIGO
+    ]) == 1
+
+    with FabricaDeSessao() as s:
+        almoco = s.scalar(select(Almoco).where(Almoco.colaborador_id == dados["ativo"]))
+        almoco.expira_em = datetime.now(UTC) - timedelta(minutes=1)
+        s.commit()
+
+    # Filtrado pelo próprio código: o banco de desenvolvimento tem almoços de
+    # outros testes, e contar o total tornaria este teste dependente deles.
+    def meus(status: str) -> list[dict]:
+        linhas = cliente.get("/almocos/hoje", params={"status": status}).json()
+        return [linha for linha in linhas if linha["colaborador_codigo"] == CODIGO]
+
+    assert meus("pendente") == []
+    assert len(meus("expirado")) == 1

@@ -1,12 +1,11 @@
-"""Contratos de entrada e saída da autenticação.
-
-O front é gerado a partir do OpenAPI que sai daqui, então o nome dos campos
-nestes modelos é o contrato.
+"""Contratos da autenticação.
 """
 
 import uuid
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.empresa import EmpresaResumo
 
 
 class EntradaLogin(BaseModel):
@@ -24,14 +23,6 @@ class EntradaSolicitacaoSenha(BaseModel):
     nome_informado: str | None = Field(default=None, max_length=160)
 
 
-class EmpresaResumo(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    codemp: int
-    nome: str
-
-
 class Eu(BaseModel):
     """Quem está logado. Não expõe hash, codparc nem nada do ERP."""
 
@@ -43,7 +34,3 @@ class Eu(BaseModel):
     papel: str
     senha_provisoria: bool
     empresa: EmpresaResumo | None = None
-
-
-class Mensagem(BaseModel):
-    mensagem: str

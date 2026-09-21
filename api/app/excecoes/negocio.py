@@ -133,3 +133,15 @@ class CodigoRetiradaIndisponivel(Conflito):
 
     codigo = "codigo_retirada_indisponivel"
     mensagem = "Não foi possível gerar um código de retirada. Tente novamente."
+
+
+class CodigoRetiradaInvalido(ErroDaAplicacao):
+    """Nenhum pedido pendente com este código.
+
+    Vale para código inexistente, já entregue e já cancelado: para quem está
+    no balcão as três situações levam à mesma ação — conferir o código na
+    tela da pessoa.
+    """
+
+    codigo = "codigo_retirada_invalido"
+    mensagem = "Nenhum pedido pendente com este código."

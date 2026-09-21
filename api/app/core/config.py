@@ -1,7 +1,4 @@
 """Configuração da aplicação, lida do ambiente.
-
-Nenhum valor sensível tem default. Se faltar variável, a aplicação não sobe —
-falhar no boot é melhor que rodar meio configurada.
 """
 
 from functools import lru_cache
@@ -21,10 +18,7 @@ class Config(BaseSettings):
     ambiente: Literal["desenvolvimento", "producao"] = "desenvolvimento"
 
     # --- banco ---------------------------------------------------------------
-    # Endpoint COM pooler do Neon. Ver observação em core/db.py.
     database_url: str
-    # Endpoint DIRETO (sem pooler). Usado só pelo Alembic — migration não pode
-    # passar por PgBouncer em modo transação.
     database_url_direta: str = ""
 
     # --- sessão --------------------------------------------------------------
@@ -41,15 +35,11 @@ class Config(BaseSettings):
     bloqueio_minutos: int = 2
     senha_tamanho_minimo: int = 8
     senha_provisoria_validade_horas: int = 48
-
-    # Só para a suíte de testes. O argon2 é lento de propósito — é isso que
-    # protege a senha — mas essa dureza não acrescenta nada num teste, e sozinha
-    # responde por quase todo o tempo da suíte. Default seguro: quem esquecer de
-    # ligar tem testes lentos, nunca hash fraco em produção.
     senha_hash_rapido: bool = False
 
     # --- almoço --------------------------------------------------------------
     almoco_validade_minutos: int = 15
+    pedido_validade_horas: int = 8
     fuso: str = "America/Sao_Paulo"
 
     # --- observabilidade -----------------------------------------------------
