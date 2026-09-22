@@ -6,7 +6,7 @@ import { Button } from "@/componentes/ui/button";
 import { Input } from "@/componentes/ui/input";
 import { Label } from "@/componentes/ui/label";
 import { mensagemDeErro } from "@/comum/erros";
-import { useEntrar } from "@/comum/sessao";
+import { useEntrar } from "@/hooks/sessao";
 
 export function Login() {
   const [codigo, setCodigo] = useState("");

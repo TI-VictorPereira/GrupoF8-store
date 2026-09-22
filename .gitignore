@@ -40,3 +40,6 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+
+# Sobra do Supabase; o .env que vale é o api/.env
+.env

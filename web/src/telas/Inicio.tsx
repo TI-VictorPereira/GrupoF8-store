@@ -6,7 +6,7 @@ import { Moldura } from "@/componentes/Moldura";
 import { Button } from "@/componentes/ui/button";
 import { Card, CardContent } from "@/componentes/ui/card";
 import { dinheiro, hora } from "@/comum/formato";
-import { useSair } from "@/comum/sessao";
+import { useSair } from "@/hooks/sessao";
 import type { AlmocoDoDia } from "@/interfaces/almoco";
 import type { Extrato } from "@/interfaces/consumo";
 import type { Pedido } from "@/interfaces/loja";

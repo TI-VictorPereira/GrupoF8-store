@@ -7,7 +7,7 @@ import { api } from "@/api/cliente";
 import { Badge } from "@/componentes/ui/badge";
 import { Button } from "@/componentes/ui/button";
 import { cn } from "@/comum/utilitarios";
-import { useSair } from "@/comum/sessao";
+import { useSair } from "@/hooks/sessao";
 import type { LinhaPedido } from "@/interfaces/admin";
 import type { LinhaPainel } from "@/interfaces/refeitorio";
 import type { Eu } from "@/interfaces/sessao";

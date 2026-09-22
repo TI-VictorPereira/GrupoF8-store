@@ -5,7 +5,7 @@ import { Button } from "@/componentes/ui/button";
 import { Input } from "@/componentes/ui/input";
 import { Label } from "@/componentes/ui/label";
 import { mensagemDeErro } from "@/comum/erros";
-import { useTrocarSenha } from "@/comum/sessao";
+import { useTrocarSenha } from "@/hooks/sessao";
 
 // Só o que a tela sabe e o servidor não: aqui a "senha atual" é a temporária.
 const AVISOS: Record<string, string> = {

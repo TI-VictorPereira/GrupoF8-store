@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
 
 import { ErroApi, api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
@@ -9,27 +8,10 @@ import { Carregando } from "@/componentes/Carregando";
 import { CodigoBarras } from "@/componentes/CodigoBarras";
 import { Moldura } from "@/componentes/Moldura";
 import { hora } from "@/comum/formato";
+import { useContagem } from "@/hooks/contagem";
 import type { AlmocoDoDia } from "@/interfaces/almoco";
 
 const CHAVE = ["almoco-hoje"] as const;
-
-function useContagem(ate: string | undefined) {
-  const [restante, setRestante] = useState("");
-  useEffect(() => {
-    if (!ate) return;
-    const marcar = () => {
-      const ms = new Date(ate).getTime() - Date.now();
-      if (ms <= 0) return setRestante("expirado");
-      const min = Math.floor(ms / 60000);
-      const seg = Math.floor((ms % 60000) / 1000);
-      setRestante(`${min}:${String(seg).padStart(2, "0")}`);
-    };
-    marcar();
-    const id = setInterval(marcar, 1000);
-    return () => clearInterval(id);
-  }, [ate]);
-  return restante;
-}
 
 export function Almoco() {
   const clienteConsulta = useQueryClient();

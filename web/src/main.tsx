@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 
 import { Carregando } from "@/componentes/Carregando";
 import { clienteConsulta } from "@/comum/clienteConsulta";
-import { useSessao } from "@/comum/sessao";
+import { useSessao } from "@/hooks/sessao";
 import "@/estilos.css";
 import { roteador } from "@/rotas/roteador";
 import { Login } from "@/telas/Login";

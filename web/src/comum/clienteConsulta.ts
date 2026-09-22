@@ -8,7 +8,7 @@
 import { QueryClient } from "@tanstack/react-query";
 
 import { quandoSessaoEncerrar } from "@/api/config";
-import { CHAVE_EU, encerrarSessaoLocal } from "@/comum/sessao";
+import { CHAVE_EU, encerrarSessaoLocal } from "@/hooks/sessao";
 
 export const clienteConsulta = new QueryClient({
   defaultOptions: {

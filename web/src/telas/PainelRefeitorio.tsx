@@ -13,7 +13,7 @@ import { Label } from "@/componentes/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/componentes/ui/tabs";
 import { mensagemDeErro } from "@/comum/erros";
 import { hora } from "@/comum/formato";
-import { useSair } from "@/comum/sessao";
+import { useSair } from "@/hooks/sessao";
 import type { AlmocoDoDia } from "@/interfaces/almoco";
 import type { ColaboradorParaAlmoco, LinhaPainel } from "@/interfaces/refeitorio";
 import type { Eu } from "@/interfaces/sessao";
