@@ -74,7 +74,8 @@ class Almoco(Base):
     )
 
     id: Mapped[uuid.UUID] = pk_uuid()
-    colaborador_id: Mapped[uuid.UUID] = fk_uuid("colaboradores.id")    empresa_id: Mapped[uuid.UUID] = fk_uuid("empresas.id")
+    colaborador_id: Mapped[uuid.UUID] = fk_uuid("colaboradores.id")
+    empresa_id: Mapped[uuid.UUID] = fk_uuid("empresas.id")
     vinculo: Mapped[str] = mapped_column(String(10), nullable=False)
     matricula: Mapped[int | None] = mapped_column(Integer, nullable=True)
     codigo_barras: Mapped[str] = mapped_column(String(40), nullable=False, unique=True)

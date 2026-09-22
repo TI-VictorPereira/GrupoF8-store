@@ -53,3 +53,29 @@ class ProdutoVitrine(BaseModel):
     preco_venda: Decimal
     estoque: int
     foto_url: str | None
+
+
+class LinhaImportacaoProduto(BaseModel):
+    """Uma linha da planilha. Só o código é obrigatório.
+
+    Campo ausente significa "não mexer": dá para mandar só código e preço
+    para um reajuste, sem zerar o resto do cadastro.
+    """
+
+    codigo: str = Field(min_length=1, max_length=40)
+    nome: str | None = Field(default=None, max_length=160)
+    categoria: str | None = Field(default=None, max_length=120)
+    custo: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
+    preco_venda: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
+    estoque: int | None = Field(default=None, ge=0, le=999_999)
+    ativo: bool | None = None
+
+
+class EntradaImportacaoProduto(BaseModel):
+    linhas: list[LinhaImportacaoProduto] = Field(min_length=1, max_length=500)
+
+
+class ResultadoImportacaoProdutoSaida(BaseModel):
+    criados: int
+    atualizados: int
+    erros: list[str]

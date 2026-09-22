@@ -1,12 +1,8 @@
 """Catálogo de produtos: vitrine da loja e manutenção pelo administrador.
-
-A movimentação de estoque não mora aqui — ela é sempre consequência de um
-pedido ou de um ajuste auditado, em `pedidos.py` e `estoque.py`. Alterar um
-produto nunca mexe na quantidade.
 """
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
@@ -18,7 +14,10 @@ from app.excecoes import (
     CategoriaNaoEncontrada,
     CodigoDuplicado,
     FotoUrlLonga,
+    ImportacaoGrandeDemais,
+    ImportacaoVazia,
     NomeObrigatorio,
+    ProdutoIncompletoNaImportacao,
     ProdutoNaoEncontrado,
     SemPermissao,
     ValorNegativo,
@@ -176,3 +175,149 @@ def definir_ativo(sessao: Session, ator: Ator, produto_id: uuid.UUID, ativo: boo
         dados_novos={"ativo": ativo},
     )
     return produto
+
+
+@dataclass
+class LinhaImportacao:
+    """Uma linha da planilha. Tudo opcional menos o código, que é a chave.
+
+    Campo ausente significa "não mexer": a planilha pode trazer só código e
+    preço para um reajuste, sem zerar o resto do cadastro.
+    """
+
+    codigo: str
+    nome: str | None = None
+    categoria: str | None = None
+    custo: Decimal | None = None
+    preco_venda: Decimal | None = None
+    estoque: int | None = None
+    ativo: bool | None = None
+
+
+@dataclass
+class ResultadoImportacaoProdutos:
+    criados: int = 0
+    atualizados: int = 0
+    erros: list[str] = field(default_factory=list)
+
+
+def _categoria_por_nome(sessao: Session, nome: str) -> uuid.UUID | None:
+    alvo = nome.strip().lower()
+    for categoria in sessao.scalars(select(CategoriaProduto)):
+        if categoria.nome.strip().lower() == alvo:
+            return categoria.id
+    raise CategoriaNaoEncontrada(f"Categoria '{nome}' não existe.")
+
+
+def _aplicar_estoque(sessao: Session, ator: Ator, produto: Produto, desejado: int) -> None:
+    """Leva o estoque ao número da planilha por ajuste, não por atribuição.
+
+    O cadastro nunca escreve quantidade direto — é a regra deste módulo desde
+    o começo. Importar seria a porta dos fundos para furar isso: o número
+    mudaria sem motivo registrado e ninguém saberia de onde veio. Aqui a
+    diferença vira entrada ou baixa, com motivo.
+    """
+    from app.modules import estoque
+
+    diferenca = desejado - produto.estoque
+    if diferenca == 0:
+        return
+    estoque.ajustar(
+        sessao,
+        ator,
+        produto.id,
+        "entrada" if diferenca > 0 else "baixa",
+        abs(diferenca),
+        "Importação de planilha",
+    )
+
+
+def importar(
+    sessao: Session, ator: Ator, linhas: list[LinhaImportacao]
+) -> ResultadoImportacaoProdutos:
+    """Cria ou atualiza produtos pelo código, pulando as linhas com problema.
+
+    Cada linha entra num savepoint: uma falha não derruba as anteriores. O
+    commit continua na borda da requisição — ou o lote inteiro entra, ou nada
+    entra, se algo estourar depois.
+    """
+    _exigir_admin(ator)
+    if not linhas:
+        raise ImportacaoVazia()
+    if len(linhas) > 500:
+        raise ImportacaoGrandeDemais()
+
+    resultado = ResultadoImportacaoProdutos()
+
+    for indice, linha in enumerate(linhas, start=1):
+        try:
+            with sessao.begin_nested():
+                existente = sessao.scalar(
+                    select(Produto).where(Produto.codigo == linha.codigo.strip())
+                )
+                categoria_id = (
+                    _categoria_por_nome(sessao, linha.categoria) if linha.categoria else None
+                )
+
+                if existente is None:
+                    if not linha.nome or linha.preco_venda is None:
+                        raise ProdutoIncompletoNaImportacao()
+                    produto = criar(
+                        sessao,
+                        ator,
+                        DadosProduto(
+                            nome=linha.nome,
+                            codigo=linha.codigo,
+                            preco_venda=linha.preco_venda,
+                            custo=linha.custo or Decimal("0"),
+                            categoria_id=categoria_id,
+                        ),
+                    )
+                    resultado.criados += 1
+                else:
+                    produto = alterar(
+                        sessao,
+                        ator,
+                        existente.id,
+                        DadosProduto(
+                            nome=linha.nome or existente.nome,
+                            codigo=existente.codigo,
+                            preco_venda=(
+                                linha.preco_venda
+                                if linha.preco_venda is not None
+                                else existente.preco_venda
+                            ),
+                            custo=linha.custo if linha.custo is not None else existente.custo,
+                            categoria_id=(
+                                categoria_id if linha.categoria else existente.categoria_id
+                            ),
+                            foto_url=existente.foto_url,
+                        ),
+                    )
+                    resultado.atualizados += 1
+
+                if linha.ativo is not None and produto.ativo != linha.ativo:
+                    definir_ativo(sessao, ator, produto.id, linha.ativo)
+                if linha.estoque is not None:
+                    _aplicar_estoque(sessao, ator, produto, linha.estoque)
+
+        except Exception as erro:  # noqa: BLE001 — a linha ruim não pode parar o lote
+            mensagem = getattr(erro, "mensagem", None) or type(erro).__name__
+            resultado.erros.append(f"linha {indice} ({linha.codigo}): {mensagem}")
+
+    auditoria.registrar(
+        sessao,
+        ator,
+        acao="produtos.importados",
+        entidade="produto",
+        descricao=(
+            f"Importou planilha: {resultado.criados} criado(s), "
+            f"{resultado.atualizados} atualizado(s), {len(resultado.erros)} com erro."
+        ),
+        dados_novos={
+            "criados": resultado.criados,
+            "atualizados": resultado.atualizados,
+            "erros": resultado.erros,
+        },
+    )
+    return resultado

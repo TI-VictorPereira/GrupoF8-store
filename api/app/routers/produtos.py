@@ -11,9 +11,11 @@ from app.modules.produtos import DadosProduto
 from app.schemas.comum import EntradaAtivo
 from app.schemas.produto import (
     CategoriaSaida,
+    EntradaImportacaoProduto,
     EntradaProduto,
     ProdutoCompleto,
     ProdutoVitrine,
+    ResultadoImportacaoProdutoSaida,
 )
 
 rotas = APIRouter(prefix="/produtos", tags=["produtos"])
@@ -63,3 +65,31 @@ def definir_ativo(
     produto_id: uuid.UUID, dados: EntradaAtivo, ator: AdminLiberado, sessao: Sessao
 ) -> Produto:
     return produtos.definir_ativo(sessao, ator, produto_id, dados.ativo)
+
+
+@rotas.post("/importar", response_model=ResultadoImportacaoProdutoSaida)
+def importar(
+    dados: EntradaImportacaoProduto, ator: AdminLiberado, sessao: Sessao
+) -> ResultadoImportacaoProdutoSaida:
+    """Cria ou atualiza pelo código. Estoque entra por ajuste, não por escrita."""
+    resultado = produtos.importar(
+        sessao,
+        ator,
+        [
+            produtos.LinhaImportacao(
+                codigo=linha.codigo,
+                nome=linha.nome,
+                categoria=linha.categoria,
+                custo=linha.custo,
+                preco_venda=linha.preco_venda,
+                estoque=linha.estoque,
+                ativo=linha.ativo,
+            )
+            for linha in dados.linhas
+        ],
+    )
+    return ResultadoImportacaoProdutoSaida(
+        criados=resultado.criados,
+        atualizados=resultado.atualizados,
+        erros=resultado.erros,
+    )

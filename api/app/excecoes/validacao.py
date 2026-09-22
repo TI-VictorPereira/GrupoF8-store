@@ -84,3 +84,12 @@ class ImportacaoGrandeDemais(DadosInvalidos):
 class PeriodoInvalido(DadosInvalidos):
     codigo = "periodo_invalido"
     mensagem = "A data final não pode ser anterior à inicial."
+
+
+class ProdutoIncompletoNaImportacao(DadosInvalidos):
+    """Linha de produto novo sem o mínimo para cadastrar.
+
+    """
+
+    codigo = "produto_incompleto"
+    mensagem = "Para cadastrar é preciso nome e preço de venda."
