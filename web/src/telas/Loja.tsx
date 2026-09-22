@@ -7,15 +7,12 @@ import { api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { Cabecalho } from "@/componentes/Cabecalho";
 import { Carregando } from "@/componentes/Carregando";
-import {
-  ESTILO_CATEGORIA,
-  IconeCategoria,
-  chaveCategoria,
-} from "@/componentes/IconeCategoria";
+import { IconeCategoria } from "@/componentes/IconeCategoria";
 import { Moldura } from "@/componentes/Moldura";
 import { Vazio } from "@/componentes/Vazio";
 import { Button } from "@/componentes/ui/button";
 import { Card } from "@/componentes/ui/card";
+import { ESTILO_CATEGORIA, chaveCategoria } from "@/comum/categorias";
 import { mensagemDeErro } from "@/comum/erros";
 import { dinheiro } from "@/comum/formato";
 import type { Categoria, PedidoCriado, ProdutoVitrine } from "@/interfaces/loja";

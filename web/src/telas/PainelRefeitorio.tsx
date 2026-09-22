@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { api } from "@/api/cliente";
@@ -117,14 +118,17 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
     return () => clearTimeout(id);
   }, [feedback]);
 
+  // Depende de `painel.data` e não de `linhas`: `?? []` cria um array novo a
+  // cada render, então a dependência mudava sempre e o memo não memorizava
+  // nada. Foi o ESLint que apontou.
   const linhas = painel.data ?? [];
   const contagem = useMemo(
     () => ({
-      todos: linhas.length,
-      pendente: linhas.filter((l) => l.almoco.status === "pendente").length,
-      confirmado: linhas.filter((l) => l.almoco.status === "confirmado").length,
+      todos: painel.data?.length ?? 0,
+      pendente: (painel.data ?? []).filter((l) => l.almoco.status === "pendente").length,
+      confirmado: (painel.data ?? []).filter((l) => l.almoco.status === "confirmado").length,
     }),
-    [linhas],
+    [painel.data],
   );
   const visiveis = filtro === "todos" ? linhas : linhas.filter((l) => l.almoco.status === filtro);
 
@@ -136,14 +140,24 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
 
   return (
     <div className="mx-auto min-h-screen max-w-3xl px-5 pb-10">
-      <header className="flex items-center justify-between gap-3 py-5">
-        <div>
+      <header className="flex items-center gap-3 py-5">
+        <Button asChild variant="ghost" size="icon" aria-label="Voltar ao início">
+          <Link to="/">
+            <ArrowLeft />
+          </Link>
+        </Button>
+        <div className="min-w-0">
           <h1 className="text-base font-bold">Refeitório</h1>
           <p className="text-xs text-suave">
             {contagem.confirmado} liberados · {contagem.pendente} aguardando
           </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => sair.mutate()}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => sair.mutate()}
+          className="ml-auto"
+        >
           Sair
         </Button>
       </header>

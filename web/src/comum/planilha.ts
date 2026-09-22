@@ -3,6 +3,15 @@
  * Separador `;`
  */
 
+/**
+ * Marca de ordem de bytes, no começo do arquivo.
+ *
+ * Sem ela o Excel em português lê o CSV como latin-1 e todo acento vira
+ * caractere estranho. Construída por código e não escrita direto: o caractere
+ * é invisível no editor, e escape mal colado já virou bug aqui.
+ */
+const BOM = String.fromCharCode(0xfeff);
+
 function celula(valor: unknown): string {
   if (valor === null || valor === undefined) return "";
   const texto = String(valor);
@@ -19,7 +28,7 @@ export function baixarCsv(nomeArquivo: string, linhas: Record<string, unknown>[]
   ].join("\r\n");
 
   const hoje = new Date().toISOString().slice(0, 10);
-  const blob = new Blob([`﻿${conteudo}`], { type: "text/csv;charset=utf-8" });
+  const blob = new Blob([BOM + conteudo], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -30,7 +39,7 @@ export function baixarCsv(nomeArquivo: string, linhas: Record<string, unknown>[]
 
 
 export function lerCsv(texto: string): Record<string, string>[] {
-  const limpo = texto.replace(/^﻿/, "").trim();
+  const limpo = (texto.startsWith(BOM) ? texto.slice(BOM.length) : texto).trim();
   if (!limpo) return [];
 
   const linhas = limpo.split(/\r?\n/);

@@ -58,9 +58,16 @@ export function MolduraAdmin({ eu }: { eu: Eu }) {
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 bg-ink text-white">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-5 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-sm font-black text-ink">
+          {/* A administração é um beco: as cinco abas navegam entre si e nada
+              leva de volta ao início. O logo faz esse papel, como na maioria
+              dos sistemas — clicar nele volta. */}
+          <Link
+            to="/"
+            aria-label="Voltar ao início"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-sm font-black text-ink"
+          >
             F8
-          </div>
+          </Link>
           <span className="text-sm font-bold">Administração</span>
 
           <nav className="ml-6 hidden gap-1 md:flex">
@@ -121,6 +128,13 @@ export function MolduraAdmin({ eu }: { eu: Eu }) {
 
         {menuAberto && (
           <nav className="flex flex-col gap-1 border-t border-white/10 px-5 py-3 md:hidden">
+            <Link
+              to="/"
+              onClick={() => setMenuAberto(false)}
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-white/70"
+            >
+              ← Início
+            </Link>
             {ABAS.map((aba) => (
               <Link
                 key={aba.para}

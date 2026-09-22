@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
 import { api } from "@/api/cliente";
+import { Cabecalho } from "@/componentes/Cabecalho";
 import { Carregando } from "@/componentes/Carregando";
 import { Moldura } from "@/componentes/Moldura";
 import { dataHora, dinheiro } from "@/comum/formato";
@@ -18,6 +19,10 @@ export function PedidoConfirmado({ pedidoId }: { pedidoId: string }) {
 
   return (
     <Moldura>
+      {/* Fora do ramo de sucesso de propósito: sem isto, quem cai em
+          "carregando" ou "não encontrado" fica sem saída nenhuma da tela. */}
+      <Cabecalho titulo="Pedido" />
+
       {pedidos.isLoading && <Carregando texto="Carregando pedido…" />}
       {pedidos.data && !pedido && (
         <p className="p-6 text-sm text-suave">Pedido não encontrado.</p>

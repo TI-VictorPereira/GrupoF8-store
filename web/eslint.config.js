@@ -72,4 +72,13 @@ export default defineConfig([
       ],
     },
   },
+  {
+    // A regra do react-refresh cobra que um arquivo exporte só componentes,
+    // para o hot reload não perder estado. Nestes dois casos ela não se
+    // aplica: os componentes do shadcn vêm de fora exportando variantes junto
+    // (mudar isso significa divergir do upstream em toda atualização), e o
+    // main.tsx é o ponto de entrada, que por definição não exporta nada.
+    files: ["src/componentes/ui/**", "src/main.tsx"],
+    rules: { "react-refresh/only-export-components": "off" },
+  },
 ]);
