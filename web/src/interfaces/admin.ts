@@ -128,3 +128,17 @@ export interface ColaboradorCriado {
   colaborador: ColaboradorCompleto;
   senha_provisoria: string;
 }
+
+/** Resposta de POST /colaboradores/importar. */
+export interface ResultadoImportacaoColaboradores {
+  criados: number;
+  senhas: Record<string, string>;
+  erros: string[];
+}
+
+/** Resposta de POST /produtos/importar. */
+export interface ResultadoImportacaoProdutos {
+  criados: number;
+  atualizados: number;
+  erros: string[];
+}

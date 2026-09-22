@@ -1,7 +1,8 @@
 /**
  * Cliente HTTP da API.
  *
-
+ * Só transporte e tradução de erro. A política de sessão mora em config.ts.
+ */
 
 import { enviar } from "@/api/config";
 

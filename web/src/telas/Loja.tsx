@@ -7,6 +7,11 @@ import { api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { Cabecalho } from "@/componentes/Cabecalho";
 import { Carregando } from "@/componentes/Carregando";
+import {
+  ESTILO_CATEGORIA,
+  IconeCategoria,
+  chaveCategoria,
+} from "@/componentes/IconeCategoria";
 import { Moldura } from "@/componentes/Moldura";
 import { Vazio } from "@/componentes/Vazio";
 import { Button } from "@/componentes/ui/button";
@@ -46,8 +51,6 @@ export function Loja() {
         })),
       }),
     onSuccess: (pedido) => {
-      // O estoque mudou para todo mundo; a próxima visita à loja precisa ler
-      // de novo em vez de mostrar o número antigo.
       void clienteConsulta.invalidateQueries({ queryKey: ["vitrine"] });
       void navegar({ to: "/pedido/$pedidoId", params: { pedidoId: pedido.id } });
     },
@@ -73,13 +76,18 @@ export function Loja() {
       const novo = { ...atual };
       const quantidade = (novo[produto.id] ?? 0) + delta;
       if (quantidade <= 0) delete novo[produto.id];
-      // O servidor é quem garante o estoque; aqui é só para não deixar a
-      // pessoa montar um carrinho que já nasce recusado.
       else if (quantidade > produto.estoque) return atual;
       else novo[produto.id] = quantidade;
       return novo;
     });
   }
+
+  const nomeCategoria = useMemo(() => {
+    const mapa = new Map((categorias.data ?? []).map((c) => [c.id, c.nome]));
+    return (id: string | null) => (id ? (mapa.get(id) ?? "") : "");
+  }, [categorias.data]);
+  const categoriaDe = (produto: ProdutoVitrine) =>
+    chaveCategoria(nomeCategoria(produto.categoria_id));
 
   const aviso = finalizar.error ? mensagemDeErro(finalizar.error, AVISOS) : null;
 
@@ -116,7 +124,14 @@ export function Loja() {
             const semEstoque = produto.estoque <= 0;
             return (
               <Card key={produto.id} className="overflow-hidden">
-                <div className="flex h-24 items-center justify-center bg-bg">
+                <div
+                  className="flex h-24 items-center justify-center"
+                  style={
+                    produto.foto_url
+                      ? undefined
+                      : { backgroundColor: ESTILO_CATEGORIA[categoriaDe(produto)].bg }
+                  }
+                >
                   {produto.foto_url ? (
                     <img
                       src={produto.foto_url}
@@ -125,7 +140,9 @@ export function Loja() {
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <span className="text-2xl opacity-25">🥤</span>
+                    <span style={{ color: ESTILO_CATEGORIA[categoriaDe(produto)].fg }}>
+                      <IconeCategoria cat={categoriaDe(produto)} size={34} />
+                    </span>
                   )}
                 </div>
                 <div className="p-2.5">

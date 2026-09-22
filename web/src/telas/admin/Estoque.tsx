@@ -5,6 +5,7 @@ import { api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { CampoDinheiro } from "@/componentes/CampoDinheiro";
 import { CampoInteiro } from "@/componentes/CampoInteiro";
+import { ImportarPlanilha } from "@/componentes/ImportarPlanilha";
 import { Carregando } from "@/componentes/Carregando";
 import { Vazio } from "@/componentes/Vazio";
 import { Badge } from "@/componentes/ui/badge";
@@ -37,12 +38,12 @@ import {
 } from "@/componentes/ui/table";
 import { mensagemDeErro } from "@/comum/erros";
 import { dinheiro } from "@/comum/formato";
-import type { ProdutoCompleto } from "@/interfaces/admin";
+import { baixarCsv, coluna, numeroDaPlanilha, simOuNao } from "@/comum/planilha";
+import type { ProdutoCompleto, ResultadoImportacaoProdutos } from "@/interfaces/admin";
 import type { Categoria } from "@/interfaces/loja";
 
 const CHAVE = ["produtos-admin"] as const;
 
-/** Abaixo disto a linha fica vermelha. Herdado do protótipo. */
 const ESTOQUE_BAIXO = 5;
 
 const AVISOS: Record<string, string> = {
@@ -73,9 +74,6 @@ export function Estoque() {
   const produtos = useQuery({
     queryKey: CHAVE,
     queryFn: () => api.get<ProdutoCompleto[]>("/produtos"),
-    // As compras acontecem no celular das pessoas, fora desta tela. Sem
-    // recarregar de tempos em tempos, quem usa isto para decidir reposição
-    // olha um número que parou no momento em que abriu a aba.
     refetchInterval: 30_000,
   });
   const categorias = useQuery({
@@ -89,9 +87,7 @@ export function Estoque() {
   }, [categorias.data]);
 
   function recarregar() {
-    void clienteConsulta.invalidateQueries({ queryKey: CHAVE });
-    // A vitrine do colaborador mostra os mesmos produtos.
-    void clienteConsulta.invalidateQueries({ queryKey: ["vitrine"] });
+    void clienteConsulta.invalidateQueries({ queryKey: CHAVE });    void clienteConsulta.invalidateQueries({ queryKey: ["vitrine"] });
   }
 
   const salvar = useMutation({
@@ -168,13 +164,80 @@ export function Estoque() {
 
   const erroLista = alternarAtivo.error;
 
+  function exportar() {
+    baixarCsv(
+      "produtos-f8",
+      visiveis.map((p) => ({
+        Codigo: p.codigo,
+        Nome: p.nome,
+        Categoria: nomeCategoria(p.categoria_id),
+        Custo: p.custo,
+        "Preco de venda": p.preco_venda,
+        Estoque: p.estoque,
+        Ativo: p.ativo ? "Sim" : "Nao",
+      })),
+    );
+  }
+
+ 
+  function converterLinha(linha: Record<string, string>) {
+    const codigo = coluna(linha, "codigo", "codigo do produto");
+    if (!codigo) return null;
+
+    const custo = numeroDaPlanilha(coluna(linha, "custo", "custo unitario"));
+    const venda = numeroDaPlanilha(
+      coluna(linha, "preco de venda", "preco", "venda", "valor de venda"),
+    );
+    const estoque = numeroDaPlanilha(coluna(linha, "estoque", "quantidade"));
+    const categoria = coluna(linha, "categoria");
+    const ativo = simOuNao(coluna(linha, "ativo", "situacao"));
+
+    return {
+      codigo,
+      ...(coluna(linha, "nome", "produto") ? { nome: coluna(linha, "nome", "produto") } : {}),
+      ...(categoria ? { categoria } : {}),
+      ...(custo !== null ? { custo } : {}),
+      ...(venda !== null ? { preco_venda: venda } : {}),
+      ...(estoque !== null ? { estoque: Math.trunc(Number(estoque)) } : {}),
+      ...(ativo !== null ? { ativo } : {}),
+    };
+  }
+
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-bold">Estoque</h1>
-        <Button variant="destaque" onClick={abrirNovo}>
-          Novo produto
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" onClick={exportar} disabled={visiveis.length === 0}>
+            Exportar
+          </Button>
+          <ImportarPlanilha
+            titulo="Importar produtos"
+            descricao={
+              "Casa pelo código: existente é atualizado, novo é criado. Coluna " +
+              "em branco não mexe no que já está lá. O estoque informado entra " +
+              "como ajuste, com motivo registrado."
+            }
+            nomeDoModelo="modelo-produtos-f8"
+            modelo={{
+              Codigo: "REF001",
+              Nome: "Exemplo de produto",
+              Categoria: categorias.data?.[0]?.nome ?? "",
+              Custo: "2,00",
+              "Preco de venda": "5,00",
+              Estoque: 10,
+              Ativo: "Sim",
+            }}
+            converter={converterLinha}
+            enviar={(linhas) =>
+              api.post<ResultadoImportacaoProdutos>("/produtos/importar", { linhas })
+            }
+            aoConcluir={recarregar}
+          />
+          <Button variant="destaque" onClick={abrirNovo}>
+            Novo produto
+          </Button>
+        </div>
       </div>
 
       <div className="mb-3 flex flex-wrap gap-2">

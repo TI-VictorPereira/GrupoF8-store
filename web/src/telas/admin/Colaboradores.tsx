@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { CampoInteiro } from "@/componentes/CampoInteiro";
+import { ImportarPlanilha } from "@/componentes/ImportarPlanilha";
 import { Carregando } from "@/componentes/Carregando";
 import { Vazio } from "@/componentes/Vazio";
 import { Badge } from "@/componentes/ui/badge";
@@ -36,12 +37,14 @@ import {
 } from "@/componentes/ui/table";
 import { mensagemDeErro } from "@/comum/erros";
 import { dataHora } from "@/comum/formato";
+import { baixarCsv, coluna, normalizar, numeroDaPlanilha } from "@/comum/planilha";
 import type {
   ColaboradorCompleto,
   ColaboradorCriado,
   Departamento,
   Empresa,
   EntradaColaborador,
+  ResultadoImportacaoColaboradores,
   SenhaRedefinida,
   SolicitacaoSenha,
   Vinculo,
@@ -116,8 +119,6 @@ export function Colaboradores() {
       codparc: Number(formulario.codparc),
       empresa_id: formulario.empresa_id,
       vinculo: formulario.vinculo,
-      // PJ não tem matrícula: mandar string vazia viraria 0 e passaria pelo
-      // CHECK do banco como se fosse um número válido.
       matricula: formulario.vinculo === "clt" ? Number(formulario.matricula) : null,
       papel: formulario.papel,
       departamento_id: formulario.departamento_id || null,
@@ -209,6 +210,55 @@ export function Colaboradores() {
 
   const lista = colaboradores.data ?? [];
   const abertas = solicitacoes.data ?? [];
+
+  const nomeEmpresa = (id: string) =>
+    empresas.data?.find((e) => e.id === id)?.nome ?? "—";
+  const nomeDepartamento = (id: string | null) =>
+    id ? (departamentos.data?.find((d) => d.id === id)?.nome ?? "—") : "—";
+
+  function exportar() {
+    baixarCsv(
+      "colaboradores-f8",
+      lista.map((p) => ({
+        Nome: p.nome_completo,
+        Codigo: p.codigo,
+        Codparc: p.codparc,
+        Matricula: p.matricula ?? "",
+        Vinculo: p.vinculo,
+        Empresa: nomeEmpresa(p.empresa_id),
+        Departamento: nomeDepartamento(p.departamento_id),
+        Papel: p.papel,
+        Ativo: p.ativo ? "Sim" : "Nao",
+      })),
+    );
+  }
+
+  function converterLinha(linha: Record<string, string>): EntradaColaborador | null {
+    const codigo = coluna(linha, "codigo", "codigo de acesso");
+    const codemp = Number(numeroDaPlanilha(coluna(linha, "empresa", "codemp")) ?? 0);
+    const empresa = empresas.data?.find((e) => e.codemp === codemp);
+    if (!codigo || !empresa) return null;
+
+    const matricula = numeroDaPlanilha(coluna(linha, "matricula"));
+    const departamento = coluna(linha, "departamento");
+    const vinculo = normalizar(coluna(linha, "vinculo")) === "pj" ? "pj" : "clt";
+
+    return {
+      nome_completo: coluna(linha, "nome", "nome completo"),
+      codigo,
+      codparc: Number(numeroDaPlanilha(coluna(linha, "codparc")) ?? 0),
+      empresa_id: empresa.id,
+      vinculo,
+      matricula: vinculo === "clt" && matricula ? Number(matricula) : null,
+      papel: (["refeitorio", "admin"].includes(normalizar(coluna(linha, "papel")))
+        ? normalizar(coluna(linha, "papel"))
+        : "colaborador") as Papel,
+      departamento_id:
+        departamentos.data?.find(
+          (d) => normalizar(d.nome) === normalizar(departamento),
+        )?.id ?? null,
+    };
+  }
   const erroLista = alternarAtivo.error ?? redefinirSenha.error;
 
   const podeSalvar =
@@ -222,9 +272,67 @@ export function Colaboradores() {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-bold">Colaboradores</h1>
-        <Button variant="destaque" onClick={abrirNovo} disabled={!empresas.data?.length}>
-          Novo colaborador
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" onClick={exportar} disabled={lista.length === 0}>
+            Exportar
+          </Button>
+          <ImportarPlanilha
+            titulo="Importar colaboradores"
+            descricao={
+              "Cria quem ainda não existe. Cada um recebe uma senha provisória, " +
+              "mostrada no fim. CLT precisa de matrícula; PJ, não."
+            }
+            nomeDoModelo="modelo-colaboradores-f8"
+            modelo={{
+              Nome: "Fulano de Tal",
+              Codigo: "1234",
+              Codparc: 5678,
+              Matricula: 1234,
+              Vinculo: "clt",
+              Empresa: empresas.data?.[0]?.codemp ?? 1,
+              Departamento: departamentos.data?.[0]?.nome ?? "",
+              Papel: "colaborador",
+            }}
+            converter={converterLinha}
+            enviar={(linhas) =>
+              api.post<ResultadoImportacaoColaboradores>("/colaboradores/importar", { linhas })
+            }
+            aoConcluir={recarregar}
+            extraNoResultado={(resultado) =>
+              Object.keys(resultado.senhas).length > 0 && (
+                <div className="rounded-lg border border-accent bg-accent/10 p-3">
+                  <p className="text-sm font-semibold">
+                    {Object.keys(resultado.senhas).length} senha(s) provisória(s) geradas
+                  </p>
+                  {/* Aparecem uma vez só: depois disto existe apenas o hash, e
+                      a saída é redefinir uma a uma. Baixar é o único jeito
+                      prático de entregar 100 senhas. */}
+                  <p className="mt-0.5 mb-2 text-[11px] text-suave">
+                    Baixe agora — elas não aparecem de novo.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="destaque"
+                    onClick={() =>
+                      baixarCsv(
+                        "senhas-provisorias-f8",
+                        Object.entries(resultado.senhas).map(([codigo, senha]) => ({
+                          Codigo: codigo,
+                          "Senha provisoria": senha,
+                        })),
+                      )
+                    }
+                  >
+                    Baixar senhas
+                  </Button>
+                </div>
+              )
+            }
+          />
+          <Button variant="destaque" onClick={abrirNovo} disabled={!empresas.data?.length}>
+            Novo colaborador
+          </Button>
+        </div>
       </div>
 
       {abertas.length > 0 && (

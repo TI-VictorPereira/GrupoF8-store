@@ -5,7 +5,7 @@ import { Input } from "@/componentes/ui/input";
 type Proprias = {
   valor: string;
   aoMudar: (valor: string) => void;
-s  digitos?: number;
+  digitos?: number;
 };
 export const CampoInteiro = forwardRef<
   HTMLInputElement,
