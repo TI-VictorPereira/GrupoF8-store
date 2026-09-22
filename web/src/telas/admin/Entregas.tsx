@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
-import { CampoInteiro } from "@/componentes/CampoInteiro";
 import { Carregando } from "@/componentes/Carregando";
 import { Vazio } from "@/componentes/Vazio";
 import { Button } from "@/componentes/ui/button";
@@ -27,16 +26,14 @@ const CHAVE = ["pedidos-pendentes"] as const;
 
 const AVISOS: Record<string, string> = {
   pedido_nao_pendente: "Alguém já tratou este pedido. A lista foi atualizada.",
-  codigo_retirada_invalido: "Código não confere com nenhum pedido aguardando.",
 };
 
 export function Entregas() {
   const clienteConsulta = useQueryClient();
   const [aCancelar, setACancelar] = useState<LinhaEntrega | null>(null);
   const [motivo, setMotivo] = useState("");
-  const [codigo, setCodigo] = useState("");
+  const [busca, setBusca] = useState("");
   const [confirmado, setConfirmado] = useState<string | null>(null);
-  const campo = useRef<HTMLInputElement>(null);
 
   const pendentes = useQuery({
     queryKey: CHAVE,
@@ -60,33 +57,12 @@ export function Entregas() {
     void clienteConsulta.invalidateQueries({ queryKey: ["vitrine"] });
   }
 
-  /** Caminho normal: a pessoa mostra o código no celular e o operador digita. */
-  const entregarPorCodigo = useMutation({
-    mutationFn: (codigo_retirada: string) =>
-      api.post<{ id: string }>("/pedidos/entregar", { codigo_retirada }),
-    onSuccess: (pedido) => {
-      // A lista não tem mais o código, então o encontro é pelo id que a
-      // resposta devolve.
-      const linha = clienteConsulta
-        .getQueryData<LinhaEntrega[]>(CHAVE)
-        ?.find((l) => l.pedido.id === pedido.id);
-      setConfirmado(linha?.colaborador_nome ?? "Pedido entregue");
+  const entregar = useMutation({
+    mutationFn: (linha: LinhaEntrega) => api.post(`/pedidos/${linha.pedido.id}/entregar`),
+    onSuccess: (_resposta, linha) => {
+      setConfirmado(linha.colaborador_nome);
       recarregar();
     },
-    onSettled: () => {
-      setCodigo("");
-      campo.current?.focus();
-    },
-  });
-
-  /**
-   * Saída para quem está sem o celular. Fica separada e com confirmação
-   * porque a auditoria registra as duas de forma diferente: aqui ninguém
-   * provou nada, o operador liberou por conta própria.
-   */
-  const entregarSemCodigo = useMutation({
-    mutationFn: (id: string) => api.post(`/pedidos/${id}/entregar`),
-    onSuccess: recarregar,
   });
 
   const cancelar = useMutation({
@@ -100,8 +76,20 @@ export function Entregas() {
     },
   });
 
-  const linhas = pendentes.data ?? [];
-  const erro = entregarPorCodigo.error ?? entregarSemCodigo.error ?? cancelar.error;
+  // Filtra sobre `pendentes.data` e não sobre uma lista já derivada: `?? []`
+  // devolve um array novo a cada render, e o memo nunca memorizaria nada.
+  const linhas = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    const todas = pendentes.data ?? [];
+    if (!termo) return todas;
+    return todas.filter(
+      (l) =>
+        l.colaborador_nome.toLowerCase().includes(termo) ||
+        l.colaborador_codigo.toLowerCase().includes(termo),
+    );
+  }, [pendentes.data, busca]);
+  const total = pendentes.data?.length ?? 0;
+  const erro = entregar.error ?? cancelar.error;
 
   // A confirmação some sozinha: ninguém no balcão vai clicar para fechar, e
   // um "entregue" parado na tela confunde a próxima pessoa da fila.
@@ -116,46 +104,9 @@ export function Entregas() {
       <div className="mb-4 flex items-baseline justify-between">
         <h1 className="text-lg font-bold">Entregas</h1>
         <p className="text-xs text-suave">
-          {linhas.length} {linhas.length === 1 ? "pedido aguardando" : "pedidos aguardando"}
+          {total} {total === 1 ? "pedido aguardando" : "pedidos aguardando"}
         </p>
       </div>
-
-      <Card className="mb-4">
-        <CardContent className="p-4">
-          <form
-            onSubmit={(evento) => {
-              evento.preventDefault();
-              const valor = codigo.trim();
-              if (valor) entregarPorCodigo.mutate(valor);
-            }}
-          >
-            <Label htmlFor="codigo-retirada">Código de retirada</Label>
-            <p className="mt-0.5 mb-1.5 text-[11px] text-suave">
-              Peça o código na tela do celular de quem está retirando.
-            </p>
-            <div className="flex gap-2">
-              <CampoInteiro
-                id="codigo-retirada"
-                ref={campo}
-                digitos={6}
-                valor={codigo}
-                aoMudar={setCodigo}
-                autoFocus
-                placeholder="000000"
-                className="h-12 font-mono text-xl tracking-[0.3em]"
-              />
-              <Button
-                type="submit"
-                variant="destaque"
-                className="h-12 px-6"
-                disabled={codigo.length < 6 || entregarPorCodigo.isPending}
-              >
-                {entregarPorCodigo.isPending ? "Conferindo…" : "Entregar"}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
 
       {confirmado && (
         <Card role="status" className="mb-4 border-sucesso/30 bg-sucesso/10">
@@ -175,9 +126,24 @@ export function Entregas() {
         </div>
       )}
 
+      {/* Com a fila cheia, achar a pessoa na lista é o que toma tempo no
+          balcão. O crachá dela traz nome e código, que é por onde se busca. */}
+      {total > 0 && (
+        <Input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Achar pelo nome ou pelo código do colaborador"
+          className="mb-3"
+        />
+      )}
+
       {pendentes.isLoading && <Carregando />}
       {pendentes.data && linhas.length === 0 && (
-        <Vazio>Nenhum pedido aguardando retirada.</Vazio>
+        <Vazio>
+          {total === 0
+            ? "Nenhum pedido aguardando retirada."
+            : "Ninguém na fila com esse nome ou código."}
+        </Vazio>
       )}
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -218,18 +184,7 @@ export function Entregas() {
                 </div>
               </div>
 
-              <div className="mt-3 flex items-center justify-end gap-3">
-                {/* Sem código ninguém provou nada: fica discreto e nomeado
-                    pelo que é, para não virar o caminho de sempre. */}
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="h-auto p-0 text-[11px] text-suave"
-                  onClick={() => entregarSemCodigo.mutate(linha.pedido.id)}
-                  disabled={entregarSemCodigo.isPending}
-                >
-                  Entregar sem código
-                </Button>
+              <div className="mt-3 flex items-center justify-end gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -237,6 +192,14 @@ export function Entregas() {
                   disabled={cancelar.isPending}
                 >
                   Cancelar
+                </Button>
+                <Button
+                  variant="destaque"
+                  size="sm"
+                  onClick={() => entregar.mutate(linha)}
+                  disabled={entregar.isPending}
+                >
+                  Entregar
                 </Button>
               </div>
             </CardContent>

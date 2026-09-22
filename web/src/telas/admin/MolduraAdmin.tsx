@@ -6,6 +6,7 @@ import { useState } from "react";
 import { api } from "@/api/cliente";
 import { Badge } from "@/componentes/ui/badge";
 import { Button } from "@/componentes/ui/button";
+import { PAGINA_ADMIN } from "@/comum/layout";
 import { cn } from "@/comum/utilitarios";
 import { useSair } from "@/hooks/sessao";
 import type { LinhaPedido } from "@/interfaces/admin";
@@ -34,9 +35,7 @@ export function MolduraAdmin({ eu }: { eu: Eu }) {
   const [menuAberto, setMenuAberto] = useState(false);
   const caminho = useRouterState({ select: (s) => s.location.pathname });
 
-  // Os dois números que fazem alguém abrir o admin: tem pedido para entregar?
-  // tem gente esperando no refeitório? Ficam na navegação para não precisar
-  // entrar em cada aba para descobrir.
+
   const { data: pendencias } = useQuery({
     queryKey: ["admin-pendencias"],
     refetchInterval: 15_000,
@@ -57,7 +56,7 @@ export function MolduraAdmin({ eu }: { eu: Eu }) {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 bg-ink text-white">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-5 py-3">
+        <div className={cn(PAGINA_ADMIN, "flex items-center gap-3 py-3")}>
           {/* A administração é um beco: as cinco abas navegam entre si e nada
               leva de volta ao início. O logo faz esse papel, como na maioria
               dos sistemas — clicar nele volta. */}
@@ -152,7 +151,7 @@ export function MolduraAdmin({ eu }: { eu: Eu }) {
         )}
       </header>
 
-      <main className="mx-auto max-w-6xl px-5 py-6">
+      <main className={cn(PAGINA_ADMIN, "py-6")}>
         <Outlet />
       </main>
     </div>

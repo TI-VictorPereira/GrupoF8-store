@@ -26,29 +26,15 @@ export interface PedidoCompleto {
   itens: ItemDePedido[];
 }
 
-/**
- * Linha da tela de entregas.
- *
- * O pedido vem SEM `codigo_retirada`: ele só prova presença enquanto existir
- * apenas no aparelho de quem comprou. Ver PedidoParaEntregaSaida na API.
- */
-export interface PedidoParaEntrega {
-  id: string;
-  colaborador_id: string;
-  valor_total: string;
-  status: StatusPedido;
-  criado_em: string;
-  itens: ItemDePedido[];
-}
-
+/** Linha da fila de entregas do balcão. */
 export interface LinhaEntrega {
-  pedido: PedidoParaEntrega;
+  pedido: PedidoCompleto;
   colaborador_nome: string;
   colaborador_codigo: string;
   departamento: string | null;
 }
 
-/** Linha do relatório de vendas: aí o código vem, para conferência. */
+/** Linha do relatório de vendas. */
 export interface LinhaPedido {
   pedido: PedidoCompleto;
   colaborador_nome: string;

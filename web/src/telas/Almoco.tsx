@@ -36,7 +36,7 @@ export function Almoco() {
   return (
     <Moldura>
       <Cabecalho titulo="Almoço de hoje" />
-      <div className="p-5 text-center">
+      <div className="mx-auto max-w-md p-5 text-center">
         {consulta.isLoading && <Carregando />}
 
         {almoco?.status === "confirmado" && (
@@ -71,7 +71,8 @@ export function Almoco() {
                   : "Nenhum código hoje"}
               </p>
               <p className="mt-1 mb-5 text-xs text-suave">
-                Gere o código na hora de ir ao refeitório — ele vale por poucos minutos.
+                Gere o código antes de ir ao refeitório. Ele vale por algumas horas e só
+                pode ser usado uma vez por dia.
               </p>
               {erro && <div className="mb-4">{<Aviso>{erro.message}</Aviso>}</div>}
               <Button

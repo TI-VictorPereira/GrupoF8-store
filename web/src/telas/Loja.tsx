@@ -15,10 +15,11 @@ import { Card } from "@/componentes/ui/card";
 import { ESTILO_CATEGORIA, chaveCategoria } from "@/comum/categorias";
 import { mensagemDeErro } from "@/comum/erros";
 import { dinheiro } from "@/comum/formato";
+import { GRADE_PRODUTOS, PAGINA_APP } from "@/comum/layout";
+import { cn } from "@/comum/utilitarios";
 import type { Categoria, PedidoCriado, ProdutoVitrine } from "@/interfaces/loja";
 
-// A tela sabe que existe um carrinho ajustável, e o servidor não. "Produto
-// inativo ou sem estoque" também não é assunto de quem está comprando.
+
 const AVISOS: Record<string, string> = {
   estoque_insuficiente: "Alguém levou o último antes de você. Ajuste a quantidade.",
   produto_indisponivel: "Este produto saiu da loja.",
@@ -92,21 +93,23 @@ export function Loja() {
     <Moldura>
       <Cabecalho titulo="Loja interna" />
 
-      <div className="no-scrollbar flex gap-2 overflow-x-auto px-5 pt-4">
-        {[{ id: "todas", nome: "Todos" }, ...(categorias.data ?? [])].map((c) => (
-          <Button
-            key={c.id}
-            size="sm"
-            variant={filtro === c.id ? "default" : "outline"}
-            onClick={() => setFiltro(c.id)}
-            className="shrink-0 rounded-full text-[11px]"
-          >
-            {c.nome}
-          </Button>
-        ))}
+      <div className={cn(PAGINA_APP, "pt-4")}>
+        <div className="no-scrollbar flex gap-2 overflow-x-auto">
+          {[{ id: "todas", nome: "Todos" }, ...(categorias.data ?? [])].map((c) => (
+            <Button
+              key={c.id}
+              size="sm"
+              variant={filtro === c.id ? "default" : "outline"}
+              onClick={() => setFiltro(c.id)}
+              className="shrink-0 rounded-full text-[11px]"
+            >
+              {c.nome}
+            </Button>
+          ))}
+        </div>
       </div>
 
-      <div className="p-5 pb-28">
+      <div className={cn(PAGINA_APP, "py-5 pb-28")}>
         {produtos.isLoading && <Carregando texto="Carregando produtos…" />}
         {aviso && (
           <div className="mb-3">
@@ -115,7 +118,7 @@ export function Loja() {
         )}
         {produtos.data && visiveis.length === 0 && <Vazio>Nada nesta categoria.</Vazio>}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className={GRADE_PRODUTOS}>
           {visiveis.map((produto) => {
             const quantidade = carrinho[produto.id] ?? 0;
             const semEstoque = produto.estoque <= 0;
@@ -196,7 +199,12 @@ export function Loja() {
       </div>
 
       {totalItens > 0 && (
-        <div className="fixed inset-x-0 bottom-0 mx-auto flex max-w-md items-center gap-3 border-t border-borda bg-card px-5 py-3">
+        <div
+          className={cn(
+            PAGINA_APP,
+            "fixed inset-x-0 bottom-0 flex items-center gap-3 border-t border-borda bg-card py-3",
+          )}
+        >
           <div className="flex-1">
             <p className="text-[11px] text-suave">
               {totalItens} {totalItens === 1 ? "item" : "itens"}

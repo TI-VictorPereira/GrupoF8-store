@@ -12,6 +12,11 @@ export function hojeIso(): string {
   return iso(new Date());
 }
 
+
+export function diaIso(instante: string): string {
+  return iso(new Date(instante));
+}
+
 export function intervaloDe(periodo: Periodo): { de: string; ate: string } {
   const hoje = new Date();
   if (periodo === "7dias") {

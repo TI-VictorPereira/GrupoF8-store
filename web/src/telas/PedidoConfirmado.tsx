@@ -29,19 +29,14 @@ export function PedidoConfirmado({ pedidoId }: { pedidoId: string }) {
       )}
 
       {pedido && (
-        <div className="p-6 text-center">
+        <div className="mx-auto max-w-md p-6 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-accent text-2xl font-black text-ink">
             ✓
           </div>
           <h1 className="mt-4 text-base font-bold">Pedido confirmado</h1>
           <p className="mt-1 text-xs text-suave">
-            Retire na recepção apresentando o código abaixo.
+            Retire na recepção. Ele fica aguardando você na lista do balcão.
           </p>
-
-          <div className="mt-5 rounded-xl bg-ink py-5 text-white">
-            <p className="text-[11px] text-white/50">Código de retirada</p>
-            <p className="mt-1 text-3xl font-black tracking-[0.2em]">{pedido.codigo_retirada}</p>
-          </div>
 
           <div className="mt-4 rounded-xl border border-borda p-4 text-left">
             <p className="mb-2 text-[11px] text-muito-suave">{dataHora(pedido.criado_em)}</p>

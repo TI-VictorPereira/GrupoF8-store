@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from "@/componentes/ui/select";
 import { dataHora, dinheiro, mesPorExtenso } from "@/comum/formato";
+import { PAGINA_APP } from "@/comum/layout";
+import { cn } from "@/comum/utilitarios";
 import type { Extrato } from "@/interfaces/consumo";
 
 const ROTULO_STATUS: Record<string, string> = {
@@ -41,7 +43,7 @@ export function Consumo() {
     <Moldura>
       <Cabecalho titulo="Meu consumo" />
 
-      <div className="px-5 pt-4">
+      <div className={cn(PAGINA_APP, "pt-4")}>
         <Select
           value={competencia ?? meses.data?.[0] ?? ""}
           onValueChange={setCompetencia}
@@ -60,7 +62,12 @@ export function Consumo() {
       </div>
 
       {extrato.data && (
-        <div className="grid grid-cols-2 gap-3 p-5 pb-0">
+        <div
+          className={cn(
+            PAGINA_APP,
+            "mt-4 grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3",
+          )}
+        >
           <div className="rounded-xl border border-borda p-3">
             <p className="text-[11px] text-suave">Gasto na loja</p>
             <p className="mt-1 text-lg font-bold">{dinheiro(extrato.data.total_loja)}</p>
@@ -72,7 +79,7 @@ export function Consumo() {
         </div>
       )}
 
-      <div className="p-5">
+      <div className={cn(PAGINA_APP, "py-5")}>
         {extrato.isLoading && <Carregando />}
         {extrato.data?.lancamentos.length === 0 && <Vazio>Nenhum consumo neste mês.</Vazio>}
 

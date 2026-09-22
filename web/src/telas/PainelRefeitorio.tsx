@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { api } from "@/api/cliente";
+import { BuscarColaborador } from "@/componentes/BuscarColaborador";
 import { Carregando } from "@/componentes/Carregando";
 import { Vazio } from "@/componentes/Vazio";
 import { Badge } from "@/componentes/ui/badge";
@@ -14,15 +15,16 @@ import { Label } from "@/componentes/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/componentes/ui/tabs";
 import { mensagemDeErro } from "@/comum/erros";
 import { hora } from "@/comum/formato";
+import { PAGINA_PAINEL } from "@/comum/layout";
+import { cn } from "@/comum/utilitarios";
 import { useSair } from "@/hooks/sessao";
 import type { AlmocoDoDia } from "@/interfaces/almoco";
-import type { ColaboradorParaAlmoco, LinhaPainel } from "@/interfaces/refeitorio";
+import type { LinhaPainel } from "@/interfaces/refeitorio";
 import type { Eu } from "@/interfaces/sessao";
 
 const CHAVE_PAINEL = ["painel-almocos"] as const;
 
-// Quem lê é o operador, não o dono do almoço: por isso terceira pessoa, e por
-// isso "peça para gerar" em vez de "gere". O resto vem pronto do servidor.
+
 const AVISOS: Record<string, string> = {
   almoco_ja_confirmado: "Este código já foi usado hoje.",
   almoco_expirado: "Código expirado. Peça para gerar outro.",
@@ -46,7 +48,6 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [manualAberto, setManualAberto] = useState(false);
-  const [termo, setTermo] = useState("");
 
   const painel = useQuery({
     queryKey: CHAVE_PAINEL,
@@ -54,15 +55,6 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
     // Pode haver mais de um posto atendendo; recarregar de tempos em tempos
     // mantém a fila igual em todos sem ninguém apertar nada.
     refetchInterval: 10_000,
-  });
-
-  const busca = useQuery({
-    queryKey: ["busca-colaborador", termo],
-    queryFn: () =>
-      api.get<ColaboradorParaAlmoco[]>(
-        `/almocos/colaboradores?busca=${encodeURIComponent(termo)}`,
-      ),
-    enabled: manualAberto && termo.trim().length >= 2,
   });
 
   /** O nome não vem na resposta da confirmação; está na fila já carregada. */
@@ -96,7 +88,6 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
       recarregar();
       setFeedback({ tom: "ok", titulo: nomeDe(almoco), detalhe: "Lançado manualmente" });
       setManualAberto(false);
-      setTermo("");
       campo.current?.focus();
     },
     onError: (erro) => setFeedback({ tom: "erro", titulo: mensagemDeErro(erro, AVISOS) }),
@@ -139,7 +130,7 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-3xl px-5 pb-10">
+    <div className={cn(PAGINA_PAINEL, "min-h-screen pb-10")}>
       <header className="flex items-center gap-3 py-5">
         <Button asChild variant="ghost" size="icon" aria-label="Voltar ao início">
           <Link to="/">
@@ -229,37 +220,11 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
       {manualAberto && (
         <Card className="mt-4">
           <CardContent className="p-4">
-            <Label htmlFor="busca">Nome ou código do colaborador</Label>
-            <Input
-              id="busca"
-              value={termo}
-              onChange={(e) => setTermo(e.target.value)}
-              autoComplete="off"
-              className="mt-1.5"
+            <BuscarColaborador
+              acao="Lançar"
+              ocupado={manual.isPending}
+              aoEscolher={(pessoa) => manual.mutate(pessoa.id)}
             />
-            {termo.trim().length >= 2 && busca.data?.length === 0 && (
-              <p className="mt-3 text-sm text-suave">Ninguém encontrado.</p>
-            )}
-            <div className="mt-2">
-              {(busca.data ?? []).map((pessoa) => (
-                <Button
-                  key={pessoa.id}
-                  variant="ghost"
-                  onClick={() => manual.mutate(pessoa.id)}
-                  disabled={manual.isPending}
-                  className="h-auto w-full justify-between rounded-none border-b border-borda px-2 py-2.5 text-left last:border-b-0"
-                >
-                  <span>
-                    <span className="block text-sm font-semibold">{pessoa.nome_completo}</span>
-                    <span className="block text-[11px] text-suave">
-                      {pessoa.codigo}
-                      {pessoa.departamento ? ` · ${pessoa.departamento}` : ""}
-                    </span>
-                  </span>
-                  <span className="text-xs font-bold text-suave">Lançar →</span>
-                </Button>
-              ))}
-            </div>
           </CardContent>
         </Card>
       )}

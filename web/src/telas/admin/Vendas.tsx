@@ -106,7 +106,7 @@ export function Vendas() {
         Quantidade: item.quantidade,
         "Valor unitário": Number(item.preco_unitario).toFixed(2),
         "Valor total": (Number(item.preco_unitario) * item.quantidade).toFixed(2),
-        "Código de retirada": linha.pedido.codigo_retirada,
+        "Código do pedido": linha.pedido.codigo_retirada,
         Status: linha.pedido.status,
       })),
     );
