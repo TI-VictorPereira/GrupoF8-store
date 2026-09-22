@@ -219,37 +219,8 @@ def test_desfazer_confirmacao_permite_confirmar_de_novo(cliente, dados):
     ] == "confirmado"
 
 
-def test_entrega_exige_o_codigo_da_pessoa(cliente, dados, produto):
-    """O código substitui a assinatura em papel: sem ele, não entrega."""
-    _liberar_colaborador(dados, papel="admin")
-    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
-    criado = cliente.post(
-        "/pedidos", json={"itens": [{"produto_id": str(produto["produto"]), "quantidade": 1}]}
-    ).json()
-
-    errado = cliente.post("/pedidos/entregar", json={"codigo_retirada": "000000"})
-    assert errado.status_code == 400
-    assert errado.json()["codigo"] == "codigo_retirada_invalido"
-
-    certo = cliente.post(
-        "/pedidos/entregar", json={"codigo_retirada": criado["codigo_retirada"]}
-    )
-    assert certo.json()["status"] == "entregue"
-
-    # Código já usado não serve de novo: o índice parcial só vale entre pendentes.
-    repetido = cliente.post(
-        "/pedidos/entregar", json={"codigo_retirada": criado["codigo_retirada"]}
-    )
-    assert repetido.json()["codigo"] == "codigo_retirada_invalido"
-
-
-def test_balcao_nao_recebe_o_codigo_de_retirada(cliente, dados, produto):
-    """O código só prova presença enquanto existir apenas no aparelho da pessoa.
-
-    Se esta resposta voltar a trazê-lo, basta abrir as ferramentas do
-    navegador para entregar qualquer pedido sem ninguém aparecer — e este
-    teste é o que impede isso de voltar sem ninguém notar.
-    """
+def test_admin_entrega_direto_da_lista(cliente, dados, produto):
+    """A entrega é confirmada pela linha da fila, sem nada para digitar."""
     _liberar_colaborador(dados, papel="admin")
     cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
     cliente.post(
@@ -257,10 +228,15 @@ def test_balcao_nao_recebe_o_codigo_de_retirada(cliente, dados, produto):
     )
 
     linha = cliente.get("/pedidos/pendentes").json()[0]
+    pedido_id = linha["pedido"]["id"]
 
-    assert "codigo_retirada" not in linha["pedido"]
-    # o dono continua vendo o dele
-    assert cliente.get("/pedidos/me").json()[0]["codigo_retirada"]
+    assert cliente.post(f"/pedidos/{pedido_id}/entregar").json()["status"] == "entregue"
+    assert cliente.get("/pedidos/pendentes").json() == []
+
+    # Entregue não se entrega de novo: o segundo clique do operador nervoso
+    # não pode virar uma segunda baixa.
+    repetido = cliente.post(f"/pedidos/{pedido_id}/entregar")
+    assert repetido.json()["codigo"] == "pedido_nao_pendente"
 
 
 def test_pedido_vencido_expira_e_devolve_o_estoque(dados, produto):

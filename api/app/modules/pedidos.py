@@ -16,7 +16,6 @@ from app.core.config import obter_config
 from app.excecoes import (
     CarrinhoVazio,
     CodigoRetiradaIndisponivel,
-    CodigoRetiradaInvalido,
     ColaboradorInativo,
     EstoqueInsuficiente,
     PedidoNaoPendente,
@@ -131,66 +130,33 @@ def listar_proprios(sessao: Session, ator: Ator) -> list[Pedido]:
 
 
 def entregar(sessao: Session, ator: Ator, pedido_id: uuid.UUID) -> Pedido:
+    """Confirma a retirada do pedido no balcão.
+
+    Quem confere que a pessoa é ela mesma é o balcão, não o sistema: o
+    operador tem a lista na tela, chama pelo nome e libera. A trilha guarda
+    quem confirmou e quando, que é o que permite voltar atrás numa cobrança
+    contestada.
+    """
     if not ator.eh_admin:
         raise SemPermissao()
     pedido = sessao.get(Pedido, pedido_id)
     if pedido is None or pedido.status != "pendente":
         raise PedidoNaoPendente()
-    return _marcar_entregue(sessao, ator, pedido, por_codigo=False)
 
-
-def _marcar_entregue(
-    sessao: Session, ator: Ator, pedido: Pedido, *, por_codigo: bool
-) -> Pedido:
-    """Fecha a entrega.
-
-    `por_codigo` entra na auditoria porque as duas formas não valem o mesmo:
-    com código, quem retirou provou que estava presente; sem código, o
-    operador liberou por conta própria. Se um dia alguém contestar um
-    desconto, é essa diferença que a trilha precisa mostrar.
-    """
     pedido.status = "entregue"
     pedido.entregue_em = _agora()
     pedido.entregue_por = ator.id
     auditoria.registrar(
         sessao,
         ator,
-        acao="pedido.entregue" if por_codigo else "pedido.entregue_sem_codigo",
+        acao="pedido.entregue",
         entidade="pedido",
         entidade_id=pedido.id,
-        descricao=(
-            f"Confirmou a entrega do pedido {pedido.codigo_retirada}"
-            + ("." if por_codigo else " sem conferir o código.")
-        ),
+        descricao=f"Confirmou a entrega do pedido {pedido.codigo_retirada}.",
         dados_anteriores={"status": "pendente"},
-        dados_novos={"status": "entregue", "conferido_por_codigo": por_codigo},
+        dados_novos={"status": "entregue"},
     )
     return pedido
-
-
-def entregar_por_codigo(sessao: Session, ator: Ator, codigo_retirada: str) -> Pedido:
-    """Confirma a entrega pelo código que a pessoa mostra no balcão.
-
-    Substitui a lista de assinatura em papel: quem retira prova que estava ali
-    apresentando um código que só existe no aparelho dela, e o sistema guarda
-    quem confirmou, quando e qual pedido.
-
-    O índice parcial `pedidos_codigo_retirada_pendente_uk` garante que o
-    código é único entre os pendentes, então a busca nunca é ambígua — é por
-    isso que dá para entregar digitando só o código, sem escolher da lista.
-    """
-    if not ator.eh_admin:
-        raise SemPermissao()
-
-    pedido = sessao.scalar(
-        select(Pedido).where(
-            Pedido.codigo_retirada == codigo_retirada.strip(),
-            Pedido.status == "pendente",
-        )
-    )
-    if pedido is None:
-        raise CodigoRetiradaInvalido()
-    return _marcar_entregue(sessao, ator, pedido, por_codigo=True)
 
 
 def _devolver_ao_estoque(sessao: Session, pedido: Pedido) -> None:

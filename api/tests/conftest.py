@@ -2,7 +2,7 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, or_, select, text, update
 
 from app.core import seguranca
 from app.core.db import FabricaDeSessao
@@ -10,6 +10,7 @@ from app.main import app
 from app.models.acesso import SolicitacaoSenha, TentativaLogin
 from app.models.auditoria import LogAcesso, LogAuditoria
 from app.models.cadastro import Colaborador, Empresa
+from app.models.operacao import AjusteEstoque, Almoco, Pedido
 
 SENHA = "senha-de-teste-123"
 CODIGO = "T-LOGIN"
@@ -37,9 +38,57 @@ def _limpar_contadores():
     limpar()
 
 
+def _limpar_sobras() -> None:
+    """Apaga colaboradores de teste que uma execução interrompida deixou.
+
+    O teardown de `dados` só roda se o teste chega ao fim. Uma suíte morta no
+    meio — Ctrl-C, container reiniciado, duas execuções concorrentes — deixa
+    `T-LOGIN` no banco, e a execução seguinte morre no índice único de
+    `codigo` antes do primeiro teste rodar, com um IntegrityError que não tem
+    nada a ver com o que se estava testando.
+
+    Limpar na entrada custa uma consulta e torna a suíte reentrante.
+    """
+    with FabricaDeSessao() as s:
+        sobras = list(s.scalars(select(Colaborador).where(Colaborador.codigo.in_(_CODIGOS))))
+        if not sobras:
+            return
+
+        ids = [c.id for c in sobras]
+        empresas = {c.empresa_id for c in sobras}
+
+        # Ordem das chaves estrangeiras: o que aponta para o colaborador sai
+        # antes dele, e a empresa sai por último.
+        s.execute(
+            delete(Pedido).where(
+                or_(Pedido.colaborador_id.in_(ids), Pedido.entregue_por.in_(ids))
+            )
+        )
+        s.execute(
+            delete(Almoco).where(
+                or_(Almoco.colaborador_id.in_(ids), Almoco.confirmado_por.in_(ids))
+            )
+        )
+        # O ajuste é histórico do produto, não do colaborador: perde o autor,
+        # não a movimentação.
+        s.execute(
+            update(AjusteEstoque)
+            .where(AjusteEstoque.criado_por.in_(ids))
+            .values(criado_por=None)
+        )
+        s.execute(delete(LogAuditoria).where(LogAuditoria.usuario_id.in_(ids)))
+        s.execute(delete(LogAcesso).where(LogAcesso.codigo.in_(_CODIGOS)))
+        s.execute(delete(SolicitacaoSenha).where(SolicitacaoSenha.codigo.in_(_CODIGOS)))
+        s.execute(delete(TentativaLogin).where(TentativaLogin.codigo.in_(_CODIGOS)))
+        s.execute(delete(Colaborador).where(Colaborador.id.in_(ids)))
+        s.execute(delete(Empresa).where(Empresa.id.in_(empresas)))
+        s.commit()
+
+
 @pytest.fixture
 def dados():
     """Cria empresa e colaboradores de teste e apaga tudo ao final."""
+    _limpar_sobras()
     marca = uuid.uuid4().int % 100000
     with FabricaDeSessao() as s:
         empresa = Empresa(codemp=900000 + marca, nome="Empresa de Teste")

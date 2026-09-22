@@ -38,7 +38,12 @@ class Config(BaseSettings):
     senha_hash_rapido: bool = False
 
     # --- almoço --------------------------------------------------------------
-    almoco_validade_minutos: int = 15
+    # 12 horas: o código é gerado no celular, no notebook ou no desktop, e nem
+    # sempre quem gera está a caminho do refeitório. Quem garante um almoço por
+    # pessoa por dia é o índice `almocos_um_por_dia`, não este prazo — aqui o
+    # prazo serve para o painel não ficar contando como "aguardando" alguém que
+    # gerou de manhã e não apareceu.
+    almoco_validade_minutos: int = 720
     pedido_validade_horas: int = 8
     fuso: str = "America/Sao_Paulo"
 

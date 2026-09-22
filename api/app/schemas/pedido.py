@@ -69,31 +69,3 @@ class LinhaPedidoSaida(BaseModel):
     colaborador_codigo: str
     departamento: str | None
 
-
-class EntradaEntrega(BaseModel):
-    """O código que a pessoa mostra no balcão. Seis dígitos."""
-
-    codigo_retirada: str = Field(min_length=1, max_length=20)
-
-
-class PedidoParaEntregaSaida(BaseModel):
-    """O pedido como o balcão pode vê-lo: sem o código de retirada.
-    """
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    colaborador_id: uuid.UUID
-    valor_total: Decimal
-    status: str
-    criado_em: datetime
-    itens: list[ItemPedidoSaida]
-
-
-class LinhaEntregaSaida(BaseModel):
-    """Linha da tela de entregas."""
-
-    pedido: PedidoParaEntregaSaida
-    colaborador_nome: str
-    colaborador_codigo: str
-    departamento: str | None

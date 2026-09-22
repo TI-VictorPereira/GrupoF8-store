@@ -11,12 +11,9 @@ from app.models.operacao import ItemPedido, Pedido
 from app.modules import pedidos
 from app.schemas.pedido import (
     EntradaCancelamento,
-    EntradaEntrega,
     EntradaPedido,
-    LinhaEntregaSaida,
     LinhaPedidoSaida,
     PedidoDetalheSaida,
-    PedidoParaEntregaSaida,
     PedidoSaida,
 )
 
@@ -39,12 +36,12 @@ def meus_pedidos(ator: AtorLiberado, sessao: Sessao) -> list[PedidoDetalheSaida]
     return [_detalhe(sessao, pedido) for pedido in pedidos.listar_proprios(sessao, ator)]
 
 
-@rotas.get("/pendentes", response_model=list[LinhaEntregaSaida])
-def pendentes(ator: AdminLiberado, sessao: Sessao) -> list[LinhaEntregaSaida]:
-    """Sem o código de retirada: ver PedidoParaEntregaSaida."""
+@rotas.get("/pendentes", response_model=list[LinhaPedidoSaida])
+def pendentes(ator: AdminLiberado, sessao: Sessao) -> list[LinhaPedidoSaida]:
+    """A fila do balcão: o que falta entregar e para quem."""
     return [
-        LinhaEntregaSaida(
-            pedido=PedidoParaEntregaSaida.model_validate(
+        LinhaPedidoSaida(
+            pedido=PedidoDetalheSaida.model_validate(
                 {**linha.pedido.__dict__, "itens": linha.itens}
             ),
             colaborador_nome=linha.colaborador_nome,
@@ -88,10 +85,3 @@ def historico(
         for linha in pedidos.listar_periodo(sessao, ator, de, ate, status)
     ]
 
-
-@rotas.post("/entregar", response_model=PedidoSaida)
-def entregar_por_codigo(
-    dados: EntradaEntrega, ator: AdminLiberado, sessao: Sessao
-) -> Pedido:
-    """Caminho normal da entrega: o operador digita o código da pessoa."""
-    return pedidos.entregar_por_codigo(sessao, ator, dados.codigo_retirada)
