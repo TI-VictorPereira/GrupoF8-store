@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "api:tipos": "openapi-typescript http://api:8000/openapi.json -o src/api/tipos.gen.ts"
+    "api:tipos": "openapi-typescript http://api:8000/openapi.json -o src/api/tipos.gen.ts",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
@@ -29,13 +30,20 @@
     "tw-animate-css": "^1.3.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.0",
     "@tailwindcss/vite": "^4.1.13",
+    "@tanstack/eslint-plugin-query": "^5.91.0",
+    "@tanstack/eslint-plugin-router": "^1.135.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.2",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "eslint-plugin-react-refresh": "^0.4.24",
     "openapi-typescript": "^7.9.1",
     "tailwindcss": "^4.1.13",
     "typescript": "^5.9.2",
+    "typescript-eslint": "^8.46.0",
     "vite": "^7.1.5"
   }
 }
