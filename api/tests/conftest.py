@@ -38,6 +38,32 @@ def _limpar_contadores():
     limpar()
 
 
+def _apagar(s, ids: list[uuid.UUID], empresas: set[uuid.UUID]) -> None:
+    """Apaga colaboradores de teste e tudo que aponta para eles.
+
+    A ordem é a das chaves estrangeiras: o que referencia o colaborador sai
+    antes dele, e a empresa sai por último. Um teste que cria pedido ou almoço
+    trava a exclusão se esta ordem for encurtada.
+    """
+    s.execute(
+        delete(Pedido).where(or_(Pedido.colaborador_id.in_(ids), Pedido.entregue_por.in_(ids)))
+    )
+    s.execute(
+        delete(Almoco).where(or_(Almoco.colaborador_id.in_(ids), Almoco.confirmado_por.in_(ids)))
+    )
+    # O ajuste é histórico do produto, não do colaborador: perde o autor, não
+    # a movimentação.
+    s.execute(
+        update(AjusteEstoque).where(AjusteEstoque.criado_por.in_(ids)).values(criado_por=None)
+    )
+    s.execute(delete(LogAuditoria).where(LogAuditoria.usuario_id.in_(ids)))
+    s.execute(delete(LogAcesso).where(LogAcesso.codigo.in_(_CODIGOS)))
+    s.execute(delete(SolicitacaoSenha).where(SolicitacaoSenha.codigo.in_(_CODIGOS)))
+    s.execute(delete(TentativaLogin).where(TentativaLogin.codigo.in_(_CODIGOS)))
+    s.execute(delete(Colaborador).where(Colaborador.id.in_(ids)))
+    s.execute(delete(Empresa).where(Empresa.id.in_(empresas)))
+
+
 def _limpar_sobras() -> None:
     """Apaga colaboradores de teste que uma execução interrompida deixou.
 
@@ -53,35 +79,7 @@ def _limpar_sobras() -> None:
         sobras = list(s.scalars(select(Colaborador).where(Colaborador.codigo.in_(_CODIGOS))))
         if not sobras:
             return
-
-        ids = [c.id for c in sobras]
-        empresas = {c.empresa_id for c in sobras}
-
-        # Ordem das chaves estrangeiras: o que aponta para o colaborador sai
-        # antes dele, e a empresa sai por último.
-        s.execute(
-            delete(Pedido).where(
-                or_(Pedido.colaborador_id.in_(ids), Pedido.entregue_por.in_(ids))
-            )
-        )
-        s.execute(
-            delete(Almoco).where(
-                or_(Almoco.colaborador_id.in_(ids), Almoco.confirmado_por.in_(ids))
-            )
-        )
-        # O ajuste é histórico do produto, não do colaborador: perde o autor,
-        # não a movimentação.
-        s.execute(
-            update(AjusteEstoque)
-            .where(AjusteEstoque.criado_por.in_(ids))
-            .values(criado_por=None)
-        )
-        s.execute(delete(LogAuditoria).where(LogAuditoria.usuario_id.in_(ids)))
-        s.execute(delete(LogAcesso).where(LogAcesso.codigo.in_(_CODIGOS)))
-        s.execute(delete(SolicitacaoSenha).where(SolicitacaoSenha.codigo.in_(_CODIGOS)))
-        s.execute(delete(TentativaLogin).where(TentativaLogin.codigo.in_(_CODIGOS)))
-        s.execute(delete(Colaborador).where(Colaborador.id.in_(ids)))
-        s.execute(delete(Empresa).where(Empresa.id.in_(empresas)))
+        _apagar(s, [c.id for c in sobras], {c.empresa_id for c in sobras})
         s.commit()
 
 
@@ -124,14 +122,10 @@ def dados():
     yield ids
 
     with FabricaDeSessao() as s:
-        s.execute(delete(LogAcesso).where(LogAcesso.codigo.in_(_CODIGOS)))
         # o teste de varredura por IP gera dezenas de códigos descartáveis
         s.execute(delete(LogAcesso).where(LogAcesso.codigo.like("T-VARRE-%")))
         s.execute(delete(TentativaLogin).where(TentativaLogin.codigo.like("T-VARRE-%")))
-        s.execute(delete(LogAuditoria).where(LogAuditoria.usuario_id.in_(list(ids.values()))))
-        s.execute(delete(SolicitacaoSenha).where(SolicitacaoSenha.codigo.in_(_CODIGOS)))
-        s.execute(delete(Colaborador).where(Colaborador.id.in_([ids["ativo"], ids["inativo"]])))
-        s.execute(delete(Empresa).where(Empresa.id == ids["empresa"]))
+        _apagar(s, [ids["ativo"], ids["inativo"]], {ids["empresa"]})
         s.commit()
 
 

@@ -13,8 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/componentes/ui/select";
-import { dataHora, dinheiro, mesPorExtenso } from "@/comum/formato";
+import { dataHora, diaMes, dinheiro, mesPorExtenso } from "@/comum/formato";
 import { PAGINA_APP } from "@/comum/layout";
+import { cicloDe } from "@/comum/periodo";
 import { cn } from "@/comum/utilitarios";
 import type { Extrato } from "@/interfaces/consumo";
 
@@ -52,11 +53,16 @@ export function Consumo() {
             <SelectValue placeholder="Escolha o mês" />
           </SelectTrigger>
           <SelectContent>
-            {(meses.data ?? []).map((mes) => (
-              <SelectItem key={mes} value={mes}>
-                {mesPorExtenso(mes)}
-              </SelectItem>
-            ))}
+{/* O ciclo fecha no dia 20, então "setembro" não é o mês do calendário.
+                Mostrar o intervalo aqui é o suficiente: é onde a pessoa escolhe. */}
+            {(meses.data ?? []).map((mes) => {
+              const ciclo = cicloDe(mes);
+              return (
+                <SelectItem key={mes} value={mes}>
+                  {mesPorExtenso(mes)} · {diaMes(ciclo.de)} a {diaMes(ciclo.ate)}
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
       </div>

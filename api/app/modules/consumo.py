@@ -2,15 +2,15 @@
 
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import obter_config
-from app.excecoes import CompetenciaInvalida
+from app.excecoes import CompetenciaInvalida, SemPermissao
 from app.models.operacao import Almoco, ItemPedido, Pedido
 from app.modules.auditoria import Ator
 
@@ -36,27 +36,44 @@ class Extrato:
     lancamentos: list[Lancamento]
 
 
+DIA_CORTE = 20
+
+
+def _competencia_de(momento_local: datetime) -> str:
+    """A que ciclo um instante local pertence.
+
+    O mês fecha no dia 20 e o seguinte abre no 21, então a partir do dia 21
+    tudo já conta para o mês seguinte. O rótulo é o mês em que o ciclo fecha,
+    como na folha.
+    """
+    ano, mes = momento_local.year, momento_local.month
+    if momento_local.day > DIA_CORTE:
+        ano, mes = (ano + 1, 1) if mes == 12 else (ano, mes + 1)
+    return f"{ano:04d}-{mes:02d}"
+
+
 def _intervalo(competencia: str) -> tuple[datetime, datetime]:
-    """Mês local convertido para UTC — o mesmo fuso do resto do sistema."""
+    """Ciclo local convertido para UTC, com o fim exclusivo.
+
+    A competência AAAA-MM vai do dia 21 de MM-1 até o fim do dia 20 de MM.
+
+    """
     try:
-        ano, mes = (int(p) for p in competencia.split("-"))
-        primeiro = date(ano, mes, 1)
+        ano, mes = (int(parte) for parte in competencia.split("-"))
+        if not 1 <= mes <= 12:
+            raise ValueError
     except (ValueError, TypeError):
         raise CompetenciaInvalida() from None
 
     fuso = ZoneInfo(_config.fuso)
-    inicio = datetime(primeiro.year, primeiro.month, 1, tzinfo=fuso)
-    proximo = (
-        datetime(primeiro.year + 1, 1, 1, tzinfo=fuso)
-        if primeiro.month == 12
-        else datetime(primeiro.year, primeiro.month + 1, 1, tzinfo=fuso)
-    )
-    return inicio, proximo
+    ano_inicio, mes_inicio = (ano - 1, 12) if mes == 1 else (ano, mes - 1)
+    inicio = datetime(ano_inicio, mes_inicio, DIA_CORTE + 1, tzinfo=fuso)
+    fim = datetime(ano, mes, DIA_CORTE + 1, tzinfo=fuso)
+    return inicio.astimezone(UTC), fim.astimezone(UTC)
 
 
 def competencia_atual() -> str:
-    hoje = datetime.now(ZoneInfo(_config.fuso))
-    return f"{hoje.year:04d}-{hoje.month:02d}"
+    return _competencia_de(datetime.now(ZoneInfo(_config.fuso)))
 
 
 def meu_extrato(sessao: Session, ator: Ator, competencia: str | None = None) -> Extrato:
@@ -139,13 +156,45 @@ def meu_extrato(sessao: Session, ator: Ator, competencia: str | None = None) -> 
     )
 
 
-def competencias_disponiveis(sessao: Session, ator: Ator, quantidade: int = 6) -> list[str]:
-    """Últimos meses, para o seletor da tela. Não consulta o banco: o extrato
-    de um mês sem movimento é simplesmente vazio."""
-    fuso = ZoneInfo(_config.fuso)
-    referencia = datetime.now(fuso).replace(day=1)
-    meses = []
-    for _ in range(quantidade):
-        meses.append(f"{referencia.year:04d}-{referencia.month:02d}")
-        referencia = (referencia - timedelta(days=1)).replace(day=1)
-    return meses
+def _competencia_sql(coluna):
+    """Competência de um `criado_em`, calculada no banco.
+
+    Subtrair o dia de corte joga tudo que pertence ao ciclo para dentro do mês
+    em que ele começou: o dia 20 cai no último dia do mês anterior, o dia 21
+    cai no dia 1. Somar um mês devolve o rótulo, que é o mês em que fecha.
+
+    A conta é feita com datas, não com o número do dia — é isso que faz
+    fevereiro e os meses de 30 dias funcionarem sem caso especial. E o
+    `timezone` na entrada é o mesmo cuidado de `_intervalo`: sem ele, a compra
+    das 21h do dia 20 é contada no ciclo seguinte.
+    """
+    local = func.timezone(_config.fuso, coluna)
+    inicio_do_ciclo = func.date_trunc("month", local - func.make_interval(0, 0, 0, DIA_CORTE))
+    return func.to_char(inicio_do_ciclo + func.make_interval(0, 1), "YYYY-MM")
+
+
+def _com_movimento(sessao: Session, colaborador_id: uuid.UUID | None = None) -> list[str]:
+    """Ciclos que têm pedido ou almoço. Sem `colaborador_id`, os de todo mundo."""
+    achadas = {competencia_atual()}
+    for tabela in (Pedido, Almoco):
+        consulta = select(_competencia_sql(tabela.criado_em)).distinct()
+        if colaborador_id is not None:
+            consulta = consulta.where(tabela.colaborador_id == colaborador_id)
+        achadas.update(sessao.scalars(consulta))
+    return sorted(achadas, reverse=True)
+
+
+def competencias_da_empresa(sessao: Session, ator: Ator) -> list[str]:
+    """Ciclos com movimento de qualquer pessoa. Base do seletor de exportação."""
+    if not ator.eh_admin:
+        raise SemPermissao()
+    return _com_movimento(sessao)
+
+
+def competencias_disponiveis(sessao: Session, ator: Ator) -> list[str]:
+    """Ciclos em que esta pessoa teve movimento, do mais recente para o mais antigo.
+
+    O ciclo aberto entra sempre, mesmo vazio: é onde a pessoa está, e no dia
+    21 o seletor ficaria sem nenhuma opção até a primeira compra.
+    """
+    return _com_movimento(sessao, colaborador_id=ator.id)

@@ -14,6 +14,11 @@ export function dataHora(iso: string): string {
   return `${d.toLocaleDateString("pt-BR")} às ${hora(iso)}`;
 }
 
+export function diaMes(data: string): string {
+  const [, mes, dia] = data.split("-");
+  return `${dia}/${mes}`;
+}
+
 export function mesPorExtenso(competencia: string): string {
   const [ano, mes] = competencia.split("-").map(Number);
   return new Date(ano!, mes! - 1, 1).toLocaleDateString("pt-BR", {

@@ -7,7 +7,7 @@ from decimal import Decimal
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.core.deps import AtorLiberado, Sessao
+from app.core.deps import AdminLiberado, AtorLiberado, Sessao
 from app.modules import consumo
 
 rotas = APIRouter(prefix="/consumo", tags=["consumo"])
@@ -45,4 +45,11 @@ def meu_extrato(ator: AtorLiberado, sessao: Sessao, competencia: str | None = No
 
 @rotas.get("/competencias", response_model=list[str])
 def competencias(ator: AtorLiberado, sessao: Sessao) -> list[str]:
+    """Ciclos em que esta pessoa teve movimento."""
     return consumo.competencias_disponiveis(sessao, ator)
+
+
+@rotas.get("/competencias/empresa", response_model=list[str])
+def competencias_da_empresa(ator: AdminLiberado, sessao: Sessao) -> list[str]:
+    """Ciclos com movimento de qualquer pessoa. Alimenta o seletor da exportação."""
+    return consumo.competencias_da_empresa(sessao, ator)
