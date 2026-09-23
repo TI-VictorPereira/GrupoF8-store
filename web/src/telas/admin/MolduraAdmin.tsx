@@ -1,25 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Menu, X } from "lucide-react";
+import { ArrowLeft, Menu, X } from "lucide-react";
 import { useState } from "react";
 
-import { api } from "@/api/cliente";
 import { Badge } from "@/componentes/ui/badge";
 import { Button } from "@/componentes/ui/button";
 import { PAGINA_ADMIN } from "@/comum/layout";
+import { ABAS_ADMIN } from "@/comum/navegacao";
 import { cn } from "@/comum/utilitarios";
+import { usePendencias } from "@/hooks/pendencias";
 import { useSair } from "@/hooks/sessao";
-import type { LinhaPedido } from "@/interfaces/admin";
-import type { LinhaPainel } from "@/interfaces/refeitorio";
 import type { Eu } from "@/interfaces/sessao";
-
-const ABAS = [
-  { para: "/admin/entregas", rotulo: "Entregas", contador: "pedidos" },
-  { para: "/admin/almocos", rotulo: "Almoços", contador: "almocos" },
-  { para: "/admin/estoque", rotulo: "Estoque" },
-  { para: "/admin/vendas", rotulo: "Vendas" },
-  { para: "/admin/colaboradores", rotulo: "Colaboradores" },
-] as const;
 
 function iniciais(nome: string): string {
   return nome
@@ -34,48 +24,32 @@ export function MolduraAdmin({ eu }: { eu: Eu }) {
   const sair = useSair();
   const [menuAberto, setMenuAberto] = useState(false);
   const caminho = useRouterState({ select: (s) => s.location.pathname });
-
-
-  const { data: pendencias } = useQuery({
-    queryKey: ["admin-pendencias"],
-    refetchInterval: 15_000,
-    queryFn: async () => {
-      const [pedidos, almocos] = await Promise.all([
-        api.get<LinhaPedido[]>("/pedidos/pendentes"),
-        api.get<LinhaPainel[]>("/almocos/hoje?status=pendente"),
-      ]);
-      return { pedidos: pedidos.length, almocos: almocos.length };
-    },
-  });
-
-  const contadores: Record<string, number | undefined> = {
-    pedidos: pendencias?.pedidos,
-    almocos: pendencias?.almocos,
-  };
+  const pendencias = usePendencias(eu.papel);
 
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 bg-ink text-white">
         <div className={cn(PAGINA_ADMIN, "flex items-center gap-3 py-3")}>
-          {/* A administração é um beco: as cinco abas navegam entre si e nada
-              leva de volta ao início. O logo faz esse papel, como na maioria
-              dos sistemas — clicar nele volta. */}
-          <Link
-            to="/"
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
             aria-label="Voltar ao início"
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-sm font-black text-ink"
+            className="text-white/70 hover:bg-white/10 hover:text-white"
           >
-            F8
-          </Link>
+            <Link to="/">
+              <ArrowLeft />
+            </Link>
+          </Button>
           <span className="text-sm font-bold">Administração</span>
 
           <nav className="ml-6 hidden gap-1 md:flex">
-            {ABAS.map((aba) => {
-              const ativa = caminho.startsWith(aba.para);
-              const contador = "contador" in aba ? contadores[aba.contador] : undefined;
+            {ABAS_ADMIN.map((aba) => {
+              const ativa = caminho.startsWith(String(aba.para));
+              const contador = aba.contador ? pendencias[aba.contador] : 0;
               return (
                 <Link
-                  key={aba.para}
+                  key={aba.rotulo}
                   to={aba.para}
                   className={cn(
                     "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
@@ -126,22 +100,18 @@ export function MolduraAdmin({ eu }: { eu: Eu }) {
         </div>
 
         {menuAberto && (
+          // Sem "← Início" aqui: a seta agora está sempre visível na barra, e
+          // repetir o mesmo destino escondido atrás do menu é o que ensinava a
+          // procurar o voltar no lugar errado.
           <nav className="flex flex-col gap-1 border-t border-white/10 px-5 py-3 md:hidden">
-            <Link
-              to="/"
-              onClick={() => setMenuAberto(false)}
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-white/70"
-            >
-              ← Início
-            </Link>
-            {ABAS.map((aba) => (
+            {ABAS_ADMIN.map((aba) => (
               <Link
-                key={aba.para}
+                key={aba.rotulo}
                 to={aba.para}
                 onClick={() => setMenuAberto(false)}
                 className={cn(
                   "rounded-lg px-3 py-2 text-sm font-semibold",
-                  caminho.startsWith(aba.para) ? "bg-accent text-ink" : "text-white/70",
+                  caminho.startsWith(String(aba.para)) ? "bg-accent text-ink" : "text-white/70",
                 )}
               >
                 {aba.rotulo}

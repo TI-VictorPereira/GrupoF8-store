@@ -7,7 +7,9 @@ import { Button } from "@/componentes/ui/button";
 import { Card, CardContent } from "@/componentes/ui/card";
 import { dataHora, dinheiro, hora } from "@/comum/formato";
 import { GRADE_CARTOES, PAGINA_APP } from "@/comum/layout";
+import { visiveis } from "@/comum/navegacao";
 import { cn } from "@/comum/utilitarios";
+import { usePendencias } from "@/hooks/pendencias";
 import { useSair } from "@/hooks/sessao";
 import type { AlmocoDoDia } from "@/interfaces/almoco";
 import type { Extrato } from "@/interfaces/consumo";
@@ -16,6 +18,9 @@ import type { Eu } from "@/interfaces/sessao";
 
 export function Inicio({ eu }: { eu: Eu }) {
   const sair = useSair();
+  const pendencias = usePendencias(eu.papel);
+  const balcao = visiveis(eu.papel, "balcao");
+  const gestao = visiveis(eu.papel, "gestao");
 
   const almoco = useQuery({
     queryKey: ["almoco-hoje"],
@@ -73,6 +78,26 @@ export function Inicio({ eu }: { eu: Eu }) {
               </CardContent>
             </Card>
           ))}
+
+         
+          {balcao.map((destino) => {
+            const fila = destino.contador ? pendencias[destino.contador] : 0;
+            return (
+              <Card key={destino.rotulo} className="border-ink bg-ink text-white">
+                <CardContent className="flex h-full flex-col p-4">
+                  <h2 className="text-sm font-bold">{destino.rotulo}</h2>
+                  <p className="mt-1 text-sm text-white/60">{destino.descricao}</p>
+                  <p className="mt-3 text-3xl font-black text-accent">{fila}</p>
+                  <p className="text-[11px] text-white/50">
+                    {destino.contador === "almocos" ? "aguardando leitura" : "aguardando retirada"}
+                  </p>
+                  <Button asChild variant="destaque" className="mt-3 w-full">
+                    <Link to={destino.para}>Abrir</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
 
           <Card>
             <CardContent className="p-4">
@@ -137,25 +162,18 @@ export function Inicio({ eu }: { eu: Eu }) {
             </CardContent>
           </Card>
 
-          {eu.papel !== "colaborador" && (
-            <Card className="border-ink bg-ink text-white">
+          
+          {gestao.length > 0 && (
+            <Card className="col-span-full">
               <CardContent className="p-4">
-                <h2 className="mb-2 text-sm font-bold">Painel do refeitório</h2>
-                <p className="mb-3 text-sm text-white/60">
-                  Conferir códigos no balcão e acompanhar a fila do dia.
-                </p>
-                <Button asChild variant="destaque" className="w-full">
-                  <Link to="/refeitorio">Abrir painel</Link>
-                </Button>
-                {eu.papel === "admin" && (
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="mt-2 w-full border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
-                  >
-                    <Link to="/admin/entregas">Administração</Link>
-                  </Button>
-                )}
+                <h2 className="mb-3 text-sm font-bold">Gestão</h2>
+                <div className="flex flex-wrap gap-2">
+                  {gestao.map((destino) => (
+                    <Button key={destino.rotulo} asChild variant="outline" size="sm">
+                      <Link to={destino.para}>{destino.rotulo}</Link>
+                    </Button>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}
