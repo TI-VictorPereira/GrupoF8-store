@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { api } from "@/api/cliente";
@@ -20,9 +20,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/componentes/ui/select";
+import { Input } from "@/componentes/ui/input";
 import { mensagemDeErro } from "@/comum/erros";
-import { diaMes, dinheiro, mesPorExtenso } from "@/comum/formato";
+import { dataHora, diaMes, dinheiro, mesPorExtenso } from "@/comum/formato";
 import { cicloDe, competenciaDe } from "@/comum/periodo";
+
+const AVISOS: Record<string, string> = {
+  ciclo_ainda_aberto: "Este ciclo ainda não terminou. Espere passar o dia 20.",
+  competencia_fechada: "Esta competência já foi fechada. Descarte o lote para refazer.",
+};
 
 interface PessoaSemMatricula {
   codemp: number;
@@ -41,6 +47,14 @@ interface ConsumoDaPessoa {
   total: string;
 }
 
+interface Lote {
+  id: string;
+  status: string;
+  fechado_em: string | null;
+  total_registros: number | null;
+  valor_total: string | null;
+}
+
 interface ResumoFolha {
   competencia: string;
   referencia: string;
@@ -49,10 +63,14 @@ interface ResumoFolha {
   pessoas: ConsumoDaPessoa[];
   sem_matricula: PessoaSemMatricula[];
   total_sem_matricula: string;
+  lote: Lote | null;
 }
 
 export function ExportacaoFolha() {
+  const clienteConsulta = useQueryClient();
   const [competencia, setCompetencia] = useState(() => competenciaDe(new Date()));
+  const [descartando, setDescartando] = useState(false);
+  const [motivo, setMotivo] = useState("");
   const aberto = competencia === competenciaDe(new Date());
 
   const ciclos = useQuery({
@@ -69,9 +87,30 @@ export function ExportacaoFolha() {
     mutationFn: ({ rota, nome }: { rota: string; nome: string }) => api.baixar(rota, nome),
   });
 
+  function recarregar() {
+    void clienteConsulta.invalidateQueries({ queryKey: ["exportacao-folha"] });
+  }
+
+  const fechar = useMutation({
+    mutationFn: () => api.post<Lote>("/exportacoes/folha/fechar", { competencia }),
+    onSuccess: recarregar,
+  });
+
+  const descartar = useMutation({
+    mutationFn: (id: string) =>
+      api.post<Lote>(`/exportacoes/lotes/${id}/descartar`, { motivo }),
+    onSuccess: () => {
+      recarregar();
+      setDescartando(false);
+      setMotivo("");
+    },
+  });
+
   const dados = resumo.data;
   const faixa = cicloDe(competencia);
   const fora = dados?.sem_matricula ?? [];
+  const lote = dados?.lote ?? null;
+  const fechado = lote?.status === "exportada";
 
   return (
     <Card>
@@ -101,9 +140,14 @@ export function ExportacaoFolha() {
           </Select>
         </div>
 
-        {(resumo.error || baixar.error) && (
+        {(resumo.error || baixar.error || fechar.error || descartar.error) && (
           <div className="mt-3">
-            <Aviso>{mensagemDeErro(resumo.error ?? baixar.error)}</Aviso>
+            <Aviso>
+              {mensagemDeErro(
+                resumo.error ?? baixar.error ?? fechar.error ?? descartar.error,
+                AVISOS,
+              )}
+            </Aviso>
           </div>
         )}
 
@@ -152,9 +196,25 @@ export function ExportacaoFolha() {
           </div>
         )}
 
+        {/* O fechamento é o que distingue "baixei para conferir" de "isto foi
+            para o ERP". Sem ele, o segundo download é indistinguível de uma
+            segunda importação, e o desconto dobra no holerite. */}
+        {fechado && lote && (
+          <div className="border-sucesso/30 bg-sucesso/10 mt-4 rounded-lg border p-3">
+            <p className="text-xs font-bold text-sucesso">
+              Ciclo fechado e exportado
+              {lote.fechado_em ? ` em ${dataHora(lote.fechado_em)}` : ""}
+            </p>
+            <p className="mt-0.5 text-[11px] text-suave">
+              {lote.total_registros} linha(s) · {dinheiro(lote.valor_total ?? 0)}. O arquivo
+              não muda mais: ele sai do que foi carimbado, não do cálculo por data.
+            </p>
+          </div>
+        )}
+
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
-            variant="destaque"
+            variant={fechado ? "outline" : "destaque"}
             disabled={!dados?.linhas || baixar.isPending}
             onClick={() =>
               baixar.mutate({
@@ -163,8 +223,25 @@ export function ExportacaoFolha() {
               })
             }
           >
-            Baixar arquivo da folha
+            {fechado ? "Baixar novamente" : "Baixar arquivo da folha"}
           </Button>
+
+          {!fechado && (
+            <Button
+              variant="destaque"
+              disabled={aberto || !dados?.linhas || fechar.isPending}
+              title={aberto ? "O ciclo ainda não terminou." : undefined}
+              onClick={() => fechar.mutate()}
+            >
+              {fechar.isPending ? "Fechando…" : "Fechar ciclo e exportar"}
+            </Button>
+          )}
+
+          {fechado && !descartando && (
+            <Button variant="ghost" onClick={() => setDescartando(true)}>
+              Descartar lote
+            </Button>
+          )}
           {fora.length > 0 && (
             <Button
               variant="outline"
@@ -180,6 +257,36 @@ export function ExportacaoFolha() {
             </Button>
           )}
         </div>
+
+        {/* Descartar exige motivo: é a única coisa que explica, meses depois,
+            por que um ciclo foi fechado duas vezes. */}
+        {descartando && lote && (
+          <div className="border-perigo/30 mt-3 rounded-lg border p-3">
+            <p className="text-xs font-bold">Descartar o lote deste ciclo</p>
+            <p className="mt-0.5 mb-2 text-[11px] text-suave">
+              Solta o carimbo de tudo que entrou nele e libera a competência para ser fechada de
+              novo. Use quando a importação no Sankhya não passou.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                placeholder="Por que está descartando?"
+                className="w-72"
+              />
+              <Button
+                variant="destructive"
+                disabled={motivo.trim().length < 3 || descartar.isPending}
+                onClick={() => descartar.mutate(lote.id)}
+              >
+                {descartar.isPending ? "Descartando…" : "Confirmar descarte"}
+              </Button>
+              <Button variant="ghost" onClick={() => setDescartando(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* A conferência é o que responde "por que descontaram isso de mim"
             sem precisar abrir a planilha e procurar a matrícula na mão. */}

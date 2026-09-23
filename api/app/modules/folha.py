@@ -167,7 +167,7 @@ def _referencia(competencia: str) -> date:
 type _Chave = tuple[uuid.UUID, uuid.UUID, int | None]
 
 
-def _somar(sessao: Session, modelo, coluna_valor, inicio, fim, filtro) -> dict[_Chave, Decimal]:
+def _somar(sessao: Session, modelo, coluna_valor, condicoes) -> dict[_Chave, Decimal]:
     linhas = sessao.execute(
         select(
             modelo.colaborador_id,
@@ -175,13 +175,15 @@ def _somar(sessao: Session, modelo, coluna_valor, inicio, fim, filtro) -> dict[_
             modelo.matricula,
             func.sum(coluna_valor),
         )
-        .where(modelo.criado_em >= inicio, modelo.criado_em < fim, filtro)
+        .where(*condicoes)
         .group_by(modelo.colaborador_id, modelo.empresa_id, modelo.matricula)
     ).all()
     return {(pessoa, empresa, matricula): valor for pessoa, empresa, matricula, valor in linhas}
 
 
-def montar(sessao: Session, ator: Ator, competencia: str) -> Folha:
+def montar(
+    sessao: Session, ator: Ator, competencia: str, lote_id: uuid.UUID | None = None
+) -> Folha:
     """Consolida o ciclo em linhas de evento, uma por pessoa e por evento.
 
     As regras de quem conta são as mesmas do extrato que o colaborador vê:
@@ -192,10 +194,27 @@ def montar(sessao: Session, ator: Ator, competencia: str) -> Folha:
     if ator.papel not in {"admin", "dp"}:
         raise SemPermissao()
 
+
     inicio, fim = consumo.intervalo_da_competencia(competencia)
 
-    loja = _somar(sessao, Pedido, Pedido.valor_total, inicio, fim, Pedido.status != "cancelado")
-    refeitorio = _somar(sessao, Almoco, Almoco.valor, inicio, fim, Almoco.status == "confirmado")
+    if lote_id is not None:
+        
+        onde_loja = [Pedido.lote_id == lote_id]
+        onde_refeitorio = [Almoco.lote_id == lote_id]
+    else:
+        onde_loja = [
+            Pedido.criado_em >= inicio,
+            Pedido.criado_em < fim,
+            Pedido.status != "cancelado",
+        ]
+        onde_refeitorio = [
+            Almoco.criado_em >= inicio,
+            Almoco.criado_em < fim,
+            Almoco.status == "confirmado",
+        ]
+
+    loja = _somar(sessao, Pedido, Pedido.valor_total, onde_loja)
+    refeitorio = _somar(sessao, Almoco, Almoco.valor, onde_refeitorio)
 
     chaves = set(loja) | set(refeitorio)
     codemp_de = dict(sessao.execute(select(Empresa.id, Empresa.codemp)).all())

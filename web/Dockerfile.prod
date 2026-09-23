@@ -1,0 +1,34 @@
+# Front de produção: um diretório de arquivos servido pelo Caddy.
+#
+# Arquivo separado do Dockerfile de desenvolvimento de propósito. Fundir os
+# dois num multi-stage faria `docker compose up` seco construir o último
+# estágio — o Caddy — e o ambiente de desenvolvimento subiria sem o Vite.
+
+FROM node:24-alpine AS build
+
+WORKDIR /app
+
+# O build precisa das devDependencies (typescript, vite, plugins), então é
+# `npm ci` completo. `--omit=dev` aqui deixaria o build sem ferramenta.
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+# `tsc -b && vite build`. Sai em /app/dist: index.html na raiz, JS e CSS
+# hasheados em assets/, e o conteúdo de public/ copiado cru.
+#
+# Nenhuma variável VITE_ é lida em build time, então a mesma imagem serve
+# qualquer ambiente: não há segredo embutido no bundle nem build-arg a passar.
+RUN npm run build
+
+
+FROM caddy:2-alpine
+
+# Nenhum processo Node fica de pé em produção: o que sobra do estágio anterior
+# são arquivos estáticos, e quem os serve é o mesmo Caddy que faz o proxy da
+# API. Um servidor extra só para o front seria uma peça a mais para manter.
+COPY --from=build /app/dist /srv
+COPY Caddyfile /etc/caddy/Caddyfile
+
+EXPOSE 80 443

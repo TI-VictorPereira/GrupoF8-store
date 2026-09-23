@@ -39,3 +39,8 @@ class AlmocoNaoEncontrado(NaoEncontrado):
 class SolicitacaoNaoEncontrada(NaoEncontrado):
     codigo = "solicitacao_nao_encontrada"
     mensagem = "Solicitação não encontrada."
+
+
+class LoteNaoEncontrado(NaoEncontrado):
+    codigo = "lote_nao_encontrado"
+    mensagem = "Lote de exportação não encontrado."

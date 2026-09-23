@@ -1,0 +1,82 @@
+# Front estático e API no mesmo domínio.
+#
+# É o mesmo domínio que dispensa CORS e permite SameSite=Lax no cookie de
+# sessão. Separar em dois hosts traria de volta a classe inteira de problema
+# de cookie entre origens.
+
+{
+	# Quem pode dizer qual é o IP do cliente.
+	#
+	# O bloqueio por tentativa de login usa o IP como chave. Sem esta lista,
+	# `{client_ip}` seria o IP da borda da Cloudflare — e aí o bloqueio ou pega
+	# todos os colaboradores de uma vez ou não pega ninguém.
+	#
+	# As faixas são publicadas pela Cloudflare em cloudflare.com/ips e mudam de
+	# tempos em tempos. Conferir junto com as atualizações de segurança do VPS.
+	servers {
+		trusted_proxies static \
+			173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 \
+			141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 \
+			197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 \
+			104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 \
+			2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 \
+			2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+		client_ip_headers CF-Connecting-IP X-Forwarded-For
+	}
+}
+
+{$DOMINIO} {
+	encode zstd gzip
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+	}
+
+	# A API vem ANTES do fallback da SPA, e a ordem é o que importa: invertida,
+	# um 404 da API voltaria como index.html e o cliente estouraria ao tentar
+	# ler JSON de uma página HTML.
+	handle /api/* {
+		# `handle`, não `handle_path`: o prefixo /api é PRESERVADO. Em produção
+		# o FastAPI declara root_path="/api" e monta as próprias URLs a partir
+		# dele. Remover o prefixo aqui — que é o que o proxy do Vite faz em
+		# desenvolvimento — desalinha o root_path e quebra redirect e
+		# openapi.json.
+		reverse_proxy api:8000 {
+			# Sobrescreve, não apenda. O middleware da API lê o PRIMEIRO valor
+			# do X-Forwarded-For, e o que chega da Cloudflare começa com o que
+			# o cliente mandou: sem a sobrescrita, qualquer um forja o próprio
+			# IP e escapa do bloqueio por tentativa.
+			header_up X-Forwarded-For {client_ip}
+			header_up X-Real-IP {client_ip}
+		}
+	}
+
+	handle {
+		root * /srv
+
+		# Só o que tem hash no nome pode ter cache longo. O index.html é o
+		# único sem hash e é ele que aponta para os hashes: cacheado, o usuário
+		# fica preso num bundle que o deploy já apagou — tela branca.
+		#
+		# favicon.png e robots.txt vêm de web/public/ e também não têm hash,
+		# então ficam de fora do immutable de propósito.
+		@comHash path /assets/*
+		header @comHash Cache-Control "public, max-age=31536000, immutable"
+		header /index.html Cache-Control "no-cache"
+
+		# Roteamento é todo do lado do cliente: qualquer caminho que não seja
+		# arquivo existente devolve o index.html e o TanStack Router resolve.
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

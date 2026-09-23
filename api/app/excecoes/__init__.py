@@ -20,6 +20,7 @@ from app.excecoes.acesso import (
 )
 from app.excecoes.base import Conflito, DadosInvalidos, ErroDaAplicacao, NaoEncontrado
 from app.excecoes.negocio import (
+    CicloAindaAberto,
     BrindeForaDoMes,
     BrindeJaUsado,
     BrindeSemMesCadastrado,
@@ -46,6 +47,7 @@ from app.excecoes.negocio import (
     SolicitacaoJaTratada,
 )
 from app.excecoes.recursos import (
+    LoteNaoEncontrado,
     AlmocoNaoEncontrado,
     CategoriaNaoEncontrada,
     ColaboradorNaoEncontrado,
@@ -75,6 +77,8 @@ from app.excecoes.validacao import (
 )
 
 __all__ = [
+    "CicloAindaAberto",
+    "LoteNaoEncontrado",
     "BrindeForaDoCarrinho",
     "BrindeForaDoMes",
     "BrindeJaUsado",

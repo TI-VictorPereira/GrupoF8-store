@@ -1,0 +1,95 @@
+# Produção. Independente dos outros compose: não é overlay, é o arquivo.
+#
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Não estende docker-compose.yml de propósito. Herdar o de desenvolvimento
+# traria junto o --reload, o código montado do disco e o Postgres local — e um
+# esquecimento ali seria descoberto em produção.
+#
+# O banco é o Neon, e não aparece aqui: quem o define é o api/.env da máquina.
+
+name: f8-store
+
+services:
+  caddy:
+    image: ${IMAGEM_WEB:-f8-store-web:local}
+    build:
+      context: ./web
+      dockerfile: Dockerfile.prod
+    environment:
+      # O domínio entra no Caddyfile e é o que dispara o certificado
+      # automático. Sem ele o Caddy sobe escutando em lugar nenhum.
+      DOMINIO: ${DOMINIO:?defina DOMINIO no .env do servidor}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Certificados e chave da conta ACME. Sem persistir, todo deploy pede
+      # certificado novo e a Let's Encrypt aplica limite de emissão.
+      - caddy_dados:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    image: ${IMAGEM_API:-f8-store-api:local}
+    build: ./api
+    # Este arquivo existe só na máquina de produção e não está no git.
+    env_file: ./api/.env
+    environment:
+      # Trava de segurança, não preferência: é AMBIENTE=producao que faz o
+      # FastAPI declarar root_path=/api e que tira /docs e /openapi.json do ar.
+      # Esquecer aqui publica a documentação da API na internet.
+      AMBIENTE: producao
+    # Sem `ports`: a API só é alcançável pela rede interna do compose, e quem
+    # a expõe é o Caddy, sob /api. Publicar 8000 daria um caminho para fora
+    # que não passa por TLS nem pelos cabeçalhos de segurança.
+    expose:
+      - "8000"
+    healthcheck:
+      # /saude não toca no banco de propósito: o container pode estar são com
+      # o Neon suspenso, e reiniciá-lo não resolveria nada.
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/saude')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  relogio:
+    # Mesma imagem da API, outro comando. Nada expira sozinho no banco, e sem
+    # este serviço o pedido vencido segura estoque para sempre e o almoço não
+    # retirado fica contado como "aguardando" até alguém abrir a tela.
+    #
+    # Também serve de ping contra o autosuspend do Neon: a primeira consulta
+    # depois da suspensão demora perto de um segundo, e quem pagaria por ela
+    # seria a primeira pessoa na fila do almoço.
+    image: ${IMAGEM_API:-f8-store-api:local}
+    env_file: ./api/.env
+    environment:
+      AMBIENTE: producao
+    command: >
+      sh -c 'while true; do python -m app.scripts.relogio || true; sleep 300; done'
+    depends_on:
+      - api
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  caddy_dados:
+  caddy_config:

@@ -153,3 +153,15 @@ class BrindeJaUsado(Conflito):
 class BrindeSemMesCadastrado(Conflito):
     codigo = "brinde_sem_mes_cadastrado"
     mensagem = "Seu mês de aniversário ainda não está cadastrado. Fale com o RH."
+
+
+class CicloAindaAberto(Conflito):
+    """Fechar antes do ciclo terminar perde o rabo do último dia.
+
+    O ciclo vira às 00h do dia 21. Fechar às 14h do dia 20 deixa de fora tudo
+    que for consumido depois disso — e como a competência não pode ser fechada
+    duas vezes, esse consumo não seria descontado nunca.
+    """
+
+    codigo = "ciclo_ainda_aberto"
+    mensagem = "Este ciclo ainda não terminou. Espere o fim do dia 20 para fechar."
