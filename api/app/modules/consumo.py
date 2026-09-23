@@ -87,6 +87,7 @@ def meu_extrato(sessao: Session, ator: Ator, competencia: str | None = None) -> 
                 Pedido.colaborador_id == ator.id,
                 Pedido.criado_em >= inicio,
                 Pedido.criado_em < fim,
+                Pedido.status != "cancelado",
             )
             .order_by(Pedido.criado_em.desc())
         )
@@ -105,6 +106,7 @@ def meu_extrato(sessao: Session, ator: Ator, competencia: str | None = None) -> 
                 Almoco.colaborador_id == ator.id,
                 Almoco.criado_em >= inicio,
                 Almoco.criado_em < fim,
+                Almoco.status == "confirmado",
             )
             .order_by(Almoco.criado_em.desc())
         )
@@ -115,8 +117,7 @@ def meu_extrato(sessao: Session, ator: Ator, competencia: str | None = None) -> 
     for pedido in pedidos:
         itens = itens_por_pedido.get(pedido.id, [])
         descricao = ", ".join(f"{i.quantidade}× {i.nome_produto}" for i in itens) or "Compra"
-        if pedido.status != "cancelado":
-            total_loja += pedido.valor_total
+        total_loja += pedido.valor_total
         lancamentos.append(
             Lancamento(
                 id=pedido.id,
@@ -131,9 +132,8 @@ def meu_extrato(sessao: Session, ator: Ator, competencia: str | None = None) -> 
     total_almocos = Decimal("0")
     confirmados = 0
     for almoco in almocos:
-        if almoco.status == "confirmado":
-            confirmados += 1
-            total_almocos += almoco.valor
+        confirmados += 1
+        total_almocos += almoco.valor
         lancamentos.append(
             Lancamento(
                 id=almoco.id,

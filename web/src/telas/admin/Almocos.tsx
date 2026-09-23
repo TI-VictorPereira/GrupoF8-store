@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { BuscarColaborador } from "@/componentes/BuscarColaborador";
+import { FiltroPeriodo } from "@/componentes/FiltroPeriodo";
 import { Carregando } from "@/componentes/Carregando";
 import { Vazio } from "@/componentes/Vazio";
 import { Badge } from "@/componentes/ui/badge";
@@ -18,7 +19,6 @@ import {
   DialogTitle,
 } from "@/componentes/ui/dialog";
 import { Input } from "@/componentes/ui/input";
-import { Label } from "@/componentes/ui/label";
 import {
   Table,
   TableBody,
@@ -29,7 +29,7 @@ import {
 } from "@/componentes/ui/table";
 import { mensagemDeErro } from "@/comum/erros";
 import { hora } from "@/comum/formato";
-import { diaIso, hojeIso } from "@/comum/periodo";
+import { diaIso, hojeIso, intervaloDoFiltro, periodoInicial } from "@/comum/periodo";
 import { baixarCsv } from "@/comum/planilha";
 import type { AlmocoDoDia } from "@/interfaces/almoco";
 import type { LinhaPainel } from "@/interfaces/refeitorio";
@@ -43,8 +43,11 @@ const AVISOS: Record<string, string> = {
 
 export function Almocos() {
   const clienteConsulta = useQueryClient();
-  const [de, setDe] = useState(hojeIso);
-  const [ate, setAte] = useState(hojeIso);
+  // O padrão é "hoje" porque esta tela também é operacional: é aqui que o
+  // admin confirma almoço quando o leitor falha. O recorte por ciclo está
+  // junto para o fechamento seguir a mesma regra da tela de vendas.
+  const [filtro, setFiltro] = useState(() => periodoInicial("hoje"));
+  const { de, ate } = intervaloDoFiltro(filtro);
   const [busca, setBusca] = useState("");
   const [manualAberto, setManualAberto] = useState(false);
 
@@ -148,14 +151,7 @@ export function Almocos() {
       </div>
 
       <div className="mb-3 flex flex-wrap items-end gap-2">
-        <div className="grid gap-1.5">
-          <Label htmlFor="de">De</Label>
-          <Input id="de" type="date" value={de} onChange={(e) => setDe(e.target.value)} />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="ate">Até</Label>
-          <Input id="ate" type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
-        </div>
+        <FiltroPeriodo valor={filtro} aoMudar={setFiltro} />
         <Input
           value={busca}
           onChange={(e) => setBusca(e.target.value)}

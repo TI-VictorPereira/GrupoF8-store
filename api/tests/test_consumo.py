@@ -217,3 +217,79 @@ def test_so_admin_lista_os_ciclos_da_empresa(dados):
     comum = Ator(id=dados["ativo"], codigo="T-LOGIN", nome="Fulano", papel="colaborador")
     with FabricaDeSessao() as s, pytest.raises(SemPermissao):
         consumo.competencias_da_empresa(s, comum)
+
+
+def test_almoco_expirado_nao_aparece_no_extrato(dados):
+    """Código gerado e não usado não é lançamento.
+
+    """
+    from app.models.operacao import Almoco
+
+    ator = Ator(id=dados["ativo"], codigo="T-LOGIN", nome="Fulano", papel="colaborador")
+
+    def almoco(dia: int, status: str, codigo: str) -> Almoco:
+        momento = _local(2026, 9, 10 + dia)
+        return Almoco(
+            colaborador_id=dados["ativo"],
+            empresa_id=dados["empresa"],
+            vinculo="clt",
+            matricula=1,
+            codigo_barras=codigo,
+            status=status,
+            origem="totem",
+            valor=Decimal("15.00"),
+            criado_em=momento,
+            expira_em=momento + timedelta(hours=12),
+            confirmado_em=momento if status == "confirmado" else None,
+        )
+
+    with FabricaDeSessao() as s:
+        s.add_all(
+            [
+                almoco(0, "expirado", "90000000000001"),
+                almoco(1, "confirmado", "90000000000002"),
+            ]
+        )
+        s.commit()
+
+    with FabricaDeSessao() as s:
+        extrato = consumo.meu_extrato(s, ator, "2026-09")
+
+    tipos = [(l.tipo, l.status) for l in extrato.lancamentos]
+    assert ("almoco", "expirado") not in tipos
+    assert ("almoco", "confirmado") in tipos
+    assert extrato.quantidade_almocos == 1
+
+
+def test_pedido_cancelado_nao_aparece_no_extrato(dados):
+    """Compra cancelada teve o estoque devolvido e o valor estornado."""
+    ator = Ator(id=dados["ativo"], codigo="T-LOGIN", nome="Fulano", papel="colaborador")
+
+    with FabricaDeSessao() as s:
+        for status, valor, codigo in [
+            ("cancelado", Decimal("9.00"), "900010"),
+            ("entregue", Decimal("6.00"), "900011"),
+        ]:
+            s.add(
+                Pedido(
+                    colaborador_id=dados["ativo"],
+                    empresa_id=dados["empresa"],
+                    vinculo="clt",
+                    matricula=1,
+                    valor_total=valor,
+                    status=status,
+                    codigo_retirada=codigo,
+                    criado_em=_local(2026, 9, 12),
+                )
+            )
+        s.commit()
+
+    with FabricaDeSessao() as s:
+        extrato = consumo.meu_extrato(s, ator, "2026-09")
+
+    assert [l.status for l in extrato.lancamentos] == ["entregue"]
+    assert extrato.total_loja == Decimal("6.00")
+
+    # A lista fecha com o total: é isto que faz o extrato ser conferível.
+    soma = sum(l.valor for l in extrato.lancamentos if l.tipo == "loja")
+    assert soma == extrato.total_loja

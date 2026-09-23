@@ -56,3 +56,25 @@ export const ROTULOS_PERIODO: { valor: Periodo; rotulo: string }[] = [
   { valor: "ciclo", rotulo: "Ciclo" },
   { valor: "personalizado", rotulo: "Escolher datas" },
 ];
+
+/** Estado dos três modos do filtro. A tela guarda isto e pergunta o intervalo. */
+export interface EstadoPeriodo {
+  periodo: Periodo;
+  /** Competência escolhida quando o modo é "ciclo". */
+  ciclo: string;
+  personalizado: { de: string; ate: string };
+}
+
+export function periodoInicial(padrao: Periodo = "ciclo"): EstadoPeriodo {
+  return {
+    periodo: padrao,
+    ciclo: competenciaDe(new Date()),
+    personalizado: intervaloDe(padrao),
+  };
+}
+
+export function intervaloDoFiltro(estado: EstadoPeriodo): { de: string; ate: string } {
+  if (estado.periodo === "personalizado") return estado.personalizado;
+  if (estado.periodo === "ciclo") return cicloDe(estado.ciclo);
+  return intervaloDe(estado.periodo);
+}

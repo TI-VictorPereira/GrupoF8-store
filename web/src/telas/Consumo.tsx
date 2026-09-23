@@ -19,12 +19,13 @@ import { cicloDe } from "@/comum/periodo";
 import { cn } from "@/comum/utilitarios";
 import type { Extrato } from "@/interfaces/consumo";
 
+// Só chegam aqui lançamentos que viraram consumo: o servidor não manda
+// cancelado nem expirado. Sobram a compra esperando retirada, a já retirada
+// e o almoço liberado.
 const ROTULO_STATUS: Record<string, string> = {
-  pendente: "Aguardando",
+  pendente: "Aguardando retirada",
   entregue: "Entregue",
-  cancelado: "Cancelado",
   confirmado: "Confirmado",
-  expirado: "Expirado",
 };
 
 export function Consumo() {
@@ -97,20 +98,13 @@ export function Consumo() {
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">
                 {lancamento.tipo === "loja" ? "Compra na loja" : "Almoço"}
-                {lancamento.status === "cancelado" && (
-                  <span className="ml-2 text-[11px] font-normal text-perigo">cancelado</span>
-                )}
               </p>
               <p className="truncate text-[11px] text-suave">
                 {lancamento.descricao} · {dataHora(lancamento.data)} ·{" "}
                 {ROTULO_STATUS[lancamento.status] ?? lancamento.status}
               </p>
             </div>
-            <span
-              className={`shrink-0 text-sm font-bold ${
-                lancamento.status === "cancelado" ? "text-muito-suave line-through" : ""
-              }`}
-            >
+            <span className="shrink-0 text-sm font-bold">
               {Number(lancamento.valor) > 0 ? dinheiro(lancamento.valor) : "—"}
             </span>
           </div>

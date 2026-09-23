@@ -7,15 +7,6 @@ import { Carregando } from "@/componentes/Carregando";
 import { Vazio } from "@/componentes/Vazio";
 import { Button } from "@/componentes/ui/button";
 import { Card, CardContent } from "@/componentes/ui/card";
-import { Input } from "@/componentes/ui/input";
-import { Label } from "@/componentes/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/componentes/ui/select";
 import {
   Table,
   TableBody,
@@ -25,14 +16,9 @@ import {
   TableRow,
 } from "@/componentes/ui/table";
 import { mensagemDeErro } from "@/comum/erros";
-import { dataHora, diaMes, dinheiro, mesPorExtenso } from "@/comum/formato";
-import {
-  cicloDe,
-  competenciaDe,
-  intervaloDe,
-  ROTULOS_PERIODO,
-  type Periodo,
-} from "@/comum/periodo";
+import { FiltroPeriodo } from "@/componentes/FiltroPeriodo";
+import { dataHora, dinheiro } from "@/comum/formato";
+import { intervaloDoFiltro, periodoInicial } from "@/comum/periodo";
 import { baixarCsv } from "@/comum/planilha";
 import type { LinhaPedido } from "@/interfaces/admin";
 import type { LinhaPainel } from "@/interfaces/refeitorio";
@@ -48,22 +34,8 @@ interface Totais {
 }
 
 export function Vendas() {
-  const [periodo, setPeriodo] = useState<Periodo>("ciclo");
-  const [personalizado, setPersonalizado] = useState(intervaloDe("ciclo"));
-  const [ciclo, setCiclo] = useState(() => competenciaDe(new Date()));
-
-
-  const ciclos = useQuery({
-    queryKey: ["competencias-empresa"],
-    queryFn: () => api.get<string[]>("/consumo/competencias/empresa"),
-  });
-
-  const { de, ate } =
-    periodo === "personalizado"
-      ? personalizado
-      : periodo === "ciclo"
-        ? cicloDe(ciclo)
-        : intervaloDe(periodo);
+  const [filtro, setFiltro] = useState(() => periodoInicial("ciclo"));
+  const { de, ate } = intervaloDoFiltro(filtro);
 
   const vendas = useQuery({
     queryKey: ["vendas", de, ate],
@@ -236,56 +208,8 @@ export function Vendas() {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-end gap-2">
-        {ROTULOS_PERIODO.map((opcao) => (
-          <Button
-            key={opcao.valor}
-            size="sm"
-            variant={periodo === opcao.valor ? "default" : "outline"}
-            onClick={() => setPeriodo(opcao.valor)}
-          >
-            {opcao.rotulo}
-          </Button>
-        ))}
-        {periodo === "ciclo" && (
-          <Select value={ciclo} onValueChange={setCiclo}>
-            <SelectTrigger aria-label="Ciclo" className="w-[17rem]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(ciclos.data ?? [ciclo]).map((c) => {
-                const faixa = cicloDe(c);
-                return (
-                  <SelectItem key={c} value={c}>
-                    {mesPorExtenso(c)} · {diaMes(faixa.de)} a {diaMes(faixa.ate)}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-        )}
-        {periodo === "personalizado" && (
-          <>
-            <div className="grid gap-1.5">
-              <Label htmlFor="de-vendas">De</Label>
-              <Input
-                id="de-vendas"
-                type="date"
-                value={personalizado.de}
-                onChange={(e) => setPersonalizado({ ...personalizado, de: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="ate-vendas">Até</Label>
-              <Input
-                id="ate-vendas"
-                type="date"
-                value={personalizado.ate}
-                onChange={(e) => setPersonalizado({ ...personalizado, ate: e.target.value })}
-              />
-            </div>
-          </>
-        )}
+      <div className="mb-4">
+        <FiltroPeriodo valor={filtro} aoMudar={setFiltro} />
       </div>
 
       {erro && (
