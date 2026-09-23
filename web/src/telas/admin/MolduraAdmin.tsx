@@ -98,11 +98,7 @@ export function MolduraAdmin({ eu }: { eu: Eu }) {
             </Button>
           </div>
         </div>
-
         {menuAberto && (
-          // Sem "← Início" aqui: a seta agora está sempre visível na barra, e
-          // repetir o mesmo destino escondido atrás do menu é o que ensinava a
-          // procurar o voltar no lugar errado.
           <nav className="flex flex-col gap-1 border-t border-white/10 px-5 py-3 md:hidden">
             {ABAS_ADMIN.map((aba) => (
               <Link
