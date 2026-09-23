@@ -42,7 +42,30 @@ async function pedir<T>(metodo: string, caminho: string, corpo?: Corpo): Promise
   return dados as T;
 }
 
+async function baixar(caminho: string, nomeArquivo: string): Promise<void> {
+  const resposta = await enviar("GET", caminho);
+
+  if (!resposta.ok) {
+    const texto = await resposta.text();
+    const dados = texto ? JSON.parse(texto) : null;
+    throw new ErroApi(
+      dados?.codigo ?? "erro_desconhecido",
+      dados?.mensagem ?? "Não foi possível gerar o arquivo.",
+      resposta.status,
+      dados?.correlacao_id,
+    );
+  }
+
+  const url = URL.createObjectURL(await resposta.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nomeArquivo;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
+  baixar,
   get: <T>(caminho: string) => pedir<T>("GET", caminho),
   post: <T>(caminho: string, corpo?: Corpo) => pedir<T>("POST", caminho, corpo),
   put: <T>(caminho: string, corpo?: Corpo) => pedir<T>("PUT", caminho, corpo),

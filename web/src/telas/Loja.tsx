@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Minus, Plus } from "lucide-react";
+import { Gift, Minus, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { api } from "@/api/cliente";
@@ -23,13 +23,25 @@ import type { Categoria, PedidoCriado, ProdutoVitrine } from "@/interfaces/loja"
 const AVISOS: Record<string, string> = {
   estoque_insuficiente: "Alguém levou o último antes de você. Ajuste a quantidade.",
   produto_indisponivel: "Este produto saiu da loja.",
+  brinde_ja_usado: "Você já usou o brinde deste mês.",
+  brinde_fora_do_mes: "O brinde vale só no mês do seu aniversário.",
+  brinde_sem_mes_cadastrado: "Seu mês de aniversário não está cadastrado. Fale com o RH.",
+  brinde_fora_do_carrinho: "O item do brinde saiu do carrinho.",
 };
+
+interface Brinde {
+  mes: number | null;
+  e_meu_mes: boolean;
+  usado: boolean;
+  disponivel: boolean;
+}
 
 export function Loja() {
   const navegar = useNavigate();
   const clienteConsulta = useQueryClient();
   const [filtro, setFiltro] = useState<string>("todas");
   const [carrinho, setCarrinho] = useState<Record<string, number>>({});
+  const [brindeEm, setBrindeEm] = useState<string | null>(null);
 
   const produtos = useQuery({
     queryKey: ["vitrine"],
@@ -40,6 +52,11 @@ export function Loja() {
     queryFn: () => api.get<Categoria[]>("/produtos/categorias"),
   });
 
+  const brinde = useQuery({
+    queryKey: ["brinde"],
+    queryFn: () => api.get<Brinde>("/pedidos/brinde"),
+  });
+
   const finalizar = useMutation({
     mutationFn: () =>
       api.post<PedidoCriado>("/pedidos", {
@@ -47,9 +64,11 @@ export function Loja() {
           produto_id,
           quantidade,
         })),
+        brinde_produto_id: brindeEm,
       }),
     onSuccess: (pedido) => {
       void clienteConsulta.invalidateQueries({ queryKey: ["vitrine"] });
+      void clienteConsulta.invalidateQueries({ queryKey: ["brinde"] });
       void navegar({ to: "/pedido/$pedidoId", params: { pedidoId: pedido.id } });
     },
   });
@@ -59,17 +78,24 @@ export function Loja() {
     return filtro === "todas" ? lista : lista.filter((p) => p.categoria_id === filtro);
   }, [produtos.data, filtro]);
 
+  
   const total = useMemo(
     () =>
       Object.entries(carrinho).reduce((soma, [id, qtd]) => {
         const produto = produtos.data?.find((p) => p.id === id);
-        return soma + (produto ? Number(produto.preco_venda) * qtd : 0);
+        if (!produto) return soma;
+        const pagas = id === brindeEm ? qtd - 1 : qtd;
+        return soma + Number(produto.preco_venda) * pagas;
       }, 0),
-    [carrinho, produtos.data],
+    [carrinho, produtos.data, brindeEm],
   );
   const totalItens = Object.values(carrinho).reduce((a, b) => a + b, 0);
 
   function alterar(produto: ProdutoVitrine, delta: number) {
+  
+    if ((carrinho[produto.id] ?? 0) + delta <= 0 && produto.id === brindeEm) {
+      setBrindeEm(null);
+    }
     setCarrinho((atual) => {
       const novo = { ...atual };
       const quantidade = (novo[produto.id] ?? 0) + delta;
@@ -116,6 +142,18 @@ export function Loja() {
             <Aviso>{aviso}</Aviso>
           </div>
         )}
+        {brinde.data?.disponivel && (
+          <Card className="border-accent mb-3">
+            <div className="flex items-center gap-2 p-3">
+              <Gift className="size-5 shrink-0 text-accent" />
+              <p className="text-xs">
+                <span className="font-bold">É o mês do seu aniversário.</span> Um item é por
+                conta da casa — escolha qual no carrinho.
+              </p>
+            </div>
+          </Card>
+        )}
+
         {produtos.data && visiveis.length === 0 && <Vazio>Nada nesta categoria.</Vazio>}
 
         <div className={GRADE_PRODUTOS}>
@@ -154,6 +192,19 @@ export function Loja() {
                     <span className="text-[13px] font-extrabold">
                       {dinheiro(produto.preco_venda)}
                     </span>
+                    {quantidade > 0 && brinde.data?.disponivel && (
+                      <Button
+                        size="sm"
+                        variant={brindeEm === produto.id ? "destaque" : "outline"}
+                        onClick={() =>
+                          setBrindeEm(brindeEm === produto.id ? null : produto.id)
+                        }
+                        className="mr-1 h-7 px-2 text-[10px]"
+                      >
+                        <Gift />
+                        {brindeEm === produto.id ? "Brinde" : "Usar"}
+                      </Button>
+                    )}
                     {quantidade === 0 ? (
                       <Button
                         size="sm"

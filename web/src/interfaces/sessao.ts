@@ -1,6 +1,6 @@
 /** Quem está logado e o que ele pode fazer. */
 
-export type Papel = "colaborador" | "refeitorio" | "admin";
+export type Papel = "colaborador" | "refeitorio" | "dp" | "admin";
 
 export interface Empresa {
   id: string;

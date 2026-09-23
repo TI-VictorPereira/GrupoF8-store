@@ -27,12 +27,18 @@ interface Props<L, R extends ResultadoImportacao> {
   /** Uma linha de exemplo com os nomes de coluna aceitos. */
   modelo: Record<string, unknown>;
   nomeDoModelo: string;
-  /** Traduz a linha crua do CSV; devolve null para descartá-la. */
-  converter: (linha: Record<string, string>) => L | null;
+  converter: (linha: Record<string, string>) => L | string;
   enviar: (linhas: L[]) => Promise<R>;
-  aoConcluir: () => void;
-  /** Rendido junto do resumo: as senhas provisórias saem por aqui. */
-  extraNoResultado?: (resultado: R) => ReactNode;
+  aoConcluir: () => void;  extraNoResultado?: (resultado: R) => ReactNode;
+}
+
+function resumir(linha: unknown): string {
+  if (typeof linha !== "object" || linha === null) return String(linha);
+  return Object.entries(linha as Record<string, unknown>)
+    .filter(([, valor]) => valor !== null && valor !== undefined && valor !== "")
+    .filter(([chave]) => !chave.endsWith("_id"))
+    .map(([chave, valor]) => `${chave}: ${valor}`)
+    .join(" · ");
 }
 
 export function ImportarPlanilha<L, R extends ResultadoImportacao>({
@@ -47,7 +53,7 @@ export function ImportarPlanilha<L, R extends ResultadoImportacao>({
 }: Props<L, R>) {
   const [aberto, setAberto] = useState(false);
   const [linhas, setLinhas] = useState<L[] | null>(null);
-  const [descartadas, setDescartadas] = useState(0);
+  const [descartadas, setDescartadas] = useState<[string, number][]>([]);
   const [problemaNoArquivo, setProblemaNoArquivo] = useState<string | null>(null);
   const arquivo = useRef<HTMLInputElement>(null);
 
@@ -58,7 +64,7 @@ export function ImportarPlanilha<L, R extends ResultadoImportacao>({
 
   function limpar() {
     setLinhas(null);
-    setDescartadas(0);
+    setDescartadas([]);
     setProblemaNoArquivo(null);
     importar.reset();
     if (arquivo.current) arquivo.current.value = "";
@@ -68,16 +74,31 @@ export function ImportarPlanilha<L, R extends ResultadoImportacao>({
     limpar();
     try {
       const cruas = lerCsv(await entrada.text());
+      if (cruas.length === 0) {
+        setProblemaNoArquivo(
+          "O arquivo não tem linhas. Confira se é CSV e se o cabeçalho bate com o modelo.",
+        );
+        return;
+      }
+
       const convertidas = cruas.map(converter);
-      const validas = convertidas.filter((linha): linha is L => linha !== null);
+      const validas = convertidas.filter((linha): linha is L => typeof linha !== "string");
+
+      const porMotivo = new Map<string, number>();
+      for (const item of convertidas) {
+        if (typeof item === "string") porMotivo.set(item, (porMotivo.get(item) ?? 0) + 1);
+      }
+      const motivos = [...porMotivo.entries()].sort((a, b) => b[1] - a[1]);
+
       if (validas.length === 0) {
         setProblemaNoArquivo(
-          "Nenhuma linha aproveitável. Confira se o arquivo é CSV e se o cabeçalho bate com o modelo.",
+          `Nenhuma das ${cruas.length} linhas pôde ser usada. ` +
+            motivos.map(([motivo, quantas]) => `${quantas} ${motivo}`).join("; ") + ".",
         );
         return;
       }
       setLinhas(validas);
-      setDescartadas(convertidas.length - validas.length);
+      setDescartadas(motivos);
     } catch {
       setProblemaNoArquivo("Não foi possível ler o arquivo.");
     }
@@ -118,8 +139,6 @@ export function ImportarPlanilha<L, R extends ResultadoImportacao>({
                   <p className="mb-1 text-sm font-semibold text-perigo">
                     {resultado.erros.length} linha(s) não entraram:
                   </p>
-                  {/* As linhas boas entraram; estas ficaram de fora e podem
-                      ser corrigidas e reenviadas. */}
                   <ul className="max-h-40 overflow-y-auto rounded-lg border border-borda p-2">
                     {resultado.erros.map((erro) => (
                       <li key={erro} className="py-0.5 text-[11px] text-suave">
@@ -153,22 +172,28 @@ export function ImportarPlanilha<L, R extends ResultadoImportacao>({
 
               {linhas && (
                 <div className="rounded-lg border border-borda p-3">
-                  <p className="text-sm font-semibold">
-                    {linhas.length} linha(s) prontas
-                    {descartadas > 0 && (
-                      <span className="font-normal text-suave">
-                        {" "}
-                        · {descartadas} sem código, ignorada(s)
-                      </span>
+                  <p className="text-sm font-semibold">{linhas.length} linha(s) prontas</p>
+                  {descartadas.length > 0 && (
+                    <ul className="mt-1 space-y-0.5">
+                      {descartadas.map(([motivo, quantas]) => (
+                        <li key={motivo} className="text-[11px] text-suave">
+                          {quantas} linha(s) ignorada(s): {motivo}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="mt-2 max-h-32 min-w-0 overflow-y-auto">
+                    {linhas.slice(0, 3).map((linha, indice) => (
+                      <p key={indice} className="py-0.5 text-[11px] break-all text-suave">
+                        {resumir(linha)}
+                      </p>
+                    ))}
+                    {linhas.length > 3 && (
+                      <p className="text-[11px] text-muito-suave">
+                        e mais {linhas.length - 3}
+                      </p>
                     )}
-                  </p>
-                  <pre className="mt-2 max-h-32 overflow-auto text-[11px] text-suave">
-                    {linhas
-                      .slice(0, 3)
-                      .map((linha) => JSON.stringify(linha))
-                      .join("\n")}
-                    {linhas.length > 3 ? "\n…" : ""}
-                  </pre>
+                  </div>
                 </div>
               )}
             </div>

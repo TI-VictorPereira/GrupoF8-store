@@ -38,6 +38,14 @@ export const DESTINOS: readonly Destino[] = [
     papeis: ["admin"],
   },
   {
+    para: "/fechamento",
+    rotulo: "Fechamento do ciclo",
+    descricao: "Conferência por pessoa e arquivo para o Sankhya.",
+    grupo: "gestao",
+    area: "app",
+    papeis: ["dp", "admin"],
+  },
+  {
     para: "/admin/almocos",
     rotulo: "Almoços",
     descricao: "Histórico e exportação por ciclo.",

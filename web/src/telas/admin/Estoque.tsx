@@ -182,7 +182,7 @@ export function Estoque() {
  
   function converterLinha(linha: Record<string, string>) {
     const codigo = coluna(linha, "codigo", "codigo do produto");
-    if (!codigo) return null;
+    if (!codigo) return "sem código na coluna Codigo";
 
     const custo = numeroDaPlanilha(coluna(linha, "custo", "custo unitario"));
     const venda = numeroDaPlanilha(

@@ -15,6 +15,7 @@ import { Estoque } from "@/telas/admin/Estoque";
 import { MolduraAdmin } from "@/telas/admin/MolduraAdmin";
 import { Vendas } from "@/telas/admin/Vendas";
 import { Consumo } from "@/telas/Consumo";
+import { Fechamento } from "@/telas/Fechamento";
 import { Inicio } from "@/telas/Inicio";
 import { Loja } from "@/telas/Loja";
 import { PainelRefeitorio } from "@/telas/PainelRefeitorio";
@@ -30,7 +31,14 @@ export interface ContextoRota {
   eu: Eu;
 }
 
+const TELA_DO_POSTO = "/refeitorio";
+
 const raiz = createRootRouteWithContext<ContextoRota>()({
+  beforeLoad: ({ context, location }) => {
+    if (context.eu.papel === "refeitorio" && location.pathname !== TELA_DO_POSTO) {
+      throw redirect({ to: TELA_DO_POSTO });
+    }
+  },
   component: Outlet,
   notFoundComponent: () => (
     <p className="p-6 text-sm text-suave">Página não encontrada.</p>
@@ -53,16 +61,22 @@ const consumo = createRoute({ getParentRoute: () => raiz, path: "/consumo", comp
 const refeitorio = createRoute({
   getParentRoute: () => raiz,
   path: "/refeitorio",
-  // Barreira antes de montar, não dentro do componente: quem não é do
-  // refeitório nunca chega a disparar as consultas do painel, que a API
-  // recusaria com 403. Quem garante o acesso continua sendo o servidor.
   beforeLoad: ({ context }) => {
-    if (context.eu.papel === "colaborador") throw redirect({ to: "/" });
+    if (!["refeitorio", "admin"].includes(context.eu.papel)) throw redirect({ to: "/" });
   },
   component: function TelaRefeitorio() {
     const { eu } = raiz.useRouteContext();
     return <PainelRefeitorio eu={eu} />;
   },
+});
+
+const fechamento = createRoute({
+  getParentRoute: () => raiz,
+  path: "/fechamento",
+  beforeLoad: ({ context }) => {
+    if (!["dp", "admin"].includes(context.eu.papel)) throw redirect({ to: "/" });
+  },
+  component: Fechamento,
 });
 
 const pedido = createRoute({
@@ -133,6 +147,7 @@ const arvore = raiz.addChildren([
   almoco,
   consumo,
   refeitorio,
+  fechamento,
   pedido,
   admin.addChildren([
     adminInicio,
@@ -143,14 +158,6 @@ const arvore = raiz.addChildren([
     adminColaboradores,
   ]),
 ]);
-
-/**
- * Instância única.
- *
- * Recriar o roteador quando o usuário muda zera os caches dele e remonta a
- * árvore inteira — a documentação do TanStack Router trata isso como erro. O
- * `eu` entra vivo pelo prop `context` do RouterProvider, não pelo construtor.
- */
 export const roteador = createRouter({
   routeTree: arvore,
   context: { eu: undefined! },

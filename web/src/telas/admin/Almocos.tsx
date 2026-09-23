@@ -31,6 +31,7 @@ import { mensagemDeErro } from "@/comum/erros";
 import { hora } from "@/comum/formato";
 import { diaIso, hojeIso, intervaloDoFiltro, periodoInicial } from "@/comum/periodo";
 import { baixarCsv } from "@/comum/planilha";
+import { PrecoDoAlmoco } from "@/telas/admin/PrecoDoAlmoco";
 import type { AlmocoDoDia } from "@/interfaces/almoco";
 import type { LinhaPainel } from "@/interfaces/refeitorio";
 
@@ -43,9 +44,6 @@ const AVISOS: Record<string, string> = {
 
 export function Almocos() {
   const clienteConsulta = useQueryClient();
-  // O padrão é "hoje" porque esta tela também é operacional: é aqui que o
-  // admin confirma almoço quando o leitor falha. O recorte por ciclo está
-  // junto para o fechamento seguir a mesma regra da tela de vendas.
   const [filtro, setFiltro] = useState(() => periodoInicial("hoje"));
   const { de, ate } = intervaloDoFiltro(filtro);
   const [busca, setBusca] = useState("");
@@ -56,12 +54,6 @@ export function Almocos() {
     queryFn: () => api.get<LinhaPainel[]>(`/almocos?de=${de}&ate=${ate}`),
   });
 
-  /**
-   * O mesmo almoço aparece em três telas: aqui, no painel do refeitório e no
-   * contador da barra de navegação. Confirmar num lugar precisa apagar o
-   * "aguardando" nos outros dois, senão o admin confirma e continua vendo a
-   * pessoa na fila.
-   */
   function recarregar() {
     void clienteConsulta.invalidateQueries({ queryKey: ["almocos-historico"] });
     void clienteConsulta.invalidateQueries({ queryKey: ["painel-almocos"] });
@@ -133,6 +125,10 @@ export function Almocos() {
             Exportar
           </Button>
         </div>
+      </div>
+
+      <div className="mb-4">
+        <PrecoDoAlmoco />
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-sm">

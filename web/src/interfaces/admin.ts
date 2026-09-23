@@ -59,12 +59,9 @@ export type Vinculo = "clt" | "pj";
 export interface ColaboradorCompleto {
   id: string;
   nome_completo: string;
-  codigo: string;
-  /** Código de parceiro do Sankhya. É por ele que a exportação identifica. */
-  codparc: number;
-  vinculo: Vinculo;
-  /** Só CLT tem. PJ é identificado apenas pelo codparc. */
-  matricula: number | null;
+  codigo: string;  codparc: number;
+  vinculo: Vinculo;  matricula: number | null;
+  mes_aniversario: number | null;
   empresa_id: string;
   papel: Papel;
   departamento_id: string | null;
@@ -80,6 +77,7 @@ export interface EntradaColaborador {
   empresa_id: string;
   vinculo: Vinculo;
   matricula: number | null;
+  mes_aniversario: number | null;
   papel: Papel;
   departamento_id: string | null;
 }

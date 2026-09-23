@@ -66,6 +66,7 @@ const AVISOS: Record<string, string> = {
 const PAPEIS: { valor: Papel; rotulo: string }[] = [
   { valor: "colaborador", rotulo: "Colaborador" },
   { valor: "refeitorio", rotulo: "Refeitório" },
+  { valor: "dp", rotulo: "Departamento Pessoal" },
   { valor: "admin", rotulo: "Administrador" },
 ];
 
@@ -76,6 +77,7 @@ const FORMULARIO_VAZIO = {
   empresa_id: "",
   vinculo: "clt" as Vinculo,
   matricula: "",
+  mes_aniversario: "",
   papel: "colaborador" as Papel,
   departamento_id: "",
 };
@@ -120,14 +122,13 @@ export function Colaboradores() {
       empresa_id: formulario.empresa_id,
       vinculo: formulario.vinculo,
       matricula: formulario.vinculo === "clt" ? Number(formulario.matricula) : null,
+      mes_aniversario: formulario.mes_aniversario ? Number(formulario.mes_aniversario) : null,
       papel: formulario.papel,
       departamento_id: formulario.departamento_id || null,
     };
   }
 
-  // Duas mutações e não uma: criar devolve a senha provisória junto, alterar
-  // devolve só o colaborador. Espremer as duas numa só deixava o tipo do
-  // retorno mentindo sobre o que vem.
+  
   const criar = useMutation({
     mutationFn: () =>
       api.post<ColaboradorCriado>("/colaboradores", { ...corpoDoFormulario() }),
@@ -201,6 +202,8 @@ export function Colaboradores() {
       empresa_id: pessoa.empresa_id,
       vinculo: pessoa.vinculo,
       matricula: pessoa.matricula === null ? "" : String(pessoa.matricula),
+      mes_aniversario:
+        pessoa.mes_aniversario === null ? "" : String(pessoa.mes_aniversario),
       papel: pessoa.papel,
       departamento_id: pessoa.departamento_id ?? "",
     });
@@ -224,6 +227,7 @@ export function Colaboradores() {
         Codigo: p.codigo,
         Codparc: p.codparc,
         Matricula: p.matricula ?? "",
+        "Mes de aniversario": p.mes_aniversario ?? "",
         Vinculo: p.vinculo,
         Empresa: nomeEmpresa(p.empresa_id),
         Departamento: nomeDepartamento(p.departamento_id),
@@ -233,13 +237,19 @@ export function Colaboradores() {
     );
   }
 
-  function converterLinha(linha: Record<string, string>): EntradaColaborador | null {
+  function converterLinha(linha: Record<string, string>): EntradaColaborador | string {
     const codigo = coluna(linha, "codigo", "codigo de acesso");
-    const codemp = Number(numeroDaPlanilha(coluna(linha, "empresa", "codemp")) ?? 0);
+    const bruto = coluna(linha, "empresa", "codemp");
+    const codemp = Number(numeroDaPlanilha(bruto) ?? 0);
     const empresa = empresas.data?.find((e) => e.codemp === codemp);
-    if (!codigo || !empresa) return null;
+    if (!codigo) return "sem código de acesso na coluna Codigo";
+    if (!bruto) return "sem empresa na coluna Empresa";
+    if (!empresa) return `com empresa ${bruto}, que não está cadastrada`;
 
     const matricula = numeroDaPlanilha(coluna(linha, "matricula"));
+    const mesAniversario = numeroDaPlanilha(
+      coluna(linha, "mes de aniversario", "mes aniversario", "mes_aniversario", "aniversario"),
+    );
     const departamento = coluna(linha, "departamento");
     const vinculo = normalizar(coluna(linha, "vinculo")) === "pj" ? "pj" : "clt";
 
@@ -250,7 +260,8 @@ export function Colaboradores() {
       empresa_id: empresa.id,
       vinculo,
       matricula: vinculo === "clt" && matricula ? Number(matricula) : null,
-      papel: (["refeitorio", "admin"].includes(normalizar(coluna(linha, "papel")))
+      mes_aniversario: mesAniversario ? Number(mesAniversario) : null,
+      papel: (["refeitorio", "dp", "admin"].includes(normalizar(coluna(linha, "papel")))
         ? normalizar(coluna(linha, "papel"))
         : "colaborador") as Papel,
       departamento_id:
@@ -529,6 +540,17 @@ export function Colaboradores() {
                   disabled={formulario.vinculo === "pj"}
                   placeholder={formulario.vinculo === "pj" ? "PJ não tem" : ""}
                   aoMudar={(matricula) => setFormulario({ ...formulario, matricula })}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="mes-aniversario">Mês de aniversário</Label>
+                <CampoInteiro
+                  id="mes-aniversario"
+                  valor={formulario.mes_aniversario}
+                  placeholder="1 a 12"
+                  aoMudar={(mes_aniversario) =>
+                    setFormulario({ ...formulario, mes_aniversario })
+                  }
                 />
               </div>
             </div>
