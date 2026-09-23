@@ -1,7 +1,7 @@
 """Contratos do almoço."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -41,3 +41,26 @@ class LinhaPainelSaida(BaseModel):
     colaborador_nome: str
     colaborador_codigo: str
     departamento: str | None
+
+
+class PrecoAlmocoSaida(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    valor: Decimal
+    vigencia_inicio: date
+    vigencia_fim: date | None
+
+
+class EntradaPrecoAlmoco(BaseModel):
+    """`vigencia_inicio` ausente significa "a partir de hoje"."""
+
+    valor: Decimal = Field(ge=0, max_digits=10, decimal_places=2)
+    vigencia_inicio: date | None = None
+
+
+class ConfirmacaoSaida(AlmocoSaida):
+    """A resposta do leitor. É o almoço mais o nome, porque quem está no balcão
+    precisa ler em quem o código deu."""
+
+    colaborador_nome: str

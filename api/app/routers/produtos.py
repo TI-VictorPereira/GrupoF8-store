@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter
 
-from app.core.deps import AdminLiberado, AtorLiberado, Sessao
+from app.core.deps import AdminLiberado, ConsumidorLiberado, Sessao
 from app.models.cadastro import CategoriaProduto, Produto
 from app.modules import produtos
 from app.modules.produtos import DadosProduto
@@ -33,13 +33,13 @@ def _dados(entrada: EntradaProduto) -> DadosProduto:
 
 
 @rotas.get("/vitrine", response_model=list[ProdutoVitrine])
-def vitrine(ator: AtorLiberado, sessao: Sessao) -> list[Produto]:
+def vitrine(ator: ConsumidorLiberado, sessao: Sessao) -> list[Produto]:
     """O que o colaborador vê na loja. Sem custo: margem não é assunto dele."""
     return produtos.listar_vitrine(sessao)
 
 
 @rotas.get("/categorias", response_model=list[CategoriaSaida])
-def categorias(ator: AtorLiberado, sessao: Sessao) -> list[CategoriaProduto]:
+def categorias(ator: ConsumidorLiberado, sessao: Sessao) -> list[CategoriaProduto]:
     return produtos.listar_categorias(sessao)
 
 

@@ -6,10 +6,11 @@ from datetime import date
 from fastapi import APIRouter
 from sqlalchemy import select
 
-from app.core.deps import AdminLiberado, AtorLiberado, Sessao
+from app.core.deps import AdminLiberado, ConsumidorLiberado, Sessao
 from app.models.operacao import ItemPedido, Pedido
 from app.modules import pedidos
 from app.schemas.pedido import (
+    BrindeSaida,
     EntradaCancelamento,
     EntradaPedido,
     LinhaPedidoSaida,
@@ -26,13 +27,20 @@ def _detalhe(sessao: Sessao, pedido: Pedido) -> PedidoDetalheSaida:
 
 
 @rotas.post("", response_model=PedidoSaida, status_code=201)
-def finalizar(dados: EntradaPedido, ator: AtorLiberado, sessao: Sessao) -> Pedido:
+def finalizar(dados: EntradaPedido, ator: ConsumidorLiberado, sessao: Sessao) -> Pedido:
     itens = [(item.produto_id, item.quantidade) for item in dados.itens]
-    return pedidos.finalizar(sessao, ator, itens)
+    return pedidos.finalizar(sessao, ator, itens, dados.brinde_produto_id)
+
+
+@rotas.get("/brinde", response_model=BrindeSaida)
+def brinde(ator: ConsumidorLiberado, sessao: Sessao) -> BrindeSaida:
+    """Se a pessoa pode zerar um item agora, e por que nao pode."""
+    direito = pedidos.brinde_do_mes(sessao, ator)
+    return BrindeSaida(**vars(direito), disponivel=direito.disponivel)
 
 
 @rotas.get("/me", response_model=list[PedidoDetalheSaida])
-def meus_pedidos(ator: AtorLiberado, sessao: Sessao) -> list[PedidoDetalheSaida]:
+def meus_pedidos(ator: ConsumidorLiberado, sessao: Sessao) -> list[PedidoDetalheSaida]:
     return [_detalhe(sessao, pedido) for pedido in pedidos.listar_proprios(sessao, ator)]
 
 

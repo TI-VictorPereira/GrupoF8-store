@@ -134,3 +134,22 @@ class CodigoRetiradaIndisponivel(Conflito):
     codigo = "codigo_retirada_indisponivel"
     mensagem = "Não foi possível gerar um código de retirada. Tente novamente."
 
+
+
+class BrindeForaDoMes(Conflito):
+    """O mês do aniversário é civil, do dia 1 ao último — não o ciclo de
+    fechamento. Quem faz aniversário dia 25 usa o brinde no próprio mês, e o
+    consumo cai na competência seguinte valendo zero."""
+
+    codigo = "brinde_fora_do_mes"
+    mensagem = "O brinde vale apenas no mês do seu aniversário."
+
+
+class BrindeJaUsado(Conflito):
+    codigo = "brinde_ja_usado"
+    mensagem = "Você já usou o brinde deste mês."
+
+
+class BrindeSemMesCadastrado(Conflito):
+    codigo = "brinde_sem_mes_cadastrado"
+    mensagem = "Seu mês de aniversário ainda não está cadastrado. Fale com o RH."

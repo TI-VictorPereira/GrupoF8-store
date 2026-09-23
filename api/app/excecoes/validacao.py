@@ -11,7 +11,7 @@ class VinculoInvalido(DadosInvalidos):
 
 class PapelInvalido(DadosInvalidos):
     codigo = "papel_invalido"
-    mensagem = "Papel inválido. Use colaborador, refeitorio ou admin."
+    mensagem = "Papel inválido. Use colaborador, refeitorio, dp ou admin."
 
 
 class MatriculaObrigatoria(DadosInvalidos):
@@ -93,3 +93,16 @@ class ProdutoIncompletoNaImportacao(DadosInvalidos):
 
     codigo = "produto_incompleto"
     mensagem = "Para cadastrar é preciso nome e preço de venda."
+
+
+class BrindeForaDoCarrinho(DadosInvalidos):
+    """O item escolhido para o brinde tem de estar no carrinho. Sem isso o
+    pedido sairia com um item de graça que ninguém pediu."""
+
+    codigo = "brinde_fora_do_carrinho"
+    mensagem = "O item escolhido para o brinde não está no carrinho."
+
+
+class MesAniversarioInvalido(DadosInvalidos):
+    codigo = "mes_aniversario_invalido"
+    mensagem = "O mês do aniversário deve estar entre 1 e 12."

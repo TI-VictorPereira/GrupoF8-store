@@ -20,6 +20,9 @@ from app.excecoes.acesso import (
 )
 from app.excecoes.base import Conflito, DadosInvalidos, ErroDaAplicacao, NaoEncontrado
 from app.excecoes.negocio import (
+    BrindeForaDoMes,
+    BrindeJaUsado,
+    BrindeSemMesCadastrado,
     AlmocoExpirado,
     AlmocoJaConfirmado,
     AlmocoJaGeradoHoje,
@@ -52,6 +55,8 @@ from app.excecoes.recursos import (
     SolicitacaoNaoEncontrada,
 )
 from app.excecoes.validacao import (
+    BrindeForaDoCarrinho,
+    MesAniversarioInvalido,
     CodempInvalido,
     CompetenciaInvalida,
     FotoUrlLonga,
@@ -70,6 +75,11 @@ from app.excecoes.validacao import (
 )
 
 __all__ = [
+    "BrindeForaDoCarrinho",
+    "BrindeForaDoMes",
+    "BrindeJaUsado",
+    "BrindeSemMesCadastrado",
+    "MesAniversarioInvalido",
     "AcessoBloqueado",
     "AlmocoExpirado",
     "AlmocoJaConfirmado",

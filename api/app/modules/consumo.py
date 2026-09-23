@@ -72,6 +72,16 @@ def _intervalo(competencia: str) -> tuple[datetime, datetime]:
     return inicio.astimezone(UTC), fim.astimezone(UTC)
 
 
+def intervalo_da_competencia(competencia: str) -> tuple[datetime, datetime]:
+    """O ciclo em UTC, para quem precisa filtrar por competência fora daqui.
+
+    A exportação para a folha usa exatamente este intervalo. Ter um cálculo só
+    é o que garante que o que a pessoa vê no extrato e o que é descontado no
+    holerite cubram o mesmo período.
+    """
+    return _intervalo(competencia)
+
+
 def competencia_atual() -> str:
     return _competencia_de(datetime.now(ZoneInfo(_config.fuso)))
 
@@ -186,7 +196,7 @@ def _com_movimento(sessao: Session, colaborador_id: uuid.UUID | None = None) -> 
 
 def competencias_da_empresa(sessao: Session, ator: Ator) -> list[str]:
     """Ciclos com movimento de qualquer pessoa. Base do seletor de exportação."""
-    if not ator.eh_admin:
+    if ator.papel not in {"admin", "dp"}:
         raise SemPermissao()
     return _com_movimento(sessao)
 

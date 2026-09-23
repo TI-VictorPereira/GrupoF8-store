@@ -1,13 +1,42 @@
-# Desenvolvimento. O banco é o Neon — não há Postgres aqui.
+# Desenvolvimento. O banco é o Postgres deste compose.
 # Subir com:  docker compose up --build
-#
-# Portas na faixa 88xx de propósito: esta máquina já roda outros containers
-# (a Hub F8 API na 8000, frontends na 5173/5174 e um Postgres na 5432).
-
 services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: f8
+      POSTGRES_PASSWORD: f8
+      POSTGRES_DB: f8_store
+    ports:
+      - "127.0.0.1:8802:5432"
+    volumes:
+      # No Postgres 18+ o mount é em /var/lib/postgresql (os dados ficam num
+      # subdiretório por versão), não mais em /var/lib/postgresql/data.
+      - postgres_local:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U f8 -d f8_store"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   api:
     build: ./api
     env_file: ./api/.env
+    # `environment` vence o `env_file`, então o DATABASE_URL do arquivo — que
+    # aponta para o Neon — fica de lado sem o .env ser tocado. Aqui não há
+    # pooler: as duas URLs são a mesma, e o Alembic roda na conexão da
+    # aplicação. O overlay do Neon apaga este bloco com `!reset`.
+    environment:
+      DATABASE_URL: postgresql+psycopg://f8:f8@db:5432/f8_store
+      DATABASE_URL_DIRETA: postgresql+psycopg://f8:f8@db:5432/f8_store
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8801:8000"
     volumes:
@@ -47,3 +76,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  postgres_local:

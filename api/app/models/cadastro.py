@@ -19,7 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, criado_em, dinheiro, fk_uuid, pk_uuid
 
-PAPEIS = ("colaborador", "refeitorio", "admin")
+PAPEIS = ("colaborador", "refeitorio", "dp", "admin")
 VINCULOS = ("clt", "pj")
 
 
@@ -61,6 +61,10 @@ class Colaborador(Base):
         CheckConstraint(f"papel in {PAPEIS}", name="papel_valido"),
         CheckConstraint("codparc > 0", name="codparc_positivo"),
         CheckConstraint("matricula is null or matricula > 0", name="matricula_positiva"),
+        CheckConstraint(
+            "mes_aniversario is null or mes_aniversario between 1 and 12",
+            name="mes_aniversario_valido",
+        ),
         CheckConstraint(f"vinculo in {VINCULOS}", name="vinculo_valido"),
         CheckConstraint(
             "(vinculo = 'clt' and matricula is not null) or "
@@ -81,6 +85,7 @@ class Colaborador(Base):
     codparc: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, index=True)
     vinculo: Mapped[str] = mapped_column(String(10), nullable=False, server_default="clt")
     matricula: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mes_aniversario: Mapped[int | None] = mapped_column(Integer, nullable=True)
     empresa_id: Mapped[uuid.UUID] = fk_uuid("empresas.id")
 
     papel: Mapped[str] = mapped_column(String(20), nullable=False, server_default="colaborador")
@@ -91,8 +96,7 @@ class Colaborador(Base):
     senha_provisoria: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
-    # A temporária deixa de valer sozinha: papel com senha anotada não pode
-    # continuar sendo credencial válida semanas depois do reset.
+   
     senha_provisoria_expira_em: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

@@ -23,9 +23,9 @@ from app.excecoes import (
     PeriodoInvalido,
     SemPermissao,
 )
-from app.models.cadastro import Colaborador, Departamento, PrecoAlmoco
+from app.models.cadastro import Colaborador, Departamento
 from app.models.operacao import Almoco
-from app.modules import auditoria
+from app.modules import auditoria, precos
 from app.modules.auditoria import Ator
 
 _config = obter_config()
@@ -56,16 +56,8 @@ def _almoco_hoje(sessao: Session, colaborador_id: uuid.UUID, agora: datetime) ->
 
 
 def _preco_vigente(sessao: Session, agora: datetime) -> Decimal:
-    hoje = agora.astimezone(ZoneInfo(_config.fuso)).date()
-    preco = sessao.scalar(
-        select(PrecoAlmoco)
-        .where(
-            PrecoAlmoco.vigencia_inicio <= hoje,
-            (PrecoAlmoco.vigencia_fim.is_(None)) | (PrecoAlmoco.vigencia_fim >= hoje),
-        )
-        .order_by(PrecoAlmoco.vigencia_inicio.desc())
-    )
-    return preco.valor if preco else Decimal("0")
+    """O preço do dia, congelado no almoço que está sendo criado."""
+    return precos.valor_vigente(sessao, agora.astimezone(ZoneInfo(_config.fuso)).date())
 
 
 def _codigo_barras() -> str:
@@ -100,8 +92,6 @@ def gerar(sessao: Session, ator: Ator) -> Almoco:
         expira_em=agora + timedelta(minutes=_config.almoco_validade_minutos),
     )
     try:
-        # O índice parcial é a autoridade contra duas requisições simultâneas.
-        # Savepoint permite traduzir a colisão sem inutilizar a transação externa.
         with sessao.begin_nested():
             sessao.add(almoco)
             sessao.flush()
@@ -183,11 +173,10 @@ def expirar_vencidos(sessao: Session) -> int:
 
 
 def listar_do_dia(sessao: Session, ator: Ator, status: str | None = None) -> list[LinhaPainel]:
-    if ator.papel not in {"admin", "refeitorio"}:
+    if not ator.eh_admin:
         raise SemPermissao()
 
-    # O painel é a tela que decide quem ainda está na fila; se ela mostrar um
-    # código morto, o operador fica esperando alguém que já perdeu a validade.
+
     expirar_vencidos(sessao)
     inicio, fim = _limites_do_dia(_agora())
     return [
@@ -227,7 +216,7 @@ def desfazer_confirmacao(sessao: Session, ator: Ator, almoco_id: uuid.UUID) -> A
     confirmado de novo no mesmo dia — o índice parcial aceita, porque continua
     existindo um único almoço ativo.
     """
-    if ator.papel not in {"admin", "refeitorio"}:
+    if not ator.eh_admin:
         raise SemPermissao()
 
     almoco = sessao.get(Almoco, almoco_id)
@@ -254,7 +243,7 @@ def desfazer_confirmacao(sessao: Session, ator: Ator, almoco_id: uuid.UUID) -> A
 
 
 def registrar_manual(sessao: Session, ator: Ator, colaborador_id: uuid.UUID) -> Almoco:
-    if ator.papel not in {"admin", "refeitorio"}:
+    if not ator.eh_admin:
         raise SemPermissao()
     agora = _agora()
     colaborador = sessao.get(Colaborador, colaborador_id)
@@ -275,8 +264,10 @@ def registrar_manual(sessao: Session, ator: Ator, colaborador_id: uuid.UUID) -> 
             entidade="almoco",
             entidade_id=existente.id,
             descricao=f"Confirmou manualmente o almoço de {colaborador.nome_completo}.",
-            dados_anteriores={"status": "pendente", "origem": existente.origem},
-            dados_novos={"status": "confirmado", "origem": "manual"},
+            # A origem continua sendo a de quem gerou o código; o que foi feito
+            # na mão aqui é a confirmação, e é isso que a ação já diz.
+            dados_anteriores={"status": "pendente"},
+            dados_novos={"status": "confirmado"},
         )
         return existente
 
@@ -327,7 +318,7 @@ def buscar_colaboradores(sessao: Session, ator: Ator, busca: str) -> list[Colabo
     departamento, e nada de codparc, matrícula, papel ou empresa — que é o que
     a listagem do admin devolve.
     """
-    if ator.papel not in {"admin", "refeitorio"}:
+    if not ator.eh_admin:
         raise SemPermissao()
 
     termo = busca.strip()
@@ -351,3 +342,15 @@ def buscar_colaboradores(sessao: Session, ator: Ator, busca: str) -> list[Colabo
         ColaboradorParaAlmoco(id=i, nome_completo=nome, codigo=codigo, departamento=dep)
         for i, nome, codigo, dep in linhas
     ]
+
+
+def nome_de(sessao: Session, colaborador_id: uuid.UUID) -> str:
+    """O nome de quem acabou de ser liberado.
+
+    Existe para o totem, que não carrega a fila do dia: sem a lista em cache
+    não há de onde tirar o nome, e uma confirmação sem nome não diz ao operador
+    se ele liberou a pessoa certa.
+    """
+    return sessao.scalar(
+        select(Colaborador.nome_completo).where(Colaborador.id == colaborador_id)
+    ) or "Almoço liberado"

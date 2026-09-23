@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, criado_em, dinheiro, fk_uuid, pk_uuid
@@ -60,6 +60,7 @@ class ItemPedido(Base):
     quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
     preco_unitario: Mapped[Decimal] = dinheiro(default=None)
     custo_unitario: Mapped[Decimal] = dinheiro(default=None)
+    brinde: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
 
 class Almoco(Base):

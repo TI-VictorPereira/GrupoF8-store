@@ -179,7 +179,7 @@ def test_busca_do_painel_nao_expoe_cadastro(cliente, dados):
     Se um dia alguém trocar esta rota pela listagem do admin, este teste cai —
     é o que impede codparc e matrícula de vazarem para o balcão.
     """
-    _liberar_colaborador(dados, papel="refeitorio")
+    _liberar_colaborador(dados, papel="admin")
     cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
 
     r = cliente.get("/almocos/colaboradores", params={"busca": "Fulano"})
@@ -191,7 +191,7 @@ def test_busca_do_painel_nao_expoe_cadastro(cliente, dados):
 
 
 def test_busca_do_painel_ignora_termo_curto_e_inativo(cliente, dados):
-    _liberar_colaborador(dados, papel="refeitorio")
+    _liberar_colaborador(dados, papel="admin")
     cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
 
     assert cliente.get("/almocos/colaboradores", params={"busca": "F"}).json() == []
@@ -201,7 +201,7 @@ def test_busca_do_painel_ignora_termo_curto_e_inativo(cliente, dados):
 
 def test_desfazer_confirmacao_permite_confirmar_de_novo(cliente, dados):
     """Leitura por engano volta para pendente — a pessoa não fica sem almoço."""
-    _liberar_colaborador(dados, papel="refeitorio")
+    _liberar_colaborador(dados, papel="admin")
     cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
     codigo_barras = cliente.post("/almocos/gerar").json()["codigo_barras"]
 
@@ -227,11 +227,16 @@ def test_admin_entrega_direto_da_lista(cliente, dados, produto):
         "/pedidos", json={"itens": [{"produto_id": str(produto["produto"]), "quantidade": 1}]}
     )
 
-    linha = cliente.get("/pedidos/pendentes").json()[0]
-    pedido_id = linha["pedido"]["id"]
+    # A fila de entregas é de todo mundo. Pegar o [0] às cegas entrega o pedido
+    # de outro teste, e o "sobrou nada" nunca fecha num banco com sobras.
+    def meus() -> list[dict]:
+        linhas = cliente.get("/pedidos/pendentes").json()
+        return [linha for linha in linhas if linha["colaborador_codigo"] == CODIGO]
+
+    pedido_id = meus()[0]["pedido"]["id"]
 
     assert cliente.post(f"/pedidos/{pedido_id}/entregar").json()["status"] == "entregue"
-    assert cliente.get("/pedidos/pendentes").json() == []
+    assert meus() == []
 
     # Entregue não se entrega de novo: o segundo clique do operador nervoso
     # não pode virar uma segunda baixa.
@@ -269,7 +274,7 @@ def test_painel_nao_conta_codigo_vencido_como_fila(cliente, dados):
     """Código morto contado como 'aguardando' faz o balcão esperar ninguém."""
     from datetime import UTC, datetime, timedelta
 
-    _liberar_colaborador(dados, papel="refeitorio")
+    _liberar_colaborador(dados, papel="admin")
     cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
     cliente.post("/almocos/gerar")
 
@@ -292,3 +297,114 @@ def test_painel_nao_conta_codigo_vencido_como_fila(cliente, dados):
 
     assert meus("pendente") == []
     assert len(meus("expirado")) == 1
+
+
+def test_admin_libera_pela_fila_sem_digitar_codigo(cliente, dados):
+    """Leitor com defeito não pode virar 14 dígitos digitados à mão.
+
+    O botão da fila manda o colaborador, não o código de barras, e precisa
+    confirmar o almoço que já existe em vez de criar um segundo.
+    """
+    _liberar_colaborador(dados, papel="admin")
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+    gerado = cliente.post("/almocos/gerar").json()
+
+    confirmado = cliente.post("/almocos/manual", json={"colaborador_id": str(dados["ativo"])})
+    assert confirmado.json()["id"] == gerado["id"]
+    assert confirmado.json()["status"] == "confirmado"
+
+    meus = [
+        linha
+        for linha in cliente.get("/almocos/hoje").json()
+        if linha["colaborador_codigo"] == CODIGO
+    ]
+    assert len(meus) == 1
+
+    # O segundo clique do operador nervoso não pode virar um segundo almoço.
+    repetido = cliente.post("/almocos/manual", json={"colaborador_id": str(dados["ativo"])})
+    assert repetido.status_code == 409
+    assert repetido.json()["codigo"] == "almoco_ja_confirmado"
+
+
+def test_lancamento_manual_de_quem_nao_gerou_fica_auditado(cliente, dados):
+    """Quem não passou no totem entra pela busca — e isso fica registrado."""
+    _liberar_colaborador(dados, papel="admin")
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+    criado = cliente.post("/almocos/manual", json={"colaborador_id": str(dados["ativo"])}).json()
+    assert criado["status"] == "confirmado"
+    assert criado["origem"] == "manual"
+
+    with FabricaDeSessao() as s:
+        registro = s.scalar(
+            select(LogAuditoria).where(
+                LogAuditoria.entidade_id == uuid.UUID(criado["id"]),
+                LogAuditoria.acao == "almoco.confirmado_manual",
+            )
+        )
+        assert registro is not None
+        assert registro.usuario_id == dados["ativo"]
+
+
+def test_posto_do_refeitorio_so_confirma_e_mais_nada(cliente, dados):
+    """O posto fica logado o dia inteiro num lugar de passagem.
+
+    Quem passar na frente dele está autenticado sem ter feito login. Por isso
+    tudo que não é o leitor precisa estar fechado — comprar na loja ali
+    lançaria consumo numa conta que ninguém carrega, e o extrato exporia o
+    consumo de quem opera o balcão.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    _liberar_colaborador(dados, papel="refeitorio")
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+    fechadas = [
+        ("post", "/almocos/gerar", None),
+        ("get", "/almocos/meu-hoje", None),
+        ("get", "/almocos/preco", None),
+        ("get", "/almocos/hoje", None),
+        ("post", "/almocos/manual", {"colaborador_id": str(dados["ativo"])}),
+        ("get", "/almocos/colaboradores?busca=Fulano", None),
+        ("get", "/produtos/vitrine", None),
+        ("get", "/produtos/categorias", None),
+        ("post", "/pedidos", {"itens": [{"produto_id": str(uuid.uuid4()), "quantidade": 1}]}),
+        ("get", "/pedidos/me", None),
+        ("get", "/pedidos/brinde", None),
+        ("get", "/pedidos/pendentes", None),
+        ("get", "/consumo/me", None),
+        ("get", "/consumo/competencias", None),
+    ]
+    for metodo, rota, corpo in fechadas:
+        resposta = (
+            cliente.post(rota, json=corpo) if metodo == "post" else cliente.get(rota)
+        )
+        assert resposta.status_code == 403, f"{metodo.upper()} {rota} → {resposta.status_code}"
+
+    # E o leitor, que é a razão de o posto existir, continua aberto.
+    agora = datetime.now(UTC)
+    with FabricaDeSessao() as s:
+        outra = s.get(Colaborador, dados["inativo"])
+        s.add(
+            Almoco(
+                colaborador_id=outra.id,
+                empresa_id=outra.empresa_id,
+                vinculo=outra.vinculo,
+                matricula=outra.matricula,
+                codigo_barras="99999999999901",
+                status="pendente",
+                origem="totem",
+                valor=Decimal("18.00"),
+                expira_em=agora + timedelta(hours=1),
+            )
+        )
+        s.commit()
+
+    resposta = cliente.post("/almocos/confirmar", json={"codigo_barras": "99999999999901"})
+    assert resposta.status_code == 200
+    assert resposta.json()["status"] == "confirmado"
+    assert resposta.json()["colaborador_nome"] == "Beltrano Inativo"
+
+    with FabricaDeSessao() as s:
+        s.execute(delete(Almoco).where(Almoco.colaborador_id == dados["inativo"]))
+        s.commit()

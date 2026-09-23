@@ -14,6 +14,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import obter_config
 from app.excecoes import (
+    BrindeForaDoCarrinho,
+    BrindeForaDoMes,
+    BrindeJaUsado,
+    BrindeSemMesCadastrado,
     CarrinhoVazio,
     CodigoRetiradaIndisponivel,
     ColaboradorInativo,
@@ -39,7 +43,70 @@ def _codigo_retirada() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
 
 
-def finalizar(sessao: Session, ator: Ator, itens: list[tuple[uuid.UUID, int]]) -> Pedido:
+@dataclass
+class Brinde:
+    """O direito a um item de graca no mes do aniversario."""
+
+    mes: int | None
+    e_meu_mes: bool
+    usado: bool
+
+    @property
+    def disponivel(self) -> bool:
+        return self.e_meu_mes and not self.usado
+
+
+def _limites_do_mes_civil(agora: datetime) -> tuple[datetime, datetime]:
+    """Primeiro instante do mes local e o do mes seguinte, em UTC.
+
+    O mes aqui e o civil, do dia 1 ao ultimo — nao o ciclo de fechamento, que
+    vai de 21 a 20. Sao coisas diferentes de proposito: o brinde e do mes do
+    aniversario, e a cobranca segue o ciclo em que o consumo caiu.
+    """
+    fuso = ZoneInfo(_config.fuso)
+    local = agora.astimezone(fuso)
+    inicio = local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    ano, mes = (inicio.year + 1, 1) if inicio.month == 12 else (inicio.year, inicio.month + 1)
+    fim = inicio.replace(year=ano, month=mes)
+    return inicio.astimezone(UTC), fim.astimezone(UTC)
+
+
+def brinde_do_mes(sessao: Session, ator: Ator, agora: datetime | None = None) -> Brinde:
+    """Se a pessoa tem brinde disponivel agora, e por que nao tem."""
+    agora = agora or _agora()
+    colaborador = sessao.get(Colaborador, ator.id)
+    if colaborador is None:
+        raise ColaboradorInativo()
+
+    mes = colaborador.mes_aniversario
+    if mes is None:
+        return Brinde(mes=None, e_meu_mes=False, usado=False)
+
+    inicio, fim = _limites_do_mes_civil(agora)
+    e_meu_mes = agora.astimezone(ZoneInfo(_config.fuso)).month == mes
+
+
+    usado = sessao.scalar(
+        select(ItemPedido.id)
+        .join(Pedido, Pedido.id == ItemPedido.pedido_id)
+        .where(
+            ItemPedido.brinde.is_(True),
+            Pedido.colaborador_id == ator.id,
+            Pedido.status != "cancelado",
+            Pedido.criado_em >= inicio,
+            Pedido.criado_em < fim,
+        )
+        .limit(1)
+    )
+    return Brinde(mes=mes, e_meu_mes=e_meu_mes, usado=usado is not None)
+
+
+def finalizar(
+    sessao: Session,
+    ator: Ator,
+    itens: list[tuple[uuid.UUID, int]],
+    brinde_produto_id: uuid.UUID | None = None,
+) -> Pedido:
     """Cria um pedido e debita estoque sem a janela de corrida ler/escrever."""
     if not itens:
         raise CarrinhoVazio()
@@ -53,6 +120,19 @@ def finalizar(sessao: Session, ator: Ator, itens: list[tuple[uuid.UUID, int]]) -
     colaborador = sessao.get(Colaborador, ator.id)
     if colaborador is None or not colaborador.ativo:
         raise ColaboradorInativo()
+
+    if brinde_produto_id is not None:
+        # Validar antes de tocar no estoque: recusar depois exigiria
+        # desfazer baixas ja feitas nesta transacao.
+        if brinde_produto_id not in quantidades:
+            raise BrindeForaDoCarrinho()
+        brinde = brinde_do_mes(sessao, ator)
+        if brinde.mes is None:
+            raise BrindeSemMesCadastrado()
+        if not brinde.e_meu_mes:
+            raise BrindeForaDoMes()
+        if brinde.usado:
+            raise BrindeJaUsado()
 
     snapshots: list[tuple[Produto, int, str | None]] = []
     total = Decimal("0")
@@ -79,7 +159,9 @@ def finalizar(sessao: Session, ator: Ator, itens: list[tuple[uuid.UUID, int]]) -
             sessao.get(CategoriaProduto, produto.categoria_id) if produto.categoria_id else None
         )
         snapshots.append((produto, quantidade, categoria.nome if categoria else None))
-        total += produto.preco_venda * quantidade
+        # O brinde zera uma unidade, nao a linha: quem leva tres paga duas.
+        pagas = quantidade - 1 if produto.id == brinde_produto_id else quantidade
+        total += produto.preco_venda * pagas
 
     pedido: Pedido | None = None
     # O índice parcial é a garantia final caso dois sorteios coincidam. O
@@ -106,17 +188,28 @@ def finalizar(sessao: Session, ator: Ator, itens: list[tuple[uuid.UUID, int]]) -
         raise CodigoRetiradaIndisponivel()
 
     for produto, quantidade, categoria in snapshots:
-        sessao.add(
-            ItemPedido(
-                pedido_id=pedido.id,
-                produto_id=produto.id,
-                nome_produto=produto.nome,
-                categoria=categoria,
-                quantidade=quantidade,
-                preco_unitario=produto.preco_venda,
-                custo_unitario=produto.custo,
+        comum = {
+            "pedido_id": pedido.id,
+            "produto_id": produto.id,
+            "nome_produto": produto.nome,
+            "categoria": categoria,
+            "custo_unitario": produto.custo,
+        }
+        if produto.id == brinde_produto_id:
+            # Duas linhas em vez de desconto no total: assim o item de
+            # graca aparece como tal no extrato e no relatorio, e
+            # `valor_total` continua sendo a soma pura das linhas.
+            sessao.add(
+                ItemPedido(**comum, quantidade=1, preco_unitario=Decimal("0.00"), brinde=True)
             )
-        )
+            if quantidade > 1:
+                sessao.add(
+                    ItemPedido(
+                        **comum, quantidade=quantidade - 1, preco_unitario=produto.preco_venda
+                    )
+                )
+            continue
+        sessao.add(ItemPedido(**comum, quantidade=quantidade, preco_unitario=produto.preco_venda))
     sessao.flush()
     return pedido
 

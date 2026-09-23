@@ -25,6 +25,7 @@ from app.excecoes import (
     MatriculaDuplicada,
     MatriculaNaoPermitida,
     MatriculaObrigatoria,
+    MesAniversarioInvalido,
     PapelInvalido,
     SemPermissao,
     SolicitacaoJaTratada,
@@ -32,7 +33,7 @@ from app.excecoes import (
     VinculoInvalido,
 )
 from app.models.acesso import SolicitacaoSenha
-from app.models.cadastro import Colaborador, Departamento, Empresa
+from app.models.cadastro import PAPEIS, Colaborador, Departamento, Empresa
 from app.modules import auditoria
 from app.modules.auditoria import Ator
 
@@ -49,6 +50,7 @@ class DadosColaborador:
     matricula: int | None = None
     papel: str = "colaborador"
     departamento_id: uuid.UUID | None = None
+    mes_aniversario: int | None = None
 
 
 @dataclass
@@ -84,9 +86,10 @@ def _traduzir_duplicidade(erro: IntegrityError) -> Exception:
 def _validar(sessao: Session, dados: DadosColaborador) -> None:
     if dados.vinculo not in {"clt", "pj"}:
         raise VinculoInvalido(detalhes={"vinculo": dados.vinculo})
-    if dados.papel not in {"colaborador", "refeitorio", "admin"}:
+    if dados.papel not in set(PAPEIS):
         raise PapelInvalido(detalhes={"papel": dados.papel})
-    # O banco tem o mesmo CHECK; aqui é só para a mensagem ser útil.
+    if dados.mes_aniversario is not None and not 1 <= dados.mes_aniversario <= 12:
+        raise MesAniversarioInvalido(detalhes={"mes": dados.mes_aniversario})
     if dados.vinculo == "clt" and dados.matricula is None:
         raise MatriculaObrigatoria()
     if dados.vinculo == "pj" and dados.matricula is not None:
@@ -118,10 +121,6 @@ def _aplicar_senha_provisoria(colaborador: Colaborador) -> str:
     colaborador.senha_provisoria_expira_em = datetime.now(timezone.utc) + timedelta(
         hours=_config.senha_provisoria_validade_horas
     )
-    # O motivo mais comum de resetar é alguém mais saber a senha. Sem cortar
-    # aqui, essa pessoa seguiria com a sessão aberta por até 12h.
-    # O `or 0` cobre o objeto ainda não gravado: o default da coluna só entra
-    # no flush, então antes disso o atributo é None.
     colaborador.sessao_versao = (colaborador.sessao_versao or 0) + 1
     return senha
 
@@ -166,6 +165,7 @@ def criar(sessao: Session, ator: Ator, dados: DadosColaborador) -> tuple[Colabor
         codparc=dados.codparc,
         vinculo=dados.vinculo,
         matricula=dados.matricula,
+        mes_aniversario=dados.mes_aniversario,
         empresa_id=dados.empresa_id,
         papel=dados.papel,
         departamento_id=dados.departamento_id,
@@ -207,6 +207,7 @@ def alterar(
     colaborador.codparc = dados.codparc
     colaborador.vinculo = dados.vinculo
     colaborador.matricula = dados.matricula
+    colaborador.mes_aniversario = dados.mes_aniversario
     colaborador.empresa_id = dados.empresa_id
     colaborador.papel = dados.papel
     colaborador.departamento_id = dados.departamento_id
@@ -218,10 +219,6 @@ def alterar(
 
     depois = _retrato(colaborador)
 
-    # Mudança de vínculo e de empresa ganham evento próprio: são as duas que
-    # alteram para onde o consumo é lançado no Sankhya, e a de vínculo apaga a
-    # matrícula do cadastro — o `dados_anteriores` é o único lugar onde ela
-    # continua existindo depois.
     if antes["vinculo"] != depois["vinculo"]:
         auditoria.registrar(
             sessao,

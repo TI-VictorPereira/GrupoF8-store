@@ -21,6 +21,7 @@ from app.routers import (
     colaboradores,
     consumo,
     estoque,
+    exportacoes,
     organizacao,
     pedidos,
     produtos,
@@ -33,9 +34,6 @@ app = FastAPI(
     title="Loja Interna F8",
     description="Consumo interno (loja e refeitório) e exportação para o Sankhya.",
     version="0.1.0",
-    # Em produção o Caddy serve a API sob /api no mesmo domínio do front. Em
-    # desenvolvimento não há proxy, e declarar o prefixo aqui faria a página de
-    # documentação procurar o openapi.json num caminho que não existe.
     root_path="/api" if config.ambiente == "producao" else "",
     docs_url="/docs" if config.ambiente == "desenvolvimento" else None,
     redoc_url=None,
@@ -45,10 +43,6 @@ app = FastAPI(
 @app.middleware("http")
 async def correlacao_e_acesso(request: Request, call_next):
     correlacao = uuid.uuid4()
-    # Atrás do Caddy e do Cloudflare, request.client é o proxy — o IP real vem
-    # no cabeçalho. Por isso o proxy TEM de sobrescrever o X-Forwarded-For:
-    # se ele apenas repassar, qualquer cliente forja o próprio IP e escapa do
-    # limite por tentativa. Se o cabeçalho vier inválido, cai no cliente real.
     encaminhado = (request.headers.get("x-forwarded-for") or "").split(",")[0]
     contexto.definir(
         correlacao_id=correlacao,
@@ -79,6 +73,7 @@ app.include_router(produtos.rotas)
 app.include_router(colaboradores.rotas)
 app.include_router(organizacao.rotas)
 app.include_router(consumo.rotas)
+app.include_router(exportacoes.rotas)
 
 
 @app.get("/saude", tags=["infra"])

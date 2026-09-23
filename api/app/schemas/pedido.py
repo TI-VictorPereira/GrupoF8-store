@@ -14,6 +14,7 @@ class ItemDeCompra(BaseModel):
 
 class EntradaPedido(BaseModel):
     itens: list[ItemDeCompra] = Field(min_length=1, max_length=100)
+    brinde_produto_id: uuid.UUID | None = None
 
 
 class EntradaCancelamento(BaseModel):
@@ -36,6 +37,7 @@ class ItemPedidoSaida(BaseModel):
     quantidade: int
     preco_unitario: Decimal
     custo_unitario: Decimal
+    brinde: bool = False
 
 
 class PedidoSaida(BaseModel):
@@ -69,3 +71,12 @@ class LinhaPedidoSaida(BaseModel):
     colaborador_codigo: str
     departamento: str | None
 
+
+
+class BrindeSaida(BaseModel):
+    """O direito ao item do mes do aniversario, para a tela da loja."""
+
+    mes: int | None
+    e_meu_mes: bool
+    usado: bool
+    disponivel: bool

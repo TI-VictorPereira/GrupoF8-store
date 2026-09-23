@@ -90,6 +90,17 @@ def exige_papel_com_senha_definitiva(*papeis: str) -> Callable[[Ator], Ator]:
     return verificar
 
 
+def exige_consumidor(ator: Annotated[Ator, Depends(exige_senha_definitiva)]) -> Ator:
+    """Barra o posto do refeitório nas telas de quem consome.
+
+    """
+    if ator.papel == "refeitorio":
+        raise SemPermissao(detalhes={"motivo": "posto do refeitório não consome"})
+    return ator
+
+
+ConsumidorLiberado = Annotated[Ator, Depends(exige_consumidor)]
+
 SomenteAdmin = Annotated[Ator, Depends(exige_papel("admin"))]
 AdminOuRefeitorio = Annotated[Ator, Depends(exige_papel("admin", "refeitorio"))]
 AtorLiberado = Annotated[Ator, Depends(exige_senha_definitiva)]
@@ -97,3 +108,6 @@ AdminLiberado = Annotated[Ator, Depends(exige_papel_com_senha_definitiva("admin"
 RefeitorioOuAdminLiberado = Annotated[
     Ator, Depends(exige_papel_com_senha_definitiva("admin", "refeitorio"))
 ]
+# O DP fecha a folha: enxerga o consumo de todo mundo para exportar e conferir,
+# e nada além disso. Estoque, preço, cadastro e entrega continuam só do admin.
+DpOuAdminLiberado = Annotated[Ator, Depends(exige_papel_com_senha_definitiva("admin", "dp"))]

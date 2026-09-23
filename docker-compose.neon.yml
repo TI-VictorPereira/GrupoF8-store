@@ -1,0 +1,11 @@
+services:
+  api:
+    # Some o override local; sobra o env_file, que é o Neon.
+    environment: !reset {}
+    # Sem o Postgres do Docker no caminho: não há o que esperar.
+    depends_on: !reset []
+
+  db:
+    # Perfil que ninguém liga = serviço que não sobe. Deixar o Postgres local
+    # de pé aqui só confundiria sobre qual banco está em uso.
+    profiles: ["desligado"]

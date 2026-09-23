@@ -27,8 +27,45 @@ from app.models.cadastro import (
     Produto,
 )
 
-# TODO: nomes inventados. Substituir pelos departamentos reais.
-DEPARTAMENTOS = ["Administrativo", "Produção", "Logística"]
+DEPARTAMENTOS = [
+    "ACABAMENTO DE LUMINÁRIAS",
+    "ADMINISTRATIVO NV",
+    "ALMOXARIFADO",
+    "ARQUITETURA",
+    "CIDADES INTELIGENTES",
+    "COMPRAS",
+    "CONTABILIDADE",
+    "CONTRATOS E ADESÕES",
+    "CONTROLADORIA",
+    "CONTROLE INTERNO",
+    "COTAÇÃO",
+    "COTAÇÃO- NV",
+    "DEPARTAMENTO PESSOAL",
+    "DIRETORIA",
+    "DISTRIBUIÇÃO",
+    "ENGENHARIA",
+    "EXPEDIÇÃO",
+    "FACILITES",
+    "FATURAMENTO",
+    "FINANCEIRO F8",
+    "FINANCEIRO NV",
+    "GESTÃO DE FROTA",
+    "GIE- GESTÃO INTEGRADA DE ESTOQUE",
+    "IMPORTAÇÃO",
+    "LABORATÓRIO DE LUMINÁRIAS",
+    "LICITAÇÃO",
+    "MANUTENÇÃO",
+    "PINTURA",
+    "PRESIDENCIA",
+    "RECURSOS HUMANOS",
+    "SERRALHERIA",
+    "TECNOLOGIA DA INFORMAÇÃO",
+    "TRANSPORTES",
+    "VENDAS",
+    "Administrativo",
+    "Logística",
+    "Produção",
+]
 
 CATEGORIAS = ["Energético", "Refrigerante", "Água", "Picolé"]
 
@@ -41,12 +78,13 @@ PRODUTOS = [
 ]
 
 PESSOAS = [
-    # nome, código, codparc, matrícula, papel, codemp
-    ("Administrador F8", "1000", 1000, 1000, "admin", 1),
-    ("Refeitório F8", "2000", 2000, 2000, "refeitorio", 1),
-    ("Colaborador de Teste", "3000", 3000, 3000, "colaborador", 1),
-    ("Colaborador Outra Empresa", "3001", 3001, 3000, "colaborador", 23),
-    ("Prestador PJ", "4000", 4000, None, "colaborador", 14),
+    # nome, codigo, codparc, matricula, papel, codemp, mes de aniversario
+    ("Administrador F8", "1000", 1000, 1000, "admin", 1, None),
+    ("Refeitório F8", "2000", 2000, 2000, "refeitorio", 1, None),
+    ("Departamento Pessoal", "2500", 2500, 2500, "dp", 1, None),
+    ("Colaborador de Teste", "3000", 3000, 3000, "colaborador", 1, date.today().month),
+    ("Colaborador Outra Empresa", "3001", 3001, 3000, "colaborador", 23, None),
+    ("Prestador PJ", "4000", 4000, None, "colaborador", 14, None),
 ]
 
 
@@ -100,10 +138,10 @@ def semear() -> None:
         # ainda está aberta. A vigência já existe para quando o valor chegar.
         if not s.scalar(select(PrecoAlmoco)):
             s.add(
-                PrecoAlmoco(valor=Decimal("0.00"), vigencia_inicio=date(date.today().year, 1, 1))
+                PrecoAlmoco(valor=Decimal("18.00"), vigencia_inicio=date(date.today().year, 1, 1))
             )
 
-        for nome, codigo, codparc, matricula, papel, codemp in PESSOAS:
+        for nome, codigo, codparc, matricula, papel, codemp, mes in PESSOAS:
             pessoa = s.scalar(select(Colaborador).where(Colaborador.codigo == codigo))
             if pessoa:
                 continue
@@ -116,9 +154,10 @@ def semear() -> None:
                     codparc=codparc,
                     vinculo="clt" if matricula is not None else "pj",
                     matricula=matricula,
+                    mes_aniversario=mes,
                     empresa_id=empresas[codemp].id,
                     papel=papel,
-                    departamento_id=departamentos["Administrativo"].id,
+                    departamento_id=departamentos["DEPARTAMENTO PESSOAL"].id,
                     ativo=True,
                     senha_hash=seguranca.gerar_hash(senha),
                     senha_provisoria=True,
@@ -135,7 +174,7 @@ def semear() -> None:
     print()
     if senhas:
         print("  Senhas provisórias — anote, elas não aparecem de novo:")
-        for nome, codigo, _parc, matricula, papel, codemp in PESSOAS:
+        for _nome, codigo, _parc, matricula, papel, codemp, _mes in PESSOAS:
             if codigo in senhas:
                 marca = f"matr. {matricula}" if matricula else "PJ, sem matrícula"
                 print(
