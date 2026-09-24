@@ -37,6 +37,17 @@ class Config(BaseSettings):
     senha_provisoria_validade_horas: int = 48
     senha_hash_rapido: bool = False
 
+    # --- banco: pool ------------------------------------------------------
+    # Padrão pensado para container de vida longa (VPS): um pool pequeno e
+    # fixo por processo. Em serverless (Vercel) cada instância quente pode
+    # segurar até `pool_size + max_overflow` conexões, e o número de
+    # instâncias é elástico — o valor certo ali é 1/0, deixando o pooler do
+    # Neon (PgBouncer, modo transação) absorver a concorrência de verdade.
+    # Errar isso não aparece em teste: estoura o limite de conexões do
+    # pooler na hora do almoço, com o sistema já em produção.
+    db_pool_size: int = 5
+    db_max_overflow: int = 5
+
     # --- almoço --------------------------------------------------------------
     # 12 horas: o código é gerado no celular, no notebook ou no desktop, e nem
     # sempre quem gera está a caminho do refeitório. Quem garante um almoço por
@@ -50,6 +61,12 @@ class Config(BaseSettings):
     # --- observabilidade -----------------------------------------------------
     sentry_dsn: str = ""
     log_nivel: str = Field(default="INFO")
+
+    # --- relógio sem processo de fundo ----------------------------------
+    # Vazio desliga a rota. Só existe em deploy serverless (Vercel), onde não
+    # há como manter um laço contínuo: um agendador externo bate aqui com
+    # este segredo no lugar do serviço `relogio` do compose de produção.
+    cron_secret: str = ""
 
     @property
     def url_para_alembic(self) -> str:

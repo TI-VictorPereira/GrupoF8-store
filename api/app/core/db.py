@@ -22,8 +22,8 @@ _config = obter_config()
 engine = create_engine(
     _config.database_url,
     pool_pre_ping=True,  # o Neon derruba conexão depois do autosuspend
-    pool_size=5,
-    max_overflow=5,
+    pool_size=_config.db_pool_size,
+    max_overflow=_config.db_max_overflow,
     connect_args={"prepare_threshold": None},
     echo=False,
 )
