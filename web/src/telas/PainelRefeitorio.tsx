@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { api } from "@/api/cliente";
@@ -71,6 +72,13 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
   return (
     <div className={cn(PAGINA_PAINEL, "min-h-screen pb-10")}>
       <header className="flex items-center gap-3 py-5">
+        {eu.papel === "admin" && (
+          <Button asChild variant="ghost" size="icon" aria-label="Voltar ao início">
+            <Link to="/">
+              <ArrowLeft />
+            </Link>
+          </Button>
+        )}
         <div className="min-w-0">
           <h1 className="text-base font-bold">Refeitório</h1>
           <p className="truncate text-xs text-suave">{eu.nome_completo}</p>
