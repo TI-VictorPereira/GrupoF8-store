@@ -148,7 +148,7 @@ export function Loja() {
               <Gift className="size-5 shrink-0 text-accent" />
               <p className="text-xs">
                 <span className="font-bold">É o mês do seu aniversário.</span> Um item é por
-                conta da casa — escolha qual no carrinho.
+                conta da casa: escolha qual no carrinho.
               </p>
             </div>
           </Card>
