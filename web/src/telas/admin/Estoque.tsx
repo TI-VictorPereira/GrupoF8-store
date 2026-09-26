@@ -74,6 +74,7 @@ export function Estoque() {
   const [ajuste, setAjuste] = useState({ tipo: "entrada", quantidade: "", motivo: "" });
   const [novaCategoriaAberta, setNovaCategoriaAberta] = useState(false);
   const [nomeNovaCategoria, setNomeNovaCategoria] = useState("");
+  const [categoriasAbertas, setCategoriasAbertas] = useState(false);
 
   const produtos = useQuery({
     queryKey: CHAVE,
@@ -148,6 +149,12 @@ export function Estoque() {
     setNovaCategoriaAberta(false);
     setNomeNovaCategoria("");
     criarCategoria.reset();
+  }
+
+  function abrirCategorias() {
+    setNomeNovaCategoria("");
+    criarCategoria.reset();
+    setCategoriasAbertas(true);
   }
 
   function abrirNovo() {
@@ -256,6 +263,9 @@ export function Estoque() {
             }
             aoConcluir={recarregar}
           />
+          <Button variant="outline" onClick={abrirCategorias}>
+            Categorias
+          </Button>
           <Button variant="destaque" onClick={abrirNovo}>
             Novo produto
           </Button>
@@ -503,6 +513,60 @@ export function Estoque() {
               disabled={!formulario.nome.trim() || !formulario.codigo.trim() || salvar.isPending}
             >
               {salvar.isPending ? "Salvando…" : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- categorias --- */}
+      <Dialog open={categoriasAbertas} onOpenChange={setCategoriasAbertas}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Categorias</DialogTitle>
+            <DialogDescription>
+              Usadas para organizar e filtrar os produtos da loja.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-56 overflow-y-auto rounded-lg border border-borda">
+            {(categorias.data ?? []).length === 0 && (
+              <p className="p-3 text-sm text-suave">Nenhuma categoria cadastrada ainda.</p>
+            )}
+            {(categorias.data ?? []).map((c) => (
+              <p key={c.id} className="border-b border-borda px-3 py-2 text-sm last:border-b-0">
+                {c.nome}
+              </p>
+            ))}
+          </div>
+
+          <div>
+            <Label htmlFor="categoria-nova">Nova categoria</Label>
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <Input
+                id="categoria-nova"
+                value={nomeNovaCategoria}
+                onChange={(e) => setNomeNovaCategoria(e.target.value)}
+                placeholder="Nome da categoria"
+              />
+              <Button
+                type="button"
+                className="shrink-0"
+                disabled={!nomeNovaCategoria.trim() || criarCategoria.isPending}
+                onClick={() => criarCategoria.mutate()}
+              >
+                {criarCategoria.isPending ? "Criando…" : "Criar"}
+              </Button>
+            </div>
+            {criarCategoria.error && (
+              <p className="mt-1.5 text-[11px] text-perigo">
+                {mensagemDeErro(criarCategoria.error, AVISOS)}
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCategoriasAbertas(false)}>
+              Fechar
             </Button>
           </DialogFooter>
         </DialogContent>
