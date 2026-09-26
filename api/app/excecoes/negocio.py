@@ -115,6 +115,11 @@ class DepartamentoDuplicado(Conflito):
     mensagem = "Já existe um departamento com este nome."
 
 
+class CategoriaDuplicada(Conflito):
+    codigo = "categoria_duplicada"
+    mensagem = "Já existe uma categoria com este nome."
+
+
 class CadastroDuplicado(Conflito):
     """Violação de unicidade que não caiu em nenhuma das específicas.
 

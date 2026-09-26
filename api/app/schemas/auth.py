@@ -33,4 +33,17 @@ class Eu(BaseModel):
     codigo: str
     papel: str
     senha_provisoria: bool
+    termos_pendentes: bool
     empresa: EmpresaResumo | None = None
+
+
+class SecaoTermosSaida(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    titulo: str
+    paragrafos: list[str]
+
+
+class TermosSaida(BaseModel):
+    versao: str
+    secoes: list[SecaoTermosSaida]

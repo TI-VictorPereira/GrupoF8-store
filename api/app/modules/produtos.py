@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.excecoes import (
+    CategoriaDuplicada,
     CategoriaNaoEncontrada,
     CodigoDuplicado,
     FotoUrlLonga,
@@ -70,6 +71,31 @@ def _retrato(produto: Produto) -> dict[str, Any]:
 
 def listar_categorias(sessao: Session) -> list[CategoriaProduto]:
     return list(sessao.scalars(select(CategoriaProduto).order_by(CategoriaProduto.nome)))
+
+
+def criar_categoria(sessao: Session, ator: Ator, nome: str) -> CategoriaProduto:
+    _exigir_admin(ator)
+    if not nome.strip():
+        raise NomeObrigatorio(detalhes={"entidade": "categoria"})
+
+    categoria = CategoriaProduto(nome=nome.strip())
+    try:
+        with sessao.begin_nested():
+            sessao.add(categoria)
+            sessao.flush()
+    except IntegrityError:
+        raise CategoriaDuplicada() from None
+
+    auditoria.registrar(
+        sessao,
+        ator,
+        acao="categoria.criada",
+        entidade="categoria_produto",
+        entidade_id=categoria.id,
+        descricao=f"Cadastrou a categoria {categoria.nome}.",
+        dados_novos={"nome": categoria.nome},
+    )
+    return categoria
 
 
 def listar_vitrine(sessao: Session) -> list[Produto]:

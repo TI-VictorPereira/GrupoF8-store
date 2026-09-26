@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app.core import seguranca
 from app.core.db import FabricaDeSessao
-from app.models.auditoria import LogAcesso
+from app.models.auditoria import LogAcesso, LogAuditoria
 from app.models.cadastro import Colaborador
 from tests.conftest import CODIGO, CODIGO_FANTASMA, CODIGO_INATIVO, IP_TESTE, SENHA, eventos_de
 
@@ -42,7 +42,6 @@ def test_senha_errada_e_codigo_inexistente_dao_a_mesma_resposta(cliente, dados):
     b = cliente.post("/auth/login", json={"codigo": CODIGO_FANTASMA, "senha": "errada"})
 
     assert a.status_code == b.status_code == 401
-    # Diferenciar aqui entregaria quais códigos existem.
     assert a.json()["codigo"] == b.json()["codigo"] == "credenciais_invalidas"
     assert a.json()["mensagem"] == b.json()["mensagem"]
 
@@ -64,7 +63,6 @@ def test_bloqueia_por_codigo_apos_cinco_erros(cliente, dados):
     for _ in range(5):
         cliente.post("/auth/login", json={"codigo": CODIGO, "senha": "errada"})
 
-    # senha certa agora, e ainda assim barra
     r = cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
 
     assert r.status_code == 429
@@ -285,3 +283,83 @@ def test_solicitar_senha_responde_igual_para_codigo_existente_ou_nao(cliente, da
     assert a.status_code == b.status_code == 200
     assert a.json() == b.json()
     assert ("senha_solicitada", None) in eventos_de(CODIGO)
+
+
+def _entrar_com_senha_definitiva(cliente, dados):
+    """Login pronto pra usar o sistema: só falta os termos, que é o que os
+    testes deste bloco exercitam."""
+    with FabricaDeSessao() as s:
+        s.get(Colaborador, dados["ativo"]).senha_provisoria = False
+        s.commit()
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+
+def test_eu_acusa_termos_pendentes_quando_versao_diverge(cliente, dados):
+    with FabricaDeSessao() as s:
+        s.get(Colaborador, dados["ativo"]).termos_versao = "versao-antiga"
+        s.commit()
+
+    _entrar_com_senha_definitiva(cliente, dados)
+    assert cliente.get("/auth/eu").json()["termos_pendentes"] is True
+
+
+def test_eu_nao_acusa_pendente_quando_ja_esta_na_versao_atual(cliente, dados):
+    _entrar_com_senha_definitiva(cliente, dados)
+    assert cliente.get("/auth/eu").json()["termos_pendentes"] is False
+
+
+def test_termos_pendentes_bloqueia_rota_de_negocio(cliente, dados):
+    """O front também barra, mas quem garante é o servidor — a mesma
+    dependência que já bloqueia por senha provisória."""
+    with FabricaDeSessao() as s:
+        s.get(Colaborador, dados["ativo"]).termos_versao = None
+        s.commit()
+    _entrar_com_senha_definitiva(cliente, dados)
+
+    bloqueada = cliente.get("/pedidos/me")
+    assert bloqueada.status_code == 403
+    assert bloqueada.json()["codigo"] == "termos_nao_aceitos"
+
+
+def test_rota_de_termos_e_aceite_ficam_abertas_mesmo_pendente(cliente, dados):
+    """Sem isso a pessoa nunca conseguiria ler o texto nem aceitar — a
+    barreira travaria a própria saída dela."""
+    with FabricaDeSessao() as s:
+        s.get(Colaborador, dados["ativo"]).termos_versao = None
+        s.commit()
+    _entrar_com_senha_definitiva(cliente, dados)
+
+    lidos = cliente.get("/auth/termos")
+    assert lidos.status_code == 200
+    assert lidos.json()["versao"]
+    secoes = lidos.json()["secoes"]
+    assert secoes and "termo de uso" in secoes[0]["titulo"].lower()
+    assert all(secao["paragrafos"] for secao in secoes)
+
+    aceite = cliente.post("/auth/aceitar-termos")
+    assert aceite.status_code == 200
+    assert aceite.json()["termos_pendentes"] is False
+
+    assert cliente.get("/pedidos/me").status_code == 200
+
+
+def test_aceite_fica_na_auditoria_so_uma_vez(cliente, dados):
+    with FabricaDeSessao() as s:
+        s.get(Colaborador, dados["ativo"]).termos_versao = None
+        s.commit()
+    _entrar_com_senha_definitiva(cliente, dados)
+
+    cliente.post("/auth/aceitar-termos")
+    cliente.post("/auth/aceitar-termos")  
+
+    with FabricaDeSessao() as s:
+        registros = list(
+            s.scalars(
+                select(LogAuditoria).where(
+                    LogAuditoria.entidade == "colaborador",
+                    LogAuditoria.entidade_id == dados["ativo"],
+                    LogAuditoria.acao == "colaborador.termos_aceitos",
+                )
+            )
+        )
+        assert len(registros) == 1

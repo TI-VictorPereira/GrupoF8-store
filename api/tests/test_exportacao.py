@@ -114,6 +114,25 @@ def test_sem_matricula_fica_fora_da_folha_mas_nao_some(movimento):
     assert avulso.total == Decimal("33.00")
 
 
+def test_arquivo_sem_matricula_traz_codparc_na_segunda_coluna(movimento):
+    """O que o DP realmente baixa e abre — não só o dado interno, o .xlsx."""
+    aba = load_workbook(BytesIO(folha.planilha_sem_matricula(_montar()))).active
+
+    cabecalho = [celula.value for celula in aba[1]]
+    assert cabecalho == [nome for nome, _formato, _largura in folha.COLUNAS_SEM_MATRICULA]
+    assert cabecalho[1] == "CODPARC"
+
+    linha = next(
+        fileira
+        for fileira in aba.iter_rows(min_row=2)
+        if fileira[1].value == movimento["codparc_pj"]
+    )
+    _codemp, codparc, nome, *_resto = linha
+    assert isinstance(codparc.value, int)
+    assert codparc.number_format == folha.INTEIRO
+    assert nome.value
+
+
 def test_referencia_e_o_primeiro_dia_do_mes_que_fecha():
     """O ciclo 21/07 a 20/08 é a competência 2026-08 e referencia 01/08/2026."""
     assert folha._referencia("2026-08") == date(2026, 8, 1)
@@ -258,3 +277,21 @@ def test_competencia_invalida_nao_gera_arquivo(cliente, dados):
     resposta = cliente.get("/exportacoes/folha?competencia=2026-13")
     assert resposta.status_code == 422
     assert resposta.json()["codigo"] == "competencia_invalida"
+
+
+def test_resumo_traz_codparc_de_todo_mundo_inclusive_quem_tem_matricula(cliente, dados, movimento):
+    """O PJ não tem CODFUNC, e sem ele a tela só diria "sem matrícula" — sem
+    dizer qual é a pessoa por nenhum código. O codparc é o que identifica.
+    """
+    _entrar_como_admin(cliente, dados)
+    competencia = consumo.competencia_atual()
+
+    pessoas = cliente.get(
+        f"/exportacoes/folha/resumo?competencia={competencia}"
+    ).json()["pessoas"]
+
+    clt = next(p for p in pessoas if p["codfunc"] == movimento["matricula"])
+    assert clt["codparc"] > 0
+
+    pj = next(p for p in pessoas if p["codparc"] == movimento["codparc_pj"])
+    assert pj["codfunc"] is None

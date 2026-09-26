@@ -11,6 +11,7 @@ from app.models.acesso import SolicitacaoSenha, TentativaLogin
 from app.models.auditoria import LogAcesso, LogAuditoria
 from app.models.cadastro import Colaborador, Empresa
 from app.models.operacao import AjusteEstoque, Almoco, Pedido
+from app.modules import termos
 
 SENHA = "senha-de-teste-123"
 CODIGO = "T-LOGIN"
@@ -19,7 +20,6 @@ CODIGO_FANTASMA = "T-NAO-EXISTE"
 
 _CODIGOS = [CODIGO, CODIGO_INATIVO, CODIGO_FANTASMA]
 
-# Faixa reservada para documentação (RFC 5737) — nunca é um IP real.
 IP_TESTE = "203.0.113.42"
 
 
@@ -51,8 +51,6 @@ def _apagar(s, ids: list[uuid.UUID], empresas: set[uuid.UUID]) -> None:
     s.execute(
         delete(Almoco).where(or_(Almoco.colaborador_id.in_(ids), Almoco.confirmado_por.in_(ids)))
     )
-    # O ajuste é histórico do produto, não do colaborador: perde o autor, não
-    # a movimentação.
     s.execute(
         update(AjusteEstoque).where(AjusteEstoque.criado_por.in_(ids)).values(criado_por=None)
     )
@@ -67,13 +65,6 @@ def _apagar(s, ids: list[uuid.UUID], empresas: set[uuid.UUID]) -> None:
 def _limpar_sobras() -> None:
     """Apaga colaboradores de teste que uma execução interrompida deixou.
 
-    O teardown de `dados` só roda se o teste chega ao fim. Uma suíte morta no
-    meio — Ctrl-C, container reiniciado, duas execuções concorrentes — deixa
-    `T-LOGIN` no banco, e a execução seguinte morre no índice único de
-    `codigo` antes do primeiro teste rodar, com um IntegrityError que não tem
-    nada a ver com o que se estava testando.
-
-    Limpar na entrada custa uma consulta e torna a suíte reentrante.
     """
     with FabricaDeSessao() as s:
         sobras = list(s.scalars(select(Colaborador).where(Colaborador.codigo.in_(_CODIGOS))))
@@ -103,6 +94,7 @@ def dados():
             papel="colaborador",
             senha_hash=seguranca.gerar_hash(SENHA),
             senha_provisoria=True,
+            termos_versao=termos.VERSAO_ATUAL,
         )
         inativo = Colaborador(
             nome_completo="Beltrano Inativo",
@@ -114,6 +106,7 @@ def dados():
             papel="colaborador",
             ativo=False,
             senha_hash=seguranca.gerar_hash(SENHA),
+            termos_versao=termos.VERSAO_ATUAL,
         )
         s.add_all([ativo, inativo])
         s.commit()
@@ -122,7 +115,6 @@ def dados():
     yield ids
 
     with FabricaDeSessao() as s:
-        # o teste de varredura por IP gera dezenas de códigos descartáveis
         s.execute(delete(LogAcesso).where(LogAcesso.codigo.like("T-VARRE-%")))
         s.execute(delete(TentativaLogin).where(TentativaLogin.codigo.like("T-VARRE-%")))
         _apagar(s, [ids["ativo"], ids["inativo"]], {ids["empresa"]})

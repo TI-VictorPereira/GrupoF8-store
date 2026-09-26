@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 
 from app.core import seguranca
 from app.core.db import sessao as _sessao
-from app.excecoes import NaoAutenticado, SemPermissao, SenhaProvisoriaPendente
+from app.excecoes import NaoAutenticado, SemPermissao, SenhaProvisoriaPendente, TermosNaoAceitos
 from app.models.cadastro import Colaborador
+from app.modules import termos
 from app.modules.auditoria import Ator
 
 COOKIE_ACESSO = "f8_acesso"
@@ -68,14 +69,20 @@ def exige_papel(*papeis: str) -> Callable[[Ator], Ator]:
 
 
 def exige_senha_definitiva(sessao: Sessao, ator: AtorAtual) -> Ator:
-    """Barra quem ainda está com senha provisória.
+    """Barra quem ainda está com senha provisória ou não aceitou os termos.
 
-    A tela do front também redireciona, mas quem garante é aqui — front é
-    conveniência, não controle de acesso.
+    Duas barreiras no mesmo lugar de propósito: cada `*Liberado` do resto do
+    arquivo é construído em cima desta função, então adicionar uma checagem
+    aqui vale para toda rota de negócio de uma vez, sem precisar tocar em
+    cada uma. As telas do front também guardam essa ordem — troca de senha,
+    depois termos —, mas quem garante é aqui; front é conveniência, não
+    controle de acesso.
     """
     colaborador = sessao.get(Colaborador, ator.id)
     if colaborador is not None and colaborador.senha_provisoria:
         raise SenhaProvisoriaPendente()
+    if colaborador is not None and termos.pendente(colaborador):
+        raise TermosNaoAceitos()
     return ator
 
 

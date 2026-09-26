@@ -1,7 +1,4 @@
 """Contratos do produto e da categoria.
-
-Duas saídas, e a diferença é deliberada: `ProdutoVitrine` não tem custo,
-porque margem não é assunto de quem está comprando.
 """
 
 import uuid
@@ -15,6 +12,10 @@ class CategoriaSaida(BaseModel):
 
     id: uuid.UUID
     nome: str
+
+
+class EntradaCategoria(BaseModel):
+    nome: str = Field(min_length=1, max_length=120)
 
 
 class EntradaProduto(BaseModel):
@@ -57,9 +58,6 @@ class ProdutoVitrine(BaseModel):
 
 class LinhaImportacaoProduto(BaseModel):
     """Uma linha da planilha. Só o código é obrigatório.
-
-    Campo ausente significa "não mexer": dá para mandar só código e preço
-    para um reajuste, sem zerar o resto do cadastro.
     """
 
     codigo: str = Field(min_length=1, max_length=40)

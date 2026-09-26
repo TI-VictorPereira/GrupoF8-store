@@ -11,12 +11,15 @@ from app.core.config import obter_config
 from app.core.deps import COOKIE_ACESSO, COOKIE_REFRESH, AtorAtual, Sessao
 from app.excecoes import NaoAutenticado
 from app.models.cadastro import Colaborador, Empresa
+from app.modules import termos
 from app.modules.auth import servico
 from app.schemas.auth import (
     EntradaLogin,
     EntradaSolicitacaoSenha,
     EntradaTrocaSenha,
     Eu,
+    SecaoTermosSaida,
+    TermosSaida,
 )
 from app.schemas.comum import Mensagem
 from app.schemas.empresa import EmpresaResumo
@@ -52,14 +55,13 @@ def _montar_eu(sessao: Sessao, colaborador: Colaborador) -> Eu:
         codigo=colaborador.codigo,
         papel=colaborador.papel,
         senha_provisoria=colaborador.senha_provisoria,
+        termos_pendentes=termos.pendente(colaborador),
         empresa=EmpresaResumo.model_validate(empresa) if empresa else None,
     )
 
 
 @rotas.post("/login", response_model=Eu)
 def login(dados: EntradaLogin, resposta: Response, sessao: Sessao) -> Eu:
-    # O IP vem do contexto, não de request.client: atrás do proxy o cliente é
-    # sempre o Caddy, e o limite por IP viraria um limite global.
     emitida = servico.autenticar(sessao, dados.codigo, dados.senha, contexto.obter().ip)
     _gravar_sessao(resposta, emitida.token_acesso, emitida.token_refresh)
     return _montar_eu(sessao, emitida.colaborador)
@@ -89,8 +91,7 @@ def renovar(
     if colaborador is None or not colaborador.ativo:
         raise NaoAutenticado()
 
-    # Mesma checagem da dependência: o refresh não pode ser o buraco por onde
-    # uma sessão cortada volta à vida.
+    
     if seguranca.token_de_sessao_cortada(dados, colaborador.sessao_versao):
         raise NaoAutenticado()
 
@@ -123,15 +124,34 @@ def trocar_senha(
     dados: EntradaTrocaSenha, ator: AtorAtual, resposta: Response, sessao: Sessao
 ) -> Mensagem:
     colaborador = servico.trocar_senha_propria(sessao, ator, dados.senha_atual, dados.senha_nova)
-    # A troca moveu o corte de sessão e invalidou todos os tokens anteriores,
-    # inclusive o desta aba. Emitir cookies novos mantém quem trocou logado e
-    # derruba só os outros aparelhos.
+   
     _gravar_sessao(
         resposta,
         seguranca.criar_token(colaborador.id, colaborador.papel, "acesso", colaborador.sessao_versao),
         seguranca.criar_token(colaborador.id, colaborador.papel, "refresh", colaborador.sessao_versao),
     )
     return Mensagem(mensagem="Senha alterada.")
+
+
+@rotas.get("/termos", response_model=TermosSaida)
+def obter_termos() -> TermosSaida:
+    """Rota pública, sem dependência de sessão nenhuma.
+    """
+    return TermosSaida(
+        versao=termos.VERSAO_ATUAL,
+        secoes=[
+            SecaoTermosSaida(titulo=secao.titulo, paragrafos=secao.paragrafos)
+            for secao in termos.SECOES
+        ],
+    )
+
+
+@rotas.post("/aceitar-termos", response_model=Eu)
+def aceitar_termos(ator: AtorAtual, sessao: Sessao) -> Eu:
+    """Sem corpo de propósito: o que se aceita é sempre a versão atual do
+    servidor, nunca uma versão que o cliente escolha."""
+    colaborador = termos.aceitar(sessao, ator)
+    return _montar_eu(sessao, colaborador)
 
 
 @rotas.post("/solicitar-senha", response_model=Mensagem)

@@ -54,6 +54,12 @@ class SenhaProvisoriaPendente(ErroDaAplicacao):
     mensagem = "Troque a senha provisória antes de continuar."
 
 
+class TermosNaoAceitos(ErroDaAplicacao):
+    status = 403
+    codigo = "termos_nao_aceitos"
+    mensagem = "Aceite os termos de uso antes de continuar."
+
+
 class SenhaAtualIncorreta(ErroDaAplicacao):
     status = 400
     codigo = "senha_atual_incorreta"

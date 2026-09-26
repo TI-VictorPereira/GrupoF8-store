@@ -104,6 +104,11 @@ class Colaborador(Base):
         Integer, nullable=False, default=0, server_default="0"
     )
 
+    termos_versao: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    termos_aceitos_em: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     criado_em: Mapped[datetime] = criado_em()
     atualizado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()

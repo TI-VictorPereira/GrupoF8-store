@@ -60,6 +60,8 @@ def upgrade() -> None:
     sa.Column('ativo', sa.Boolean(), server_default='true', nullable=False),
     sa.Column('senha_hash', sa.String(length=255), nullable=False),
     sa.Column('senha_provisoria', sa.Boolean(), server_default='false', nullable=False),
+    sa.Column('termos_versao', sa.String(length=20), nullable=True),
+    sa.Column('termos_aceitos_em', sa.DateTime(timezone=True), nullable=True),
     sa.Column('criado_em', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('atualizado_em', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.CheckConstraint("(vinculo = 'clt' and matricula is not null) or (vinculo = 'pj' and matricula is null)", name=op.f('ck_colaboradores_matricula_conforme_vinculo')),

@@ -11,6 +11,7 @@ from app.modules.produtos import DadosProduto
 from app.schemas.comum import EntradaAtivo
 from app.schemas.produto import (
     CategoriaSaida,
+    EntradaCategoria,
     EntradaImportacaoProduto,
     EntradaProduto,
     ProdutoCompleto,
@@ -41,6 +42,13 @@ def vitrine(ator: ConsumidorLiberado, sessao: Sessao) -> list[Produto]:
 @rotas.get("/categorias", response_model=list[CategoriaSaida])
 def categorias(ator: ConsumidorLiberado, sessao: Sessao) -> list[CategoriaProduto]:
     return produtos.listar_categorias(sessao)
+
+
+@rotas.post("/categorias", response_model=CategoriaSaida, status_code=201)
+def criar_categoria(
+    dados: EntradaCategoria, ator: AdminLiberado, sessao: Sessao
+) -> CategoriaProduto:
+    return produtos.criar_categoria(sessao, ator, dados.nome)
 
 
 @rotas.get("", response_model=list[ProdutoCompleto])

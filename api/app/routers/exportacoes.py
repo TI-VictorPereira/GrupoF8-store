@@ -24,9 +24,17 @@ class PessoaSemMatriculaSaida(BaseModel):
 
 
 class ConsumoDaPessoaSaida(BaseModel):
-    """A conferência do DP: de onde veio cada valor, pessoa a pessoa."""
+    """A conferência do DP: de onde veio cada valor, pessoa a pessoa.
+
+    `codparc` vem sempre, mesmo quando `codfunc` existe — é o PJ que precisa
+    dele: sem matrícula não há CODFUNC, e sem CODFUNC a linha nem entra na
+    folha. Sem o codparc aqui, a tela diria só "sem matrícula" sem dizer qual
+    é a pessoa por nenhum código, obrigando a abrir a lista separada de quem
+    ficou de fora só para descobrir isso.
+    """
 
     codemp: int
+    codparc: int
     codfunc: int | None
     codigo: str
     nome: str
@@ -99,6 +107,7 @@ def resumo(competencia: str, ator: DpOuAdminLiberado, sessao: Sessao) -> ResumoS
         pessoas=[
             ConsumoDaPessoaSaida(
                 codemp=pessoa.codemp,
+                codparc=pessoa.codparc,
                 codfunc=pessoa.matricula,
                 codigo=pessoa.codigo,
                 nome=pessoa.nome,
