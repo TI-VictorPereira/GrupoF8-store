@@ -4,8 +4,11 @@ import { useState } from "react";
 import { api } from "@/api/cliente";
 import { Cabecalho } from "@/componentes/Cabecalho";
 import { Carregando } from "@/componentes/Carregando";
+import { Help } from "@/componentes/Help";
 import { Moldura } from "@/componentes/Moldura";
 import { Vazio } from "@/componentes/Vazio";
+import { Button } from "@/componentes/ui/button";
+import { Card, CardContent } from "@/componentes/ui/card";
 import {
   Select,
   SelectContent,
@@ -28,8 +31,40 @@ const ROTULO_STATUS: Record<string, string> = {
   confirmado: "Confirmado",
 };
 
+const CHAVE_AVISO_VISTO = "f8:consumo:ciclo-explicado";
+
+/**
+ * Se a pessoa já viu a explicação do ciclo, uma vez que seja.
+ *
+ * Fica no localStorage do navegador, não no servidor: é lembrança de
+ * interface, não dado de negócio — não precisa sincronizar entre aparelhos,
+ * e se falhar (aba anônima, storage bloqueado) o pior caso é mostrar de novo,
+ * não travar a tela.
+ */
+function useAvisoDeCicloVisto() {
+  const [visto, setVisto] = useState(() => {
+    try {
+      return localStorage.getItem(CHAVE_AVISO_VISTO) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  function marcarComoVisto() {
+    try {
+      localStorage.setItem(CHAVE_AVISO_VISTO, "1");
+    } catch {
+      // sem storage, só não persiste — a tela continua funcionando
+    }
+    setVisto(true);
+  }
+
+  return { visto, marcarComoVisto };
+}
+
 export function Consumo() {
   const [competencia, setCompetencia] = useState<string | undefined>(undefined);
+  const { visto, marcarComoVisto } = useAvisoDeCicloVisto();
 
   const meses = useQuery({
     queryKey: ["competencias"],
@@ -46,6 +81,31 @@ export function Consumo() {
       <Cabecalho titulo="Meu consumo" />
 
       <div className={cn(PAGINA_APP, "pt-4")}>
+        {!visto && (
+          <Card className="border-accent mb-3">
+            <CardContent className="p-3">
+              <p className="text-sm">
+                <span className="font-bold">Seu consumo é organizado por ciclo,</span> não pelo
+                mês do calendário: cada ciclo vai do dia 21 ao dia 20 do mês seguinte, e leva o
+                nome do mês em que fecha. Mesma regra da folha de pagamento. Use o menu abaixo
+                para ver ciclos anteriores.
+              </p>
+              <Button size="sm" className="mt-2" onClick={marcarComoVisto}>
+                Entendido
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="mb-1.5 flex items-center gap-1">
+          <span className="text-xs font-semibold text-suave">Ciclo</span>
+          <Help>
+            O ciclo vai do dia 21 ao dia 20 do mês seguinte, e leva o nome do mês em que fecha.
+            Mesma regra da folha de pagamento. Quem comprou ou almoçou em 25 de agosto está no
+            ciclo de setembro.
+          </Help>
+        </div>
+
         <Select
           value={competencia ?? meses.data?.[0] ?? ""}
           onValueChange={setCompetencia}

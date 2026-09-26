@@ -1,0 +1,49 @@
+# Roda a migration do Alembic contra o Neon a cada push em main.
+#
+# Não dispara deploy nenhum: os dois projetos da Vercel já estão conectados ao
+# Git e fazem o próprio deploy sozinhos a cada push. Fazer este workflow
+# TAMBÉM chamar `vercel deploy` criaria dois deploys correndo em paralelo por
+# push, um esperando esta migration e outro não — a corrida que queremos
+# evitar, não resolver.
+#
+# A ordem entre "esta migration terminou" e "a Vercel terminou de buildar" não
+# precisa ser garantida: toda migration deste projeto segue a disciplina de
+# expand/contract (compatível com o código antigo E o novo ao mesmo tempo),
+# então não importa qual dos dois termina primeiro.
+
+name: Migração do banco
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "api/alembic/**"
+      - "api/app/models/**"
+
+jobs:
+  migrar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -e ./api
+
+      - name: Alembic upgrade head
+        working-directory: api
+        env:
+          # A URL DIRETA, sem pooler — migration não pode passar por PgBouncer
+          # em modo transação. As duas variáveis apontam pro mesmo endpoint
+          # porque `Config` exige `database_url`, mas quem decide pra onde o
+          # Alembic vai de verdade é `database_url_direta` (ver env.py).
+          DATABASE_URL: ${{ secrets.DATABASE_URL_DIRETA }}
+          DATABASE_URL_DIRETA: ${{ secrets.DATABASE_URL_DIRETA }}
+          # Não é usado por nenhuma linha da migration — só existe porque
+          # `Config` exige o campo pra conseguir ser construída. Pode ser o
+          # mesmo valor real que já está na Vercel, ou qualquer string não
+          # vazia: o que importa é nunca aparecer em log nenhum.
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: alembic upgrade head
