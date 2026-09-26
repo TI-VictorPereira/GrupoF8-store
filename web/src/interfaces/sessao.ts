@@ -14,5 +14,6 @@ export interface Eu {
   codigo: string;
   papel: Papel;
   senha_provisoria: boolean;
+  termos_pendentes: boolean;
   empresa: Empresa | null;
 }

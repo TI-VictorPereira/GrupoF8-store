@@ -192,19 +192,6 @@ export function Loja() {
                     <span className="text-[13px] font-extrabold">
                       {dinheiro(produto.preco_venda)}
                     </span>
-                    {quantidade > 0 && brinde.data?.disponivel && (
-                      <Button
-                        size="sm"
-                        variant={brindeEm === produto.id ? "destaque" : "outline"}
-                        onClick={() =>
-                          setBrindeEm(brindeEm === produto.id ? null : produto.id)
-                        }
-                        className="mr-1 h-7 px-2 text-[10px]"
-                      >
-                        <Gift />
-                        {brindeEm === produto.id ? "Brinde" : "Usar"}
-                      </Button>
-                    )}
                     {quantidade === 0 ? (
                       <Button
                         size="sm"
@@ -242,6 +229,18 @@ export function Loja() {
                       </div>
                     )}
                   </div>
+                  
+                  {quantidade > 0 && brinde.data?.disponivel && (
+                    <Button
+                      size="sm"
+                      variant={brindeEm === produto.id ? "destaque" : "outline"}
+                      onClick={() => setBrindeEm(brindeEm === produto.id ? null : produto.id)}
+                      className="mt-1.5 h-7 w-full px-2 text-[10px]"
+                    >
+                      <Gift />
+                      {brindeEm === produto.id ? "Usando o brinde" : "Usar o brinde"}
+                    </Button>
+                  )}
                 </div>
               </Card>
             );

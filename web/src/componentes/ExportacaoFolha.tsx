@@ -39,6 +39,7 @@ interface PessoaSemMatricula {
 
 interface ConsumoDaPessoa {
   codemp: number;
+  codparc: number;
   codfunc: number | null;
   codigo: string;
   nome: string;
@@ -307,7 +308,9 @@ export function ExportacaoFolha() {
                   <TableRow key={`${pessoa.codigo}-${pessoa.codfunc ?? "sem"}`}>
                     <TableCell className="font-mono text-xs">
                       {pessoa.codfunc ?? (
-                        <span className="text-perigo">sem matrícula</span>
+                        <span className="text-perigo" title="PJ não tem matrícula; este é o código de parceiro">
+                          parc. {pessoa.codparc}
+                        </span>
                       )}
                     </TableCell>
                     <TableCell>

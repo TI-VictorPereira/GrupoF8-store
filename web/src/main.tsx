@@ -8,6 +8,7 @@ import { clienteConsulta } from "@/comum/clienteConsulta";
 import { useSessao } from "@/hooks/sessao";
 import "@/estilos.css";
 import { roteador } from "@/rotas/roteador";
+import { AceiteDeTermos } from "@/telas/AceiteDeTermos";
 import { Login } from "@/telas/Login";
 import { TrocaSenhaObrigatoria } from "@/telas/TrocaSenhaObrigatoria";
 
@@ -18,6 +19,7 @@ function App() {
   if (carregando) return <Carregando />;
   if (!eu) return <Login />;
   if (eu.senha_provisoria) return <TrocaSenhaObrigatoria />;
+  if (eu.termos_pendentes) return <AceiteDeTermos />;
   return <RouterProvider router={roteador} context={{ eu }} />;
 }
 

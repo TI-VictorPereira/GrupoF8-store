@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { CampoInteiro } from "@/componentes/CampoInteiro";
 import { ImportarPlanilha } from "@/componentes/ImportarPlanilha";
 import { Carregando } from "@/componentes/Carregando";
+import { TableHeadOrdenavel } from "@/componentes/TableHeadOrdenavel";
 import { Vazio } from "@/componentes/Vazio";
 import { Badge } from "@/componentes/ui/badge";
 import { Button } from "@/componentes/ui/button";
@@ -37,6 +38,7 @@ import {
 } from "@/componentes/ui/table";
 import { mensagemDeErro } from "@/comum/erros";
 import { dataHora } from "@/comum/formato";
+import { ordenar, useOrdenacao } from "@/comum/ordenacao";
 import { baixarCsv, coluna, normalizar, numeroDaPlanilha } from "@/comum/planilha";
 import type {
   ColaboradorCompleto,
@@ -81,6 +83,25 @@ const FORMULARIO_VAZIO = {
   papel: "colaborador" as Papel,
   departamento_id: "",
 };
+
+type ColunaColaborador = "nome" | "codigo" | "codparc" | "vinculo" | "matricula" | "papel";
+
+function valorOrdenavel(pessoa: ColaboradorCompleto, coluna: ColunaColaborador): string | number {
+  switch (coluna) {
+    case "nome":
+      return pessoa.nome_completo.toLowerCase();
+    case "codigo":
+      return pessoa.codigo.toLowerCase();
+    case "codparc":
+      return pessoa.codparc;
+    case "vinculo":
+      return pessoa.vinculo;
+    case "matricula":
+      return pessoa.matricula ?? 0;
+    case "papel":
+      return pessoa.papel;
+  }
+}
 
 export function Colaboradores() {
   const clienteConsulta = useQueryClient();
@@ -211,7 +232,11 @@ export function Colaboradores() {
     setFormularioAberto(true);
   }
 
-  const lista = colaboradores.data ?? [];
+  const ordenacao = useOrdenacao<ColunaColaborador>("nome");
+  const lista = useMemo(
+    () => ordenar(colaboradores.data ?? [], ordenacao, valorOrdenavel),
+    [colaboradores.data, ordenacao],
+  );
   const abertas = solicitacoes.data ?? [];
 
   const nomeEmpresa = (id: string) =>
@@ -410,12 +435,24 @@ export function Colaboradores() {
           <Table className="tabela-admin">
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Código</TableHead>
-                <TableHead>Codparc</TableHead>
-                <TableHead>Vínculo</TableHead>
-                <TableHead>Matrícula</TableHead>
-                <TableHead>Papel</TableHead>
+                <TableHeadOrdenavel coluna="nome" estado={ordenacao} aoClicar={ordenacao.alternar}>
+                  Nome
+                </TableHeadOrdenavel>
+                <TableHeadOrdenavel coluna="codigo" estado={ordenacao} aoClicar={ordenacao.alternar}>
+                  Código
+                </TableHeadOrdenavel>
+                <TableHeadOrdenavel coluna="codparc" estado={ordenacao} aoClicar={ordenacao.alternar}>
+                  Codparc
+                </TableHeadOrdenavel>
+                <TableHeadOrdenavel coluna="vinculo" estado={ordenacao} aoClicar={ordenacao.alternar}>
+                  Vínculo
+                </TableHeadOrdenavel>
+                <TableHeadOrdenavel coluna="matricula" estado={ordenacao} aoClicar={ordenacao.alternar}>
+                  Matrícula
+                </TableHeadOrdenavel>
+                <TableHeadOrdenavel coluna="papel" estado={ordenacao} aoClicar={ordenacao.alternar}>
+                  Papel
+                </TableHeadOrdenavel>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>

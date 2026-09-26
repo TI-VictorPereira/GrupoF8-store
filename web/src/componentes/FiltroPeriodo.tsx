@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/api/cliente";
+import { Help } from "@/componentes/Help";
 import { Button } from "@/componentes/ui/button";
 import { Input } from "@/componentes/ui/input";
 import { Label } from "@/componentes/ui/label";
@@ -14,15 +15,7 @@ import {
 import { diaMes, mesPorExtenso } from "@/comum/formato";
 import { ROTULOS_PERIODO, cicloDe, type EstadoPeriodo } from "@/comum/periodo";
 
-/**
- * Filtro de período das telas de relatório.
- *
- * Vive fora das telas porque vendas e almoços recortam o mesmo tempo: o mês
- * do consumo fecha no dia 20 para os dois, e um almoço confirmado em 21/09
- * entra no mesmo ciclo que uma compra feita no mesmo dia. Duas cópias deste
- * controle acabariam divergindo, e a divergência apareceria como dois totais
- * diferentes para o que deveria ser o mesmo período.
- */
+
 export function FiltroPeriodo({
   valor,
   aoMudar,
@@ -30,8 +23,7 @@ export function FiltroPeriodo({
   valor: EstadoPeriodo;
   aoMudar: (estado: EstadoPeriodo) => void;
 }) {
-  // Só os ciclos com movimento: uma lista de meses vazios não ajuda ninguém a
-  // decidir o que olhar ou exportar.
+
   const ciclos = useQuery({
     queryKey: ["competencias-empresa"],
     queryFn: () => api.get<string[]>("/consumo/competencias/empresa"),
@@ -40,14 +32,22 @@ export function FiltroPeriodo({
   return (
     <div className="flex flex-wrap items-end gap-2">
       {ROTULOS_PERIODO.map((opcao) => (
-        <Button
-          key={opcao.valor}
-          size="sm"
-          variant={valor.periodo === opcao.valor ? "default" : "outline"}
-          onClick={() => aoMudar({ ...valor, periodo: opcao.valor })}
-        >
-          {opcao.rotulo}
-        </Button>
+        <span key={opcao.valor} className="inline-flex items-center gap-1">
+          <Button
+            size="sm"
+            variant={valor.periodo === opcao.valor ? "default" : "outline"}
+            onClick={() => aoMudar({ ...valor, periodo: opcao.valor })}
+          >
+            {opcao.rotulo}
+          </Button>
+          {opcao.valor === "ciclo" && (
+            <Help>
+              O ciclo vai do dia 21 ao dia 20 do mês seguinte, e leva o nome do mês em que
+              fecha — mesma regra da folha de pagamento. Quem comprou ou almoçou em 25 de
+              agosto está no ciclo de setembro.
+            </Help>
+          )}
+        </span>
       ))}
 
       {valor.periodo === "ciclo" && (

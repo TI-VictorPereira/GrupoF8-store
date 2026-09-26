@@ -48,6 +48,8 @@ const ESTOQUE_BAIXO = 5;
 
 const AVISOS: Record<string, string> = {
   codigo_duplicado: "Já existe um produto com este código.",
+  categoria_duplicada: "Já existe uma categoria com este nome.",
+  nome_obrigatorio: "O nome não pode ficar em branco.",
   estoque_insuficiente: "A baixa é maior que o estoque disponível.",
   foto_url_longa: "Envie a foto para o storage e cole aqui só o endereço.",
 };
@@ -70,6 +72,8 @@ export function Estoque() {
   const [formulario, setFormulario] = useState(FORMULARIO_VAZIO);
   const [aAjustar, setAAjustar] = useState<ProdutoCompleto | null>(null);
   const [ajuste, setAjuste] = useState({ tipo: "entrada", quantidade: "", motivo: "" });
+  const [novaCategoriaAberta, setNovaCategoriaAberta] = useState(false);
+  const [nomeNovaCategoria, setNomeNovaCategoria] = useState("");
 
   const produtos = useQuery({
     queryKey: CHAVE,
@@ -85,6 +89,16 @@ export function Estoque() {
     const mapa = new Map((categorias.data ?? []).map((c) => [c.id, c.nome]));
     return (id: string | null) => (id ? (mapa.get(id) ?? "—") : "—");
   }, [categorias.data]);
+
+  const criarCategoria = useMutation({
+    mutationFn: () => api.post<Categoria>("/produtos/categorias", { nome: nomeNovaCategoria.trim() }),
+    onSuccess: (categoria) => {
+      void clienteConsulta.invalidateQueries({ queryKey: ["categorias"] });
+      setFormulario({ ...formulario, categoria_id: categoria.id });
+      setNomeNovaCategoria("");
+      setNovaCategoriaAberta(false);
+    },
+  });
 
   function recarregar() {
     void clienteConsulta.invalidateQueries({ queryKey: CHAVE });    void clienteConsulta.invalidateQueries({ queryKey: ["vitrine"] });
@@ -130,10 +144,17 @@ export function Estoque() {
     },
   });
 
+  function fecharCriacaoDeCategoria() {
+    setNovaCategoriaAberta(false);
+    setNomeNovaCategoria("");
+    criarCategoria.reset();
+  }
+
   function abrirNovo() {
     setEmEdicao(null);
     setFormulario(FORMULARIO_VAZIO);
     salvar.reset();
+    fecharCriacaoDeCategoria();
     setFormularioAberto(true);
   }
 
@@ -148,6 +169,7 @@ export function Estoque() {
       foto_url: produto.foto_url ?? "",
     });
     salvar.reset();
+    fecharCriacaoDeCategoria();
     setFormularioAberto(true);
   }
 
@@ -393,6 +415,51 @@ export function Estoque() {
                     ))}
                   </SelectContent>
                 </Select>
+
+                {novaCategoriaAberta ? (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <Input
+                      autoFocus
+                      value={nomeNovaCategoria}
+                      onChange={(e) => setNomeNovaCategoria(e.target.value)}
+                      placeholder="Nome da categoria"
+                      className="h-8 text-xs"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-8 shrink-0"
+                      disabled={!nomeNovaCategoria.trim() || criarCategoria.isPending}
+                      onClick={() => criarCategoria.mutate()}
+                    >
+                      {criarCategoria.isPending ? "Criando…" : "Criar"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 shrink-0"
+                      onClick={fecharCriacaoDeCategoria}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="mt-0.5 h-auto justify-start p-0 text-xs text-suave"
+                    onClick={() => setNovaCategoriaAberta(true)}
+                  >
+                    + Nova categoria
+                  </Button>
+                )}
+                {criarCategoria.error && (
+                  <p className="text-[11px] text-perigo">
+                    {mensagemDeErro(criarCategoria.error, AVISOS)}
+                  </p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
