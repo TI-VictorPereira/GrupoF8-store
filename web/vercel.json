@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://grupo-f8-store.vercel.app/api/:path*"
+      "destination": "https://grupo-f8-store-api.vercel.app/api/:path*"
     },
     {
       "source": "/(.*)",
