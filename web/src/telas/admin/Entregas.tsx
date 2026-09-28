@@ -168,12 +168,12 @@ export function Entregas() {
                 {linha.pedido.itens.map((item, indice) => (
                   <div
                     key={`${item.produto_id ?? item.nome_produto}-${indice}`}
-                    className="flex justify-between py-0.5 text-[13px]"
+                    className="flex justify-between gap-2 py-0.5 text-[13px]"
                   >
-                    <span className="text-suave">
+                    <span className="min-w-0 truncate text-suave">
                       {item.quantidade}× {item.nome_produto}
                     </span>
-                    <span className="font-semibold">
+                    <span className="shrink-0 font-semibold">
                       {dinheiro(Number(item.preco_unitario) * item.quantidade)}
                     </span>
                   </div>
