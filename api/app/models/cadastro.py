@@ -125,6 +125,7 @@ class Produto(Base):
 
     id: Mapped[uuid.UUID] = pk_uuid()
     nome: Mapped[str] = mapped_column(String(160), nullable=False)
+    marca: Mapped[str | None] = mapped_column(String(120), nullable=True)
     codigo: Mapped[str] = mapped_column(String(40), nullable=False, unique=True)
     categoria_id: Mapped[uuid.UUID | None] = fk_uuid("categorias_produto.id", obrigatorio=False)
     custo: Mapped[Decimal] = dinheiro()

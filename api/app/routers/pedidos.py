@@ -26,6 +26,16 @@ def _detalhe(sessao: Sessao, pedido: Pedido) -> PedidoDetalheSaida:
     return PedidoDetalheSaida.model_validate({**pedido.__dict__, "itens": itens})
 
 
+def _linha_saida(linha: pedidos.LinhaPedido) -> LinhaPedidoSaida:
+    return LinhaPedidoSaida(
+        pedido=PedidoDetalheSaida.model_validate({**linha.pedido.__dict__, "itens": linha.itens}),
+        colaborador_nome=linha.colaborador_nome,
+        colaborador_codigo=linha.colaborador_codigo,
+        departamento=linha.departamento,
+        cancelado_por_nome=linha.cancelado_por_nome,
+    )
+
+
 @rotas.post("", response_model=PedidoSaida, status_code=201)
 def finalizar(dados: EntradaPedido, ator: ConsumidorLiberado, sessao: Sessao) -> Pedido:
     itens = [(item.produto_id, item.quantidade) for item in dados.itens]
@@ -47,17 +57,13 @@ def meus_pedidos(ator: ConsumidorLiberado, sessao: Sessao) -> list[PedidoDetalhe
 @rotas.get("/pendentes", response_model=list[LinhaPedidoSaida])
 def pendentes(ator: AdminLiberado, sessao: Sessao) -> list[LinhaPedidoSaida]:
     """A fila do balcão: o que falta entregar e para quem."""
-    return [
-        LinhaPedidoSaida(
-            pedido=PedidoDetalheSaida.model_validate(
-                {**linha.pedido.__dict__, "itens": linha.itens}
-            ),
-            colaborador_nome=linha.colaborador_nome,
-            colaborador_codigo=linha.colaborador_codigo,
-            departamento=linha.departamento,
-        )
-        for linha in pedidos.listar_pendentes_detalhado(sessao, ator)
-    ]
+    return [_linha_saida(linha) for linha in pedidos.listar_pendentes_detalhado(sessao, ator)]
+
+
+@rotas.get("/cancelados", response_model=list[LinhaPedidoSaida])
+def cancelados(ator: AdminLiberado, sessao: Sessao) -> list[LinhaPedidoSaida]:
+    """Os últimos pedidos cancelados manualmente pelo admin (não os expirados)."""
+    return [_linha_saida(linha) for linha in pedidos.listar_cancelados_detalhado(sessao, ator)]
 
 
 @rotas.post("/{pedido_id}/entregar", response_model=PedidoSaida)
@@ -81,15 +87,5 @@ def historico(
     status: str | None = None,
 ) -> list[LinhaPedidoSaida]:
     """Vendas do intervalo. Base da tela de vendas e da exportação."""
-    return [
-        LinhaPedidoSaida(
-            pedido=PedidoDetalheSaida.model_validate(
-                {**linha.pedido.__dict__, "itens": linha.itens}
-            ),
-            colaborador_nome=linha.colaborador_nome,
-            colaborador_codigo=linha.colaborador_codigo,
-            departamento=linha.departamento,
-        )
-        for linha in pedidos.listar_periodo(sessao, ator, de, ate, status)
-    ]
+    return [_linha_saida(linha) for linha in pedidos.listar_periodo(sessao, ator, de, ate, status)]
 

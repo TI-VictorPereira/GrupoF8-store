@@ -20,6 +20,7 @@ class EntradaCategoria(BaseModel):
 
 class EntradaProduto(BaseModel):
     nome: str = Field(min_length=1, max_length=160)
+    marca: str | None = Field(default=None, max_length=120)
     codigo: str = Field(min_length=1, max_length=40)
     preco_venda: Decimal = Field(ge=0, max_digits=10, decimal_places=2)
     custo: Decimal = Field(ge=0, max_digits=10, decimal_places=2)
@@ -34,6 +35,7 @@ class ProdutoCompleto(BaseModel):
 
     id: uuid.UUID
     nome: str
+    marca: str | None
     codigo: str
     categoria_id: uuid.UUID | None
     custo: Decimal
@@ -62,6 +64,7 @@ class LinhaImportacaoProduto(BaseModel):
 
     codigo: str = Field(min_length=1, max_length=40)
     nome: str | None = Field(default=None, max_length=160)
+    marca: str | None = Field(default=None, max_length=120)
     categoria: str | None = Field(default=None, max_length=120)
     custo: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
     preco_venda: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)

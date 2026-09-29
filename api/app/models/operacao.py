@@ -37,6 +37,10 @@ class Pedido(Base):
     entregue_por: Mapped[uuid.UUID | None] = fk_uuid("colaboradores.id", obrigatorio=False)
     cancelado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     motivo_cancelamento: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # Nulo quando o cancelamento foi automático (expiração pelo relógio) —
+    # é o que distingue "admin cancelou" de "expirou sozinho" sem precisar de
+    # um status novo. Espelha `entregue_por`.
+    cancelado_por: Mapped[uuid.UUID | None] = fk_uuid("colaboradores.id", obrigatorio=False)
     lote_id: Mapped[uuid.UUID | None] = fk_uuid("exportacoes.id", obrigatorio=False)
     exportado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

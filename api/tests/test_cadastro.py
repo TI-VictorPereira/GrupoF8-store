@@ -328,3 +328,34 @@ def test_alteracao_de_produto_registra_apenas_o_que_mudou(admin, faxina):
     assert registro is not None
     assert set(registro.dados_novos) == {"preco_venda"}
     assert registro.dados_anteriores["preco_venda"] == "5.00"
+
+
+def test_marca_e_opcional_e_pode_ser_removida_na_alteracao(admin, faxina):
+    with FabricaDeSessao() as s:
+        criado = produtos.criar(
+            s,
+            admin,
+            DadosProduto(
+                nome="Suco",
+                codigo=f"{PREFIXO}S",
+                preco_venda=Decimal("4"),
+                custo=Decimal("2"),
+                marca="Marca X",
+            ),
+        )
+        s.flush()
+        produto_id = criado.id
+        assert criado.marca == "Marca X"
+
+        produtos.alterar(
+            s,
+            admin,
+            produto_id,
+            DadosProduto(
+                nome="Suco", codigo=f"{PREFIXO}S", preco_venda=Decimal("4"), custo=Decimal("2")
+            ),
+        )
+        s.commit()
+
+    with FabricaDeSessao() as s:
+        assert s.get(Produto, produto_id).marca is None

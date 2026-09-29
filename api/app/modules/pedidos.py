@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.core.config import obter_config
 from app.excecoes import (
@@ -320,6 +320,7 @@ def cancelar(sessao: Session, ator: Ator, pedido_id: uuid.UUID, motivo: str) -> 
     pedido.status = "cancelado"
     pedido.cancelado_em = datetime.now(UTC)
     pedido.motivo_cancelamento = motivo
+    pedido.cancelado_por = ator.id
     auditoria.registrar(
         sessao,
         ator,
@@ -342,6 +343,7 @@ class LinhaPedido:
     colaborador_nome: str
     colaborador_codigo: str
     departamento: str | None
+    cancelado_por_nome: str | None = None
 
 
 def _montar(sessao: Session, consulta) -> list[LinhaPedido]:
@@ -367,16 +369,29 @@ def _montar(sessao: Session, consulta) -> list[LinhaPedido]:
             colaborador_nome=nome,
             colaborador_codigo=codigo,
             departamento=dep,
+            cancelado_por_nome=cancelado_por_nome,
         )
-        for pedido, nome, codigo, dep in linhas
+        for pedido, nome, codigo, dep, cancelado_por_nome in linhas
     ]
+
+
+_ColaboradorCancelamento = aliased(Colaborador)
 
 
 def _com_pessoa():
     return (
-        select(Pedido, Colaborador.nome_completo, Colaborador.codigo, Departamento.nome)
+        select(
+            Pedido,
+            Colaborador.nome_completo,
+            Colaborador.codigo,
+            Departamento.nome,
+            _ColaboradorCancelamento.nome_completo,
+        )
         .join(Colaborador, Colaborador.id == Pedido.colaborador_id)
         .outerjoin(Departamento, Departamento.id == Colaborador.departamento_id)
+        .outerjoin(
+            _ColaboradorCancelamento, _ColaboradorCancelamento.id == Pedido.cancelado_por
+        )
     )
 
 
@@ -395,6 +410,25 @@ def listar_pendentes_detalhado(sessao: Session, ator: Ator) -> list[LinhaPedido]
     return _montar(
         sessao,
         _com_pessoa().where(Pedido.status == "pendente").order_by(Pedido.criado_em),
+    )
+
+
+def listar_cancelados_detalhado(sessao: Session, ator: Ator) -> list[LinhaPedido]:
+    """Os últimos pedidos que o admin cancelou manualmente, para a aba
+    "Cancelados" da tela de Entregas.
+
+    Não inclui os expirados pelo relógio: ambos ficam com `status="cancelado"`,
+    mas só o cancelamento manual grava `cancelado_por` — é esse campo que
+    separa os dois casos, não o status.
+    """
+    if not ator.eh_admin:
+        raise SemPermissao()
+    return _montar(
+        sessao,
+        _com_pessoa()
+        .where(Pedido.status == "cancelado", Pedido.cancelado_por.isnot(None))
+        .order_by(Pedido.cancelado_em.desc())
+        .limit(100),
     )
 
 

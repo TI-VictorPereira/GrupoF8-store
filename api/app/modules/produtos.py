@@ -36,6 +36,7 @@ class DadosProduto:
     custo: Decimal
     categoria_id: uuid.UUID | None = None
     foto_url: str | None = None
+    marca: str | None = None
 
 
 def _exigir_admin(ator: Ator) -> None:
@@ -60,6 +61,7 @@ def _retrato(produto: Produto) -> dict[str, Any]:
 
     return {
         "nome": produto.nome,
+        "marca": produto.marca,
         "codigo": produto.codigo,
         "categoria_id": str(produto.categoria_id) if produto.categoria_id else None,
         "custo": f"{produto.custo:.2f}",
@@ -117,6 +119,7 @@ def criar(sessao: Session, ator: Ator, dados: DadosProduto) -> Produto:
 
     produto = Produto(
         nome=dados.nome.strip(),
+        marca=dados.marca.strip() if dados.marca else None,
         codigo=dados.codigo.strip(),
         categoria_id=dados.categoria_id,
         custo=dados.custo,
@@ -154,6 +157,7 @@ def alterar(sessao: Session, ator: Ator, produto_id: uuid.UUID, dados: DadosProd
 
     antes = _retrato(produto)
     produto.nome = dados.nome.strip()
+    produto.marca = dados.marca.strip() if dados.marca else None
     produto.codigo = dados.codigo.strip()
     produto.categoria_id = dados.categoria_id
     produto.custo = dados.custo
@@ -213,6 +217,7 @@ class LinhaImportacao:
 
     codigo: str
     nome: str | None = None
+    marca: str | None = None
     categoria: str | None = None
     custo: Decimal | None = None
     preco_venda: Decimal | None = None
@@ -293,6 +298,7 @@ def importar(
                         ator,
                         DadosProduto(
                             nome=linha.nome,
+                            marca=linha.marca,
                             codigo=linha.codigo,
                             preco_venda=linha.preco_venda,
                             custo=linha.custo or Decimal("0"),
@@ -307,6 +313,7 @@ def importar(
                         existente.id,
                         DadosProduto(
                             nome=linha.nome or existente.nome,
+                            marca=linha.marca if linha.marca else existente.marca,
                             codigo=existente.codigo,
                             preco_venda=(
                                 linha.preco_venda

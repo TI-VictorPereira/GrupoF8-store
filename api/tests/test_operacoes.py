@@ -163,6 +163,76 @@ def test_cancelamento_e_auditoria_caem_juntos_no_rollback(dados, produto):
         )
 
 
+def test_cancelar_registra_quem_cancelou(dados, produto):
+    ator = _ator(dados, papel="admin")
+    with FabricaDeSessao() as s:
+        pedido = pedidos.finalizar(s, ator, [(produto["produto"], 1)])
+        s.commit()
+        pedido_id = pedido.id
+
+    with FabricaDeSessao() as s:
+        pedidos.cancelar(s, ator, pedido_id, "Cliente desistiu")
+        s.commit()
+
+    with FabricaDeSessao() as s:
+        assert s.get(Pedido, pedido_id).cancelado_por == ator.id
+
+
+def test_expiracao_automatica_nao_registra_cancelado_por(dados, produto):
+    """A expiração é o relógio agindo, não um admin — não pode parecer
+
+    que alguém cancelou na mão quando ninguém cancelou."""
+    from datetime import timedelta
+
+    with FabricaDeSessao() as s:
+        pedido = pedidos.finalizar(s, _ator(dados), [(produto["produto"], 1)])
+        pedido_id = pedido.id
+        s.commit()
+
+    with FabricaDeSessao() as s:
+        alvo = s.get(Pedido, pedido_id)
+        alvo.criado_em = alvo.criado_em - timedelta(hours=99)
+        s.commit()
+
+    with FabricaDeSessao() as s:
+        pedidos.expirar_vencidos(s)
+        s.commit()
+
+    with FabricaDeSessao() as s:
+        expirado = s.get(Pedido, pedido_id)
+        assert expirado.status == "cancelado"
+        assert expirado.cancelado_por is None
+
+
+def test_listagem_de_cancelados_ignora_expirados(dados, produto):
+    """A aba de cancelados do admin é sobre gente cancelando na mão, não
+    sobre o relógio expirando pedido esquecido."""
+    from datetime import timedelta
+
+    ator = _ator(dados, papel="admin")
+    with FabricaDeSessao() as s:
+        manual = pedidos.finalizar(s, ator, [(produto["produto"], 1)])
+        expirado = pedidos.finalizar(s, ator, [(produto["produto"], 1)])
+        s.commit()
+        id_manual, id_expirado = manual.id, expirado.id
+
+    with FabricaDeSessao() as s:
+        pedidos.cancelar(s, ator, id_manual, "Cliente desistiu")
+        alvo = s.get(Pedido, id_expirado)
+        alvo.criado_em = alvo.criado_em - timedelta(hours=99)
+        s.commit()
+
+    with FabricaDeSessao() as s:
+        pedidos.expirar_vencidos(s)
+        s.commit()
+
+    with FabricaDeSessao() as s:
+        listados = pedidos.listar_cancelados_detalhado(s, ator)
+        ids = {linha.pedido.id for linha in listados}
+        assert id_manual in ids
+        assert id_expirado not in ids
+
+
 def test_colaborador_nao_busca_pessoas_para_lancamento(cliente, dados):
     _liberar_colaborador(dados)
     cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
@@ -242,6 +312,27 @@ def test_admin_entrega_direto_da_lista(cliente, dados, produto):
     # não pode virar uma segunda baixa.
     repetido = cliente.post(f"/pedidos/{pedido_id}/entregar")
     assert repetido.json()["codigo"] == "pedido_nao_pendente"
+
+
+def test_rota_de_cancelados_traz_nome_de_quem_cancelou(cliente, dados, produto):
+    """A aba de cancelados da tela de Entregas depende deste campo para
+    mostrar quem cancelou — sem ele, a tela não tem o que exibir."""
+    _liberar_colaborador(dados, papel="admin")
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+    criado = cliente.post(
+        "/pedidos", json={"itens": [{"produto_id": str(produto["produto"]), "quantidade": 1}]}
+    )
+    pedido_id = criado.json()["id"]
+
+    cancelado = cliente.post(f"/pedidos/{pedido_id}/cancelar", json={"motivo": "Teste de rota"})
+    assert cancelado.status_code == 200
+
+    linhas = cliente.get("/pedidos/cancelados").json()
+    minha = next(linha for linha in linhas if linha["pedido"]["id"] == pedido_id)
+    # Mesmo colaborador que virou admin em _liberar_colaborador — o nome vem
+    # do cadastro, não do ator da requisição.
+    assert minha["cancelado_por_nome"] == "Fulano de Teste"
+    assert minha["pedido"]["motivo_cancelamento"] == "Teste de rota"
 
 
 def test_pedido_vencido_expira_e_devolve_o_estoque(dados, produto):

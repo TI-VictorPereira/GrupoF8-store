@@ -53,6 +53,7 @@ class PedidoSaida(BaseModel):
     entregue_por: uuid.UUID | None
     cancelado_em: datetime | None
     motivo_cancelamento: str | None
+    cancelado_por: uuid.UUID | None
 
 
 class PedidoDetalheSaida(PedidoSaida):
@@ -70,6 +71,7 @@ class LinhaPedidoSaida(BaseModel):
     colaborador_nome: str
     colaborador_codigo: str
     departamento: str | None
+    cancelado_por_nome: str | None
 
 
 

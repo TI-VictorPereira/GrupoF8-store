@@ -25,6 +25,7 @@ rotas = APIRouter(prefix="/produtos", tags=["produtos"])
 def _dados(entrada: EntradaProduto) -> DadosProduto:
     return DadosProduto(
         nome=entrada.nome,
+        marca=entrada.marca,
         codigo=entrada.codigo,
         preco_venda=entrada.preco_venda,
         custo=entrada.custo,
@@ -87,6 +88,7 @@ def importar(
             produtos.LinhaImportacao(
                 codigo=linha.codigo,
                 nome=linha.nome,
+                marca=linha.marca,
                 categoria=linha.categoria,
                 custo=linha.custo,
                 preco_venda=linha.preco_venda,
