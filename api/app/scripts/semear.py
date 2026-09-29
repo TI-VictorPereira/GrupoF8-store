@@ -27,46 +27,6 @@ from app.models.cadastro import (
     Produto,
 )
 
-DEPARTAMENTOS = [
-    "ACABAMENTO DE LUMINÁRIAS",
-    "ADMINISTRATIVO NV",
-    "ALMOXARIFADO",
-    "ARQUITETURA",
-    "CIDADES INTELIGENTES",
-    "COMPRAS",
-    "CONTABILIDADE",
-    "CONTRATOS E ADESÕES",
-    "CONTROLADORIA",
-    "CONTROLE INTERNO",
-    "COTAÇÃO",
-    "COTAÇÃO- NV",
-    "DEPARTAMENTO PESSOAL",
-    "DIRETORIA",
-    "DISTRIBUIÇÃO",
-    "ENGENHARIA",
-    "EXPEDIÇÃO",
-    "FACILITES",
-    "FATURAMENTO",
-    "FINANCEIRO F8",
-    "FINANCEIRO NV",
-    "GESTÃO DE FROTA",
-    "GIE- GESTÃO INTEGRADA DE ESTOQUE",
-    "IMPORTAÇÃO",
-    "LABORATÓRIO DE LUMINÁRIAS",
-    "LICITAÇÃO",
-    "MANUTENÇÃO",
-    "PINTURA",
-    "PRESIDENCIA",
-    "RECURSOS HUMANOS",
-    "SERRALHERIA",
-    "TECNOLOGIA DA INFORMAÇÃO",
-    "TRANSPORTES",
-    "VENDAS",
-    "Administrativo",
-    "Logística",
-    "Produção",
-]
-
 CATEGORIAS = ["Energético", "Refrigerante", "Água", "Picolé"]
 
 PRODUTOS = [
@@ -112,10 +72,11 @@ def semear() -> None:
                 "Nenhuma empresa no banco. Rode antes: alembic upgrade head"
             )
 
-        departamentos = {}
-        for nome in DEPARTAMENTOS:
-            dep, _ = _obter_ou_criar(s, Departamento, {"nome": nome})
-            departamentos[nome] = dep
+        departamentos = {d.nome: d for d in s.scalars(select(Departamento))}
+        if not departamentos:
+            raise SystemExit(
+                "Nenhum departamento no banco. Rode antes: alembic upgrade head"
+            )
 
         categorias = {}
         for nome in CATEGORIAS:
