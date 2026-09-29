@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
@@ -7,6 +7,7 @@ import { CampoDinheiro } from "@/componentes/CampoDinheiro";
 import { CampoInteiro } from "@/componentes/CampoInteiro";
 import { ImportarPlanilha } from "@/componentes/ImportarPlanilha";
 import { Carregando } from "@/componentes/Carregando";
+import { SelecionarColaborador } from "@/componentes/SelecionarColaborador";
 import { Vazio } from "@/componentes/Vazio";
 import { Badge } from "@/componentes/ui/badge";
 import { Button } from "@/componentes/ui/button";
@@ -41,6 +42,7 @@ import { dinheiro } from "@/comum/formato";
 import { baixarCsv, coluna, numeroDaPlanilha, simOuNao } from "@/comum/planilha";
 import type { ProdutoCompleto, ResultadoImportacaoProdutos } from "@/interfaces/admin";
 import type { Categoria, Marca } from "@/interfaces/loja";
+import type { ColaboradorParaAlmoco } from "@/interfaces/refeitorio";
 
 const CHAVE = ["produtos-admin"] as const;
 
@@ -53,6 +55,9 @@ const AVISOS: Record<string, string> = {
   nome_obrigatorio: "O nome não pode ficar em branco.",
   estoque_insuficiente: "A baixa é maior que o estoque disponível.",
   foto_url_longa: "Envie a foto para o storage e cole aqui só o endereço.",
+  tipo_de_arquivo_invalido: "Envie uma imagem JPEG, PNG ou WEBP.",
+  arquivo_grande_demais: "A imagem precisa ter no máximo 5 MB.",
+  falha_no_envio_de_arquivo: "Não foi possível enviar a foto agora. Tente de novo.",
 };
 
 const FORMULARIO_VAZIO = {
@@ -67,6 +72,7 @@ const FORMULARIO_VAZIO = {
 
 export function Estoque() {
   const clienteConsulta = useQueryClient();
+  const inputFoto = useRef<HTMLInputElement>(null);
   const [busca, setBusca] = useState("");
   const [filtroCategoria, setFiltroCategoria] = useState("todas");
   const [emEdicao, setEmEdicao] = useState<ProdutoCompleto | null>(null);
@@ -74,6 +80,7 @@ export function Estoque() {
   const [formulario, setFormulario] = useState(FORMULARIO_VAZIO);
   const [aAjustar, setAAjustar] = useState<ProdutoCompleto | null>(null);
   const [ajuste, setAjuste] = useState({ tipo: "entrada", quantidade: "", motivo: "" });
+  const [responsavel, setResponsavel] = useState<ColaboradorParaAlmoco | null>(null);
   const [novaCategoriaAberta, setNovaCategoriaAberta] = useState(false);
   const [nomeNovaCategoria, setNomeNovaCategoria] = useState("");
   const [categoriasAbertas, setCategoriasAbertas] = useState(false);
@@ -125,6 +132,11 @@ export function Estoque() {
     },
   });
 
+  const enviarFoto = useMutation({
+    mutationFn: (arquivo: File) => api.enviarArquivo<{ url: string }>("/produtos/fotos", arquivo),
+    onSuccess: ({ url }) => setFormulario((atual) => ({ ...atual, foto_url: url })),
+  });
+
   function recarregar() {
     void clienteConsulta.invalidateQueries({ queryKey: CHAVE });    void clienteConsulta.invalidateQueries({ queryKey: ["vitrine"] });
   }
@@ -162,11 +174,13 @@ export function Estoque() {
         tipo: ajuste.tipo,
         quantidade: Number(ajuste.quantidade),
         motivo: ajuste.motivo.trim(),
+        colaborador_id: responsavel?.id ?? null,
       }),
     onSuccess: () => {
       recarregar();
       setAAjustar(null);
       setAjuste({ tipo: "entrada", quantidade: "", motivo: "" });
+      setResponsavel(null);
     },
   });
 
@@ -198,6 +212,7 @@ export function Estoque() {
     setEmEdicao(null);
     setFormulario(FORMULARIO_VAZIO);
     salvar.reset();
+    enviarFoto.reset();
     fecharCriacaoDeCategoria();
     fecharCriacaoDeMarca();
     setFormularioAberto(true);
@@ -215,9 +230,17 @@ export function Estoque() {
       foto_url: produto.foto_url ?? "",
     });
     salvar.reset();
+    enviarFoto.reset();
     fecharCriacaoDeCategoria();
     fecharCriacaoDeMarca();
     setFormularioAberto(true);
+  }
+
+  function abrirAjuste(produto: ProdutoCompleto) {
+    setAjuste({ tipo: "entrada", quantidade: "", motivo: "" });
+    setResponsavel(null);
+    ajustarEstoque.reset();
+    setAAjustar(produto);
   }
 
   const visiveis = (produtos.data ?? []).filter((p) => {
@@ -403,7 +426,7 @@ export function Estoque() {
                     <TableCell>
                       <div className="flex justify-end gap-1">
                         {!produto.ativo && <Badge variant="outline">inativo</Badge>}
-                        <Button size="sm" variant="outline" onClick={() => setAAjustar(produto)}>
+                        <Button size="sm" variant="outline" onClick={() => abrirAjuste(produto)}>
                           Ajustar
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => abrirEdicao(produto)}>
@@ -608,13 +631,47 @@ export function Estoque() {
               </div>
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="foto">Endereço da foto (opcional)</Label>
-              <Input
-                id="foto"
-                value={formulario.foto_url}
-                onChange={(e) => setFormulario({ ...formulario, foto_url: e.target.value })}
-                placeholder="https://…"
-              />
+              <Label htmlFor="foto">Foto (opcional)</Label>
+              <div className="flex items-center gap-2">
+                {formulario.foto_url && (
+                  <img
+                    src={formulario.foto_url}
+                    alt=""
+                    className="h-9 w-9 shrink-0 rounded-md border border-borda object-cover"
+                  />
+                )}
+                <Input
+                  id="foto"
+                  value={formulario.foto_url}
+                  onChange={(e) => setFormulario({ ...formulario, foto_url: e.target.value })}
+                  placeholder="https://… ou envie um arquivo"
+                />
+                <input
+                  ref={inputFoto}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const arquivo = e.target.files?.[0];
+                    if (arquivo) enviarFoto.mutate(arquivo);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0"
+                  disabled={enviarFoto.isPending}
+                  onClick={() => inputFoto.current?.click()}
+                >
+                  {enviarFoto.isPending ? "Enviando…" : "Enviar"}
+                </Button>
+              </div>
+              {enviarFoto.error && (
+                <p className="text-[11px] text-perigo">
+                  {mensagemDeErro(enviarFoto.error, AVISOS)}
+                </p>
+              )}
             </div>
 
             {salvar.error && <Aviso>{mensagemDeErro(salvar.error, AVISOS)}</Aviso>}
@@ -785,8 +842,15 @@ export function Estoque() {
                 id="motivo-ajuste"
                 value={ajuste.motivo}
                 onChange={(e) => setAjuste({ ...ajuste, motivo: e.target.value })}
-                placeholder="Compra, perda, contagem, vencimento…"
+                placeholder="Compra, perda, contagem, frigobar de setor, cortesia…"
               />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Responsável / solicitante (opcional)</Label>
+              <SelecionarColaborador selecionado={responsavel} aoSelecionar={setResponsavel} />
+              <p className="text-[11px] text-suave">
+                Só documenta quem pediu — não gera cobrança nem consumo pra essa pessoa.
+              </p>
             </div>
 
             {ajustarEstoque.error && (

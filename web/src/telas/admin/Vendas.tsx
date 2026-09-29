@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { api } from "@/api/cliente";
@@ -65,6 +65,12 @@ export function Vendas() {
     [vendas.data],
   );
 
+  
+  const entregues = useMemo(
+    () => (vendas.data ?? []).filter((l) => l.pedido.status === "entregue"),
+    [vendas.data],
+  );
+
   const totais = useMemo<Totais>(
     () =>
       validos.reduce(
@@ -112,7 +118,7 @@ export function Vendas() {
 
   /** Uma linha por item comprado e por almoço — o detalhado do Sankhya. */
   function exportarConsumo() {
-    const daLoja = validos.flatMap((linha) =>
+    const daLoja = entregues.flatMap((linha) =>
       linha.pedido.itens.map((item) => ({
         Código: linha.colaborador_codigo,
         Colaborador: linha.colaborador_nome,
@@ -176,7 +182,7 @@ export function Vendas() {
       return atual;
     };
 
-    for (const linha of validos) {
+    for (const linha of entregues) {
       const resumo = garantir(
         linha.colaborador_codigo,
         linha.colaborador_nome,
@@ -214,18 +220,33 @@ export function Vendas() {
     );
   }
 
-  const erro = vendas.error ?? almocos.error;
+  const baixarPorEmpresa = useMutation({
+    mutationFn: () =>
+      api.baixar(
+        `/relatorios/vendas-por-empresa?de=${de}&ate=${ate}`,
+        `vendas-por-empresa-${de}_a_${ate}.xlsx`,
+      ),
+  });
+
+  const erro = vendas.error ?? almocos.error ?? baixarPorEmpresa.error;
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-bold">Vendas</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={exportarConsumo} disabled={!validos.length}>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={exportarConsumo} disabled={!entregues.length}>
             Consumo detalhado
           </Button>
-          <Button variant="destaque" onClick={exportarPorColaborador} disabled={!validos.length}>
+          <Button variant="destaque" onClick={exportarPorColaborador} disabled={!entregues.length}>
             Por colaborador
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => baixarPorEmpresa.mutate()}
+            disabled={!entregues.length || baixarPorEmpresa.isPending}
+          >
+            {baixarPorEmpresa.isPending ? "Gerando…" : "Por empresa (Excel)"}
           </Button>
         </div>
       </div>

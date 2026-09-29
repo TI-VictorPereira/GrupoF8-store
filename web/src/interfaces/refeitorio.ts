@@ -7,6 +7,7 @@ export interface LinhaPainel {
   colaborador_nome: string;
   colaborador_codigo: string;
   departamento: string | null;
+  eh_visitante: boolean;
 }
 
 /** Menos campos que o cadastro do admin — o refeitório só precisa identificar. */

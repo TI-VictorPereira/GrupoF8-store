@@ -1,19 +1,36 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, UserPlus, XCircle } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { api } from "@/api/cliente";
+import { Aviso } from "@/componentes/Aviso";
 import { Button } from "@/componentes/ui/button";
 import { Card, CardContent } from "@/componentes/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/componentes/ui/dialog";
 import { Input } from "@/componentes/ui/input";
 import { Label } from "@/componentes/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/componentes/ui/select";
 import { mensagemDeErro } from "@/comum/erros";
 import { hora } from "@/comum/formato";
 import { PAGINA_PAINEL } from "@/comum/layout";
 import { cn } from "@/comum/utilitarios";
 import { useSair } from "@/hooks/sessao";
 import type { AlmocoDoDia } from "@/interfaces/almoco";
+import type { Departamento } from "@/interfaces/admin";
 import type { Eu } from "@/interfaces/sessao";
 
 const AVISOS: Record<string, string> = {
@@ -21,6 +38,13 @@ const AVISOS: Record<string, string> = {
   almoco_expirado: "Código expirado. Peça para gerar outro.",
   codigo_barras_invalido: "Código não encontrado.",
 };
+
+// Rascunho: como o termo de colaborador, precisa de revisão jurídica antes
+// de virar o texto oficial usado de verdade.
+const TERMOS_VISITANTE = [
+  "Seu nome e a área responsável ficam registrados para o controle interno do refeitório.",
+  "O almoço é de cortesia, para uma única refeição de hoje.",
+];
 
 interface Confirmacao extends AlmocoDoDia {
   colaborador_nome: string;
@@ -39,6 +63,43 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
 
   const [codigo, setCodigo] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+
+  const [visitanteAberto, setVisitanteAberto] = useState(false);
+  const [nomeVisitante, setNomeVisitante] = useState("");
+  const [departamentoId, setDepartamentoId] = useState("");
+  const [termosAceitos, setTermosAceitos] = useState(false);
+
+  const departamentos = useQuery({
+    queryKey: ["departamentos-visitante"],
+    queryFn: () => api.get<Departamento[]>("/almocos/departamentos-visitante"),
+    enabled: visitanteAberto,
+  });
+
+  const registrarVisitante = useMutation({
+    mutationFn: () =>
+      api.post<AlmocoDoDia>("/almocos/visitante", {
+        nome: nomeVisitante.trim(),
+        departamento_id: departamentoId,
+        termos_aceitos: termosAceitos,
+      }),
+    onSuccess: () => {
+      setFeedback({ tom: "ok", titulo: nomeVisitante.trim(), detalhe: "Visitante liberado" });
+      fecharVisitante();
+    },
+  });
+
+  function abrirVisitante() {
+    setNomeVisitante("");
+    setDepartamentoId("");
+    setTermosAceitos(false);
+    registrarVisitante.reset();
+    setVisitanteAberto(true);
+  }
+
+  function fecharVisitante() {
+    setVisitanteAberto(false);
+    campo.current?.focus();
+  }
 
   const confirmar = useMutation({
     mutationFn: (codigo_barras: string) =>
@@ -69,11 +130,10 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
     if (valor && !confirmar.isPending) confirmar.mutate(valor);
   }
 
-  // O leitor de código de barras "digita" no que estiver focado — ele não
-  // sabe que existe uma tela. Sem isto, um toque em qualquer outro lugar (ou
-  // o navegador perdendo o foco por qualquer motivo) faz a próxima leitura
-  // cair no vazio e parecer que o leitor "parou de funcionar".
+  // Pausado com o dialog de visitante aberto: do contrário, o reforço de
+  // foco tomaria o campo de volta do meio da digitação do nome.
   useEffect(() => {
+    if (visitanteAberto) return;
     function refocar() {
       campo.current?.focus();
     }
@@ -84,12 +144,12 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
       clearInterval(intervalo);
       window.removeEventListener("focus", refocar);
     };
-  }, []);
+  }, [visitanteAberto]);
 
   return (
     <div
       className={cn(PAGINA_PAINEL, "min-h-screen pb-10")}
-      onClick={() => campo.current?.focus()}
+      onClick={() => !visitanteAberto && campo.current?.focus()}
     >
       <header className="flex items-center gap-3 py-5">
         {eu.papel === "admin" && (
@@ -103,7 +163,16 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
           <h1 className="text-base font-bold">Refeitório</h1>
           <p className="truncate text-xs text-suave">{eu.nome_completo}</p>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => sair.mutate()} className="ml-auto">
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          onClick={abrirVisitante}
+        >
+          <UserPlus />
+          Novo visitante
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => sair.mutate()}>
           Sair
         </Button>
       </header>
@@ -161,6 +230,85 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={visitanteAberto} onOpenChange={(aberto) => !aberto && fecharVisitante()}>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Novo visitante</DialogTitle>
+            <DialogDescription>
+              O visitante lê o termo abaixo e informa o nome e a área que o recebe.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="nome-visitante">Nome completo</Label>
+              <Input
+                id="nome-visitante"
+                value={nomeVisitante}
+                onChange={(e) => setNomeVisitante(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label htmlFor="departamento-visitante">Área responsável</Label>
+              <Select value={departamentoId} onValueChange={setDepartamentoId}>
+                <SelectTrigger id="departamento-visitante">
+                  <SelectValue placeholder="Escolha a área" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(departamentos.data ?? []).map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="rounded-lg border border-borda p-3">
+              <p className="mb-1.5 text-xs font-bold">Antes de liberar</p>
+              <ul className="list-disc space-y-1 pl-4 text-[11px] text-suave">
+                {TERMOS_VISITANTE.map((linha) => (
+                  <li key={linha}>{linha}</li>
+                ))}
+              </ul>
+              <label className="mt-3 flex cursor-pointer items-start gap-2 text-[11px]">
+                <input
+                  type="checkbox"
+                  checked={termosAceitos}
+                  onChange={(e) => setTermosAceitos(e.target.checked)}
+                  className="mt-0.5"
+                />
+                O visitante leu e aceita as informações acima.
+              </label>
+            </div>
+
+            {registrarVisitante.error && (
+              <Aviso>{mensagemDeErro(registrarVisitante.error, AVISOS)}</Aviso>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={fecharVisitante}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destaque"
+              disabled={
+                !nomeVisitante.trim() ||
+                !departamentoId ||
+                !termosAceitos ||
+                registrarVisitante.isPending
+              }
+              onClick={() => registrarVisitante.mutate()}
+            >
+              {registrarVisitante.isPending ? "Liberando…" : "Liberar visitante"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

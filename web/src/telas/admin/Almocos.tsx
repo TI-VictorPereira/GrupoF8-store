@@ -181,13 +181,20 @@ export function Almocos() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {linhas.map(({ almoco, colaborador_nome, colaborador_codigo, departamento }) => {
+              {linhas.map(({ almoco, colaborador_nome, colaborador_codigo, departamento, eh_visitante }) => {
                 const dia = diaIso(almoco.criado_em);
                 return (
                   <TableRow key={almoco.id}>
                     <TableCell className="text-sm">{dia}</TableCell>
                     <TableCell>
-                      <p className="text-sm font-semibold">{colaborador_nome}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-semibold">{colaborador_nome}</p>
+                        {eh_visitante && (
+                          <Badge variant="outline" className="text-[10px]">
+                            visitante
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-[11px] text-suave">{colaborador_codigo}</p>
                     </TableCell>
                     <TableCell className="text-sm text-suave">{departamento ?? "—"}</TableCell>
@@ -222,11 +229,13 @@ export function Almocos() {
                         >
                           Desfazer
                         </Button>
+                      ) : eh_visitante ? (
+                        <span className="text-[11px] text-muito-suave">aguardando leitura</span>
                       ) : (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => confirmarManual.mutate(almoco.colaborador_id)}
+                          onClick={() => confirmarManual.mutate(almoco.colaborador_id!)}
                           disabled={ocupado}
                         >
                           Confirmar

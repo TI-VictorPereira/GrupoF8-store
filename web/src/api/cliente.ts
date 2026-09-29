@@ -4,7 +4,7 @@
  * Só transporte e tradução de erro. A política de sessão mora em config.ts.
  */
 
-import { enviar } from "@/api/config";
+import { BASE, enviar } from "@/api/config";
 
 export class ErroApi extends Error {
   constructor(
@@ -64,8 +64,38 @@ async function baixar(caminho: string, nomeArquivo: string): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Upload de arquivo (multipart), separado de `pedir` de propósito: o corpo
+ * não é JSON, e o `content-type` com o boundary tem que ser o navegador quem
+ * escolhe — declarar `application/json` aqui quebraria o envio.
+ */
+async function enviarArquivo<T>(caminho: string, arquivo: File): Promise<T> {
+  const corpo = new FormData();
+  corpo.append("arquivo", arquivo);
+
+  const resposta = await fetch(`${BASE}${caminho}`, {
+    method: "POST",
+    credentials: "same-origin",
+    body: corpo,
+  });
+
+  const texto = await resposta.text();
+  const dados = texto ? JSON.parse(texto) : null;
+  if (!resposta.ok) {
+    throw new ErroApi(
+      dados?.codigo ?? "erro_desconhecido",
+      dados?.mensagem ?? "Não foi possível enviar o arquivo.",
+      resposta.status,
+      dados?.correlacao_id,
+      dados?.detalhes,
+    );
+  }
+  return dados as T;
+}
+
 export const api = {
   baixar,
+  enviarArquivo,
   get: <T>(caminho: string) => pedir<T>("GET", caminho),
   post: <T>(caminho: string, corpo?: Corpo) => pedir<T>("POST", caminho, corpo),
   put: <T>(caminho: string, corpo?: Corpo) => pedir<T>("PUT", caminho, corpo),
