@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
 
 import { Aviso } from "@/componentes/Aviso";
+import { CampoSenha } from "@/componentes/CampoSenha";
 import { Button } from "@/componentes/ui/button";
-import { Input } from "@/componentes/ui/input";
 import { Label } from "@/componentes/ui/label";
 import { mensagemDeErro } from "@/comum/erros";
 import { useTrocarSenha } from "@/hooks/sessao";
@@ -61,9 +61,8 @@ export function TrocaSenhaObrigatoria() {
           {campos.map((campo) => (
             <div key={campo.id} className="grid gap-1.5">
               <Label htmlFor={campo.id}>{campo.rotulo}</Label>
-              <Input
+              <CampoSenha
                 id={campo.id}
-                type="password"
                 value={campo.valor}
                 onChange={(e) => campo.definir(e.target.value)}
               />

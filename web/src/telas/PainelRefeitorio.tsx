@@ -66,11 +66,31 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
   function enviarCodigo(evento: FormEvent) {
     evento.preventDefault();
     const valor = codigo.trim();
-    if (valor) confirmar.mutate(valor);
+    if (valor && !confirmar.isPending) confirmar.mutate(valor);
   }
 
+  // O leitor de código de barras "digita" no que estiver focado — ele não
+  // sabe que existe uma tela. Sem isto, um toque em qualquer outro lugar (ou
+  // o navegador perdendo o foco por qualquer motivo) faz a próxima leitura
+  // cair no vazio e parecer que o leitor "parou de funcionar".
+  useEffect(() => {
+    function refocar() {
+      campo.current?.focus();
+    }
+    refocar();
+    const intervalo = setInterval(refocar, 2000);
+    window.addEventListener("focus", refocar);
+    return () => {
+      clearInterval(intervalo);
+      window.removeEventListener("focus", refocar);
+    };
+  }, []);
+
   return (
-    <div className={cn(PAGINA_PAINEL, "min-h-screen pb-10")}>
+    <div
+      className={cn(PAGINA_PAINEL, "min-h-screen pb-10")}
+      onClick={() => campo.current?.focus()}
+    >
       <header className="flex items-center gap-3 py-5">
         {eu.papel === "admin" && (
           <Button asChild variant="ghost" size="icon" aria-label="Voltar ao início">

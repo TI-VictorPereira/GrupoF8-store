@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 
 import { ErroApi, api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
+import { CampoSenha } from "@/componentes/CampoSenha";
 import { Button } from "@/componentes/ui/button";
 import { Input } from "@/componentes/ui/input";
 import { Label } from "@/componentes/ui/label";
@@ -50,9 +51,8 @@ export function Login() {
 
           <div className="grid gap-1.5">
             <Label htmlFor="senha">Senha</Label>
-            <Input
+            <CampoSenha
               id="senha"
-              type="password"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
               autoComplete="current-password"
