@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/componentes/ui/select";
 import { mensagemDeErro } from "@/comum/erros";
-import { hora } from "@/comum/formato";
+import { dinheiro, hora } from "@/comum/formato";
 import { PAGINA_PAINEL } from "@/comum/layout";
 import { cn } from "@/comum/utilitarios";
 import { useSair } from "@/hooks/sessao";
@@ -43,8 +43,11 @@ const AVISOS: Record<string, string> = {
 // de virar o texto oficial usado de verdade.
 const TERMOS_VISITANTE = [
   "Seu nome e a área responsável ficam registrados para o controle interno do refeitório.",
-  "O almoço é de cortesia, para uma única refeição de hoje.",
 ];
+
+interface PrecoVigente {
+  valor: string;
+}
 
 interface Confirmacao extends AlmocoDoDia {
   colaborador_nome: string;
@@ -72,6 +75,12 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
   const departamentos = useQuery({
     queryKey: ["departamentos-visitante"],
     queryFn: () => api.get<Departamento[]>("/almocos/departamentos-visitante"),
+    enabled: visitanteAberto,
+  });
+
+  const preco = useQuery({
+    queryKey: ["preco-visitante"],
+    queryFn: () => api.get<PrecoVigente | null>("/almocos/preco-visitante"),
     enabled: visitanteAberto,
   });
 
@@ -273,6 +282,13 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
                 {TERMOS_VISITANTE.map((linha) => (
                   <li key={linha}>{linha}</li>
                 ))}
+                <li>
+                  Esta refeição custa{" "}
+                  <span className="font-bold text-ink">
+                    {preco.data ? dinheiro(preco.data.valor) : "—"}
+                  </span>
+                  , o mesmo valor cobrado de todo mundo.
+                </li>
               </ul>
               <label className="mt-3 flex cursor-pointer items-start gap-2 text-[11px]">
                 <input

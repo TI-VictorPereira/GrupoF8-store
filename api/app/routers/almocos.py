@@ -36,6 +36,14 @@ def preco_vigente(ator: ConsumidorLiberado, sessao: Sessao) -> PrecoAlmoco | Non
     return precos.vigente(sessao)
 
 
+@rotas.get("/preco-visitante", response_model=PrecoAlmocoSaida | None)
+def preco_para_visitante(ator: RefeitorioOuAdminLiberado, sessao: Sessao) -> PrecoAlmoco | None:
+    """Mesmo valor de `/preco`, mas liberado pro totem — `ConsumidorLiberado`
+    barra o posto do refeitório de propósito, e aqui é ele quem precisa
+    informar o visitante de quanto vai custar a refeição de hoje."""
+    return precos.vigente(sessao)
+
+
 @rotas.put("/preco", response_model=PrecoAlmocoSaida)
 def definir_preco(dados: EntradaPrecoAlmoco, ator: AdminLiberado, sessao: Sessao) -> PrecoAlmoco:
     """Abre uma vigência nova. Não altera o valor dos almoços já lançados."""

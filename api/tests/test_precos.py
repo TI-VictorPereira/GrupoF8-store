@@ -13,6 +13,7 @@ from app.models.cadastro import Colaborador, PrecoAlmoco
 from app.models.operacao import Almoco
 from app.modules import almocos, precos
 from app.modules.auditoria import Ator
+from tests.conftest import CODIGO, SENHA
 
 ADMIN = Ator(id=None, codigo="teste", nome="Admin de Teste", papel="admin")
 
@@ -148,3 +149,26 @@ def test_sem_preco_cadastrado_o_valor_e_zero(dados):
         assert precos.vigente(s) is None
         assert precos.valor_vigente(s) == Decimal("0")
         s.rollback()
+
+
+def test_refeitorio_ve_o_preco_pelo_endpoint_do_visitante(cliente, dados):
+    """`ConsumidorLiberado` barra o posto do refeitório de propósito — a rota
+    de visitante existe fora dessa barreira, só pra ele saber quanto avisar."""
+    with FabricaDeSessao() as s:
+        s.execute(delete(PrecoAlmoco))
+        precos.definir(s, ADMIN, Decimal("18.00"))
+        s.commit()
+
+    with FabricaDeSessao() as s:
+        colaborador = s.get(Colaborador, dados["ativo"])
+        colaborador.senha_provisoria = False
+        colaborador.papel = "refeitorio"
+        s.commit()
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+    bloqueado = cliente.get("/almocos/preco")
+    assert bloqueado.status_code == 403
+
+    liberado = cliente.get("/almocos/preco-visitante")
+    assert liberado.status_code == 200
+    assert liberado.json()["valor"] == "18.00"
