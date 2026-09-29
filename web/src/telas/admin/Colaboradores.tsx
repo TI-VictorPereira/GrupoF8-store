@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { api } from "@/api/cliente";
@@ -63,6 +64,7 @@ const AVISOS: Record<string, string> = {
   matricula_obrigatoria: "CLT precisa de matrícula.",
   matricula_nao_permitida: "PJ não tem matrícula — deixe o campo vazio.",
   auto_inativacao: "Você não pode desativar o próprio acesso.",
+  departamento_duplicado: "Já existe um departamento com este nome.",
 };
 
 const PAPEIS: { valor: Papel; rotulo: string }[] = [
@@ -110,6 +112,8 @@ export function Colaboradores() {
   const [formularioAberto, setFormularioAberto] = useState(false);
   const [formulario, setFormulario] = useState(FORMULARIO_VAZIO);
   const [senhaGerada, setSenhaGerada] = useState<SenhaRedefinida | null>(null);
+  const [novoDepartamentoAberto, setNovoDepartamentoAberto] = useState(false);
+  const [nomeNovoDepartamento, setNomeNovoDepartamento] = useState("");
 
   const colaboradores = useQuery({
     queryKey: [...CHAVE, busca],
@@ -207,10 +211,27 @@ export function Colaboradores() {
       void clienteConsulta.invalidateQueries({ queryKey: CHAVE_SOLICITACOES }),
   });
 
+  const criarDepartamento = useMutation({
+    mutationFn: () => api.post<Departamento>("/departamentos", { nome: nomeNovoDepartamento.trim() }),
+    onSuccess: (departamento) => {
+      void clienteConsulta.invalidateQueries({ queryKey: ["departamentos"] });
+      setFormulario((atual) => ({ ...atual, departamento_id: departamento.id }));
+      setNomeNovoDepartamento("");
+      setNovoDepartamentoAberto(false);
+    },
+  });
+
+  function fecharCriacaoDeDepartamento() {
+    setNovoDepartamentoAberto(false);
+    setNomeNovoDepartamento("");
+    criarDepartamento.reset();
+  }
+
   function abrirNovo() {
     setEmEdicao(null);
     setFormulario({ ...FORMULARIO_VAZIO, empresa_id: empresas.data?.[0]?.id ?? "" });
     salvar.reset();
+    fecharCriacaoDeDepartamento();
     setFormularioAberto(true);
   }
 
@@ -229,6 +250,7 @@ export function Colaboradores() {
       departamento_id: pessoa.departamento_id ?? "",
     });
     salvar.reset();
+    fecharCriacaoDeDepartamento();
     setFormularioAberto(true);
   }
 
@@ -614,24 +636,36 @@ export function Colaboradores() {
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label htmlFor="departamento">Departamento</Label>
-                <Select
-                  value={formulario.departamento_id || "nenhum"}
-                  onValueChange={(v) =>
-                    setFormulario({ ...formulario, departamento_id: v === "nenhum" ? "" : v })
-                  }
-                >
-                  <SelectTrigger id="departamento">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="nenhum">Sem departamento</SelectItem>
-                    {(departamentos.data ?? []).map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-1.5">
+                  <Select
+                    value={formulario.departamento_id || "nenhum"}
+                    onValueChange={(v) =>
+                      setFormulario({ ...formulario, departamento_id: v === "nenhum" ? "" : v })
+                    }
+                  >
+                    <SelectTrigger id="departamento">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nenhum">Sem departamento</SelectItem>
+                      {(departamentos.data ?? []).map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    aria-label="Cadastrar departamento"
+                    onClick={() => setNovoDepartamentoAberto(true)}
+                  >
+                    <Plus />
+                  </Button>
+                </div>
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="papel">Papel</Label>
@@ -666,6 +700,47 @@ export function Colaboradores() {
               disabled={!podeSalvar || salvar.isPending}
             >
               {salvar.isPending ? "Salvando…" : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- cadastro rápido de departamento --- */}
+      <Dialog
+        open={novoDepartamentoAberto}
+        onOpenChange={(aberto) => !aberto && fecharCriacaoDeDepartamento()}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo departamento</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="nome-departamento">Nome</Label>
+            <Input
+              id="nome-departamento"
+              autoFocus
+              value={nomeNovoDepartamento}
+              onChange={(e) => setNomeNovoDepartamento(e.target.value)}
+              placeholder="Nome do departamento"
+            />
+            {criarDepartamento.error && (
+              <p className="text-[11px] text-perigo">
+                {mensagemDeErro(criarDepartamento.error, AVISOS)}
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={fecharCriacaoDeDepartamento}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destaque"
+              disabled={!nomeNovoDepartamento.trim() || criarDepartamento.isPending}
+              onClick={() => criarDepartamento.mutate()}
+            >
+              {criarDepartamento.isPending ? "Criando…" : "Criar"}
             </Button>
           </DialogFooter>
         </DialogContent>
