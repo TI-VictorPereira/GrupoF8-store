@@ -51,6 +51,13 @@ class CategoriaProduto(Base):
     nome: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
 
 
+class Marca(Base):
+    __tablename__ = "marcas"
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    nome: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+
+
 class Colaborador(Base):
     """Todo colaborador tem `codparc` — é o que identifica a pessoa no Sankhya.
     Só o CLT tem, além disso, `matricula`; o PJ não tem nenhuma.
@@ -125,7 +132,7 @@ class Produto(Base):
 
     id: Mapped[uuid.UUID] = pk_uuid()
     nome: Mapped[str] = mapped_column(String(160), nullable=False)
-    marca: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    marca_id: Mapped[uuid.UUID | None] = fk_uuid("marcas.id", obrigatorio=False)
     codigo: Mapped[str] = mapped_column(String(40), nullable=False, unique=True)
     categoria_id: Mapped[uuid.UUID | None] = fk_uuid("categorias_produto.id", obrigatorio=False)
     custo: Mapped[Decimal] = dinheiro()

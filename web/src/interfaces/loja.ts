@@ -7,6 +7,11 @@ export interface Categoria {
   nome: string;
 }
 
+export interface Marca {
+  id: string;
+  nome: string;
+}
+
 export interface ProdutoVitrine {
   id: string;
   nome: string;

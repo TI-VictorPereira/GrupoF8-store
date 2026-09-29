@@ -17,13 +17,15 @@ from app.excecoes import (
     FotoUrlLonga,
     ImportacaoGrandeDemais,
     ImportacaoVazia,
+    MarcaDuplicada,
+    MarcaNaoEncontrada,
     NomeObrigatorio,
     ProdutoIncompletoNaImportacao,
     ProdutoNaoEncontrado,
     SemPermissao,
     ValorNegativo,
 )
-from app.models.cadastro import CategoriaProduto, Produto
+from app.models.cadastro import CategoriaProduto, Marca, Produto
 from app.modules import auditoria
 from app.modules.auditoria import Ator
 
@@ -36,7 +38,7 @@ class DadosProduto:
     custo: Decimal
     categoria_id: uuid.UUID | None = None
     foto_url: str | None = None
-    marca: str | None = None
+    marca_id: uuid.UUID | None = None
 
 
 def _exigir_admin(ator: Ator) -> None:
@@ -51,6 +53,8 @@ def _validar(sessao: Session, dados: DadosProduto) -> None:
         raise ValorNegativo()
     if dados.categoria_id and sessao.get(CategoriaProduto, dados.categoria_id) is None:
         raise CategoriaNaoEncontrada()
+    if dados.marca_id and sessao.get(Marca, dados.marca_id) is None:
+        raise MarcaNaoEncontrada()
     # A foto vive no object storage; a coluna guarda só a URL. Base64 aqui
     # significaria arrastar a imagem inteira em toda listagem da loja.
     if dados.foto_url and len(dados.foto_url) > 500:
@@ -61,7 +65,7 @@ def _retrato(produto: Produto) -> dict[str, Any]:
 
     return {
         "nome": produto.nome,
-        "marca": produto.marca,
+        "marca_id": str(produto.marca_id) if produto.marca_id else None,
         "codigo": produto.codigo,
         "categoria_id": str(produto.categoria_id) if produto.categoria_id else None,
         "custo": f"{produto.custo:.2f}",
@@ -100,6 +104,35 @@ def criar_categoria(sessao: Session, ator: Ator, nome: str) -> CategoriaProduto:
     return categoria
 
 
+def listar_marcas(sessao: Session) -> list[Marca]:
+    return list(sessao.scalars(select(Marca).order_by(Marca.nome)))
+
+
+def criar_marca(sessao: Session, ator: Ator, nome: str) -> Marca:
+    _exigir_admin(ator)
+    if not nome.strip():
+        raise NomeObrigatorio(detalhes={"entidade": "marca"})
+
+    marca = Marca(nome=nome.strip())
+    try:
+        with sessao.begin_nested():
+            sessao.add(marca)
+            sessao.flush()
+    except IntegrityError:
+        raise MarcaDuplicada() from None
+
+    auditoria.registrar(
+        sessao,
+        ator,
+        acao="marca.criada",
+        entidade="marca",
+        entidade_id=marca.id,
+        descricao=f"Cadastrou a marca {marca.nome}.",
+        dados_novos={"nome": marca.nome},
+    )
+    return marca
+
+
 def listar_vitrine(sessao: Session) -> list[Produto]:
     """O que o colaborador vê na loja: só o que está ativo."""
     return list(
@@ -119,7 +152,7 @@ def criar(sessao: Session, ator: Ator, dados: DadosProduto) -> Produto:
 
     produto = Produto(
         nome=dados.nome.strip(),
-        marca=dados.marca.strip() if dados.marca else None,
+        marca_id=dados.marca_id,
         codigo=dados.codigo.strip(),
         categoria_id=dados.categoria_id,
         custo=dados.custo,
@@ -157,7 +190,7 @@ def alterar(sessao: Session, ator: Ator, produto_id: uuid.UUID, dados: DadosProd
 
     antes = _retrato(produto)
     produto.nome = dados.nome.strip()
-    produto.marca = dados.marca.strip() if dados.marca else None
+    produto.marca_id = dados.marca_id
     produto.codigo = dados.codigo.strip()
     produto.categoria_id = dados.categoria_id
     produto.custo = dados.custo
@@ -240,6 +273,14 @@ def _categoria_por_nome(sessao: Session, nome: str) -> uuid.UUID | None:
     raise CategoriaNaoEncontrada(f"Categoria '{nome}' não existe.")
 
 
+def _marca_por_nome(sessao: Session, nome: str) -> uuid.UUID | None:
+    alvo = nome.strip().lower()
+    for marca in sessao.scalars(select(Marca)):
+        if marca.nome.strip().lower() == alvo:
+            return marca.id
+    raise MarcaNaoEncontrada(f"Marca '{nome}' não existe.")
+
+
 def _aplicar_estoque(sessao: Session, ator: Ator, produto: Produto, desejado: int) -> None:
     """Leva o estoque ao número da planilha por ajuste, não por atribuição.
 
@@ -289,6 +330,7 @@ def importar(
                 categoria_id = (
                     _categoria_por_nome(sessao, linha.categoria) if linha.categoria else None
                 )
+                marca_id = _marca_por_nome(sessao, linha.marca) if linha.marca else None
 
                 if existente is None:
                     if not linha.nome or linha.preco_venda is None:
@@ -298,7 +340,7 @@ def importar(
                         ator,
                         DadosProduto(
                             nome=linha.nome,
-                            marca=linha.marca,
+                            marca_id=marca_id,
                             codigo=linha.codigo,
                             preco_venda=linha.preco_venda,
                             custo=linha.custo or Decimal("0"),
@@ -313,7 +355,7 @@ def importar(
                         existente.id,
                         DadosProduto(
                             nome=linha.nome or existente.nome,
-                            marca=linha.marca if linha.marca else existente.marca,
+                            marca_id=marca_id if linha.marca else existente.marca_id,
                             codigo=existente.codigo,
                             preco_venda=(
                                 linha.preco_venda

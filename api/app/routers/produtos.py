@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter
 
 from app.core.deps import AdminLiberado, ConsumidorLiberado, Sessao
-from app.models.cadastro import CategoriaProduto, Produto
+from app.models.cadastro import CategoriaProduto, Marca, Produto
 from app.modules import produtos
 from app.modules.produtos import DadosProduto
 from app.schemas.comum import EntradaAtivo
@@ -13,7 +13,9 @@ from app.schemas.produto import (
     CategoriaSaida,
     EntradaCategoria,
     EntradaImportacaoProduto,
+    EntradaMarca,
     EntradaProduto,
+    MarcaSaida,
     ProdutoCompleto,
     ProdutoVitrine,
     ResultadoImportacaoProdutoSaida,
@@ -25,7 +27,7 @@ rotas = APIRouter(prefix="/produtos", tags=["produtos"])
 def _dados(entrada: EntradaProduto) -> DadosProduto:
     return DadosProduto(
         nome=entrada.nome,
-        marca=entrada.marca,
+        marca_id=entrada.marca_id,
         codigo=entrada.codigo,
         preco_venda=entrada.preco_venda,
         custo=entrada.custo,
@@ -50,6 +52,16 @@ def criar_categoria(
     dados: EntradaCategoria, ator: AdminLiberado, sessao: Sessao
 ) -> CategoriaProduto:
     return produtos.criar_categoria(sessao, ator, dados.nome)
+
+
+@rotas.get("/marcas", response_model=list[MarcaSaida])
+def marcas(ator: ConsumidorLiberado, sessao: Sessao) -> list[Marca]:
+    return produtos.listar_marcas(sessao)
+
+
+@rotas.post("/marcas", response_model=MarcaSaida, status_code=201)
+def criar_marca(dados: EntradaMarca, ator: AdminLiberado, sessao: Sessao) -> Marca:
+    return produtos.criar_marca(sessao, ator, dados.nome)
 
 
 @rotas.get("", response_model=list[ProdutoCompleto])

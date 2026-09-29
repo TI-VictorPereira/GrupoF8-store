@@ -48,7 +48,7 @@ export interface LinhaPedido {
 export interface ProdutoCompleto {
   id: string;
   nome: string;
-  marca: string | null;
+  marca_id: string | null;
   codigo: string;
   categoria_id: string | null;
   custo: string;

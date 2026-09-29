@@ -120,6 +120,11 @@ class CategoriaDuplicada(Conflito):
     mensagem = "Já existe uma categoria com este nome."
 
 
+class MarcaDuplicada(Conflito):
+    codigo = "marca_duplicada"
+    mensagem = "Já existe uma marca com este nome."
+
+
 class CadastroDuplicado(Conflito):
     """Violação de unicidade que não caiu em nenhuma das específicas.
 

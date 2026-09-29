@@ -47,6 +47,7 @@ function useAvisoDeCicloVisto() {
     try {
       localStorage.setItem(CHAVE_AVISO_VISTO, "1");
     } catch {
+      // sem storage, só não persiste — a tela continua funcionando
     }
     setVisto(true);
   }
@@ -189,7 +190,7 @@ export function Consumo() {
                 className="border-b border-borda py-2.5 last:border-b-0"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <p className="truncate text-sm font-semibold">
+                  <p className="min-w-0 truncate text-sm font-semibold">
                     Pedido {pedido.codigo_retirada}
                   </p>
                   <span className="shrink-0 text-sm font-bold text-suave line-through">

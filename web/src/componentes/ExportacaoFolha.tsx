@@ -188,9 +188,9 @@ export function ExportacaoFolha() {
             </p>
             <ul className="mt-2 space-y-0.5">
               {fora.map((pessoa) => (
-                <li key={pessoa.codparc} className="flex justify-between text-[11px]">
-                  <span className="truncate">{pessoa.nome}</span>
-                  <span className="font-semibold">{dinheiro(pessoa.total)}</span>
+                <li key={pessoa.codparc} className="flex justify-between gap-2 text-[11px]">
+                  <span className="min-w-0 truncate">{pessoa.nome}</span>
+                  <span className="shrink-0 font-semibold">{dinheiro(pessoa.total)}</span>
                 </li>
               ))}
             </ul>

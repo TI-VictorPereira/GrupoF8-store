@@ -31,6 +31,11 @@ class CategoriaNaoEncontrada(NaoEncontrado):
     mensagem = "Categoria não encontrada."
 
 
+class MarcaNaoEncontrada(NaoEncontrado):
+    codigo = "marca_nao_encontrada"
+    mensagem = "Marca não encontrada."
+
+
 class AlmocoNaoEncontrado(NaoEncontrado):
     codigo = "almoco_nao_encontrado"
     mensagem = "Almoço não encontrado."

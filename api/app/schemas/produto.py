@@ -18,9 +18,20 @@ class EntradaCategoria(BaseModel):
     nome: str = Field(min_length=1, max_length=120)
 
 
+class MarcaSaida(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    nome: str
+
+
+class EntradaMarca(BaseModel):
+    nome: str = Field(min_length=1, max_length=120)
+
+
 class EntradaProduto(BaseModel):
     nome: str = Field(min_length=1, max_length=160)
-    marca: str | None = Field(default=None, max_length=120)
+    marca_id: uuid.UUID | None = None
     codigo: str = Field(min_length=1, max_length=40)
     preco_venda: Decimal = Field(ge=0, max_digits=10, decimal_places=2)
     custo: Decimal = Field(ge=0, max_digits=10, decimal_places=2)
@@ -35,7 +46,7 @@ class ProdutoCompleto(BaseModel):
 
     id: uuid.UUID
     nome: str
-    marca: str | None
+    marca_id: uuid.UUID | None
     codigo: str
     categoria_id: uuid.UUID | None
     custo: Decimal

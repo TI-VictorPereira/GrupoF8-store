@@ -40,7 +40,7 @@ import { mensagemDeErro } from "@/comum/erros";
 import { dinheiro } from "@/comum/formato";
 import { baixarCsv, coluna, numeroDaPlanilha, simOuNao } from "@/comum/planilha";
 import type { ProdutoCompleto, ResultadoImportacaoProdutos } from "@/interfaces/admin";
-import type { Categoria } from "@/interfaces/loja";
+import type { Categoria, Marca } from "@/interfaces/loja";
 
 const CHAVE = ["produtos-admin"] as const;
 
@@ -49,6 +49,7 @@ const ESTOQUE_BAIXO = 5;
 const AVISOS: Record<string, string> = {
   codigo_duplicado: "Já existe um produto com este código.",
   categoria_duplicada: "Já existe uma categoria com este nome.",
+  marca_duplicada: "Já existe uma marca com este nome.",
   nome_obrigatorio: "O nome não pode ficar em branco.",
   estoque_insuficiente: "A baixa é maior que o estoque disponível.",
   foto_url_longa: "Envie a foto para o storage e cole aqui só o endereço.",
@@ -56,7 +57,7 @@ const AVISOS: Record<string, string> = {
 
 const FORMULARIO_VAZIO = {
   nome: "",
-  marca: "",
+  marca_id: "",
   codigo: "",
   preco_venda: "",
   custo: "",
@@ -76,6 +77,9 @@ export function Estoque() {
   const [novaCategoriaAberta, setNovaCategoriaAberta] = useState(false);
   const [nomeNovaCategoria, setNomeNovaCategoria] = useState("");
   const [categoriasAbertas, setCategoriasAbertas] = useState(false);
+  const [novaMarcaAberta, setNovaMarcaAberta] = useState(false);
+  const [nomeNovaMarca, setNomeNovaMarca] = useState("");
+  const [marcasAbertas, setMarcasAbertas] = useState(false);
 
   const produtos = useQuery({
     queryKey: CHAVE,
@@ -86,11 +90,20 @@ export function Estoque() {
     queryKey: ["categorias"],
     queryFn: () => api.get<Categoria[]>("/produtos/categorias"),
   });
+  const marcas = useQuery({
+    queryKey: ["marcas"],
+    queryFn: () => api.get<Marca[]>("/produtos/marcas"),
+  });
 
   const nomeCategoria = useMemo(() => {
     const mapa = new Map((categorias.data ?? []).map((c) => [c.id, c.nome]));
     return (id: string | null) => (id ? (mapa.get(id) ?? "—") : "—");
   }, [categorias.data]);
+
+  const nomeMarca = useMemo(() => {
+    const mapa = new Map((marcas.data ?? []).map((m) => [m.id, m.nome]));
+    return (id: string | null) => (id ? (mapa.get(id) ?? "—") : "—");
+  }, [marcas.data]);
 
   const criarCategoria = useMutation({
     mutationFn: () => api.post<Categoria>("/produtos/categorias", { nome: nomeNovaCategoria.trim() }),
@@ -102,6 +115,16 @@ export function Estoque() {
     },
   });
 
+  const criarMarca = useMutation({
+    mutationFn: () => api.post<Marca>("/produtos/marcas", { nome: nomeNovaMarca.trim() }),
+    onSuccess: (marca) => {
+      void clienteConsulta.invalidateQueries({ queryKey: ["marcas"] });
+      setFormulario({ ...formulario, marca_id: marca.id });
+      setNomeNovaMarca("");
+      setNovaMarcaAberta(false);
+    },
+  });
+
   function recarregar() {
     void clienteConsulta.invalidateQueries({ queryKey: CHAVE });    void clienteConsulta.invalidateQueries({ queryKey: ["vitrine"] });
   }
@@ -110,7 +133,7 @@ export function Estoque() {
     mutationFn: () => {
       const corpo = {
         nome: formulario.nome.trim(),
-        marca: formulario.marca.trim() || null,
+        marca_id: formulario.marca_id || null,
         codigo: formulario.codigo.trim(),
         preco_venda: formulario.preco_venda || "0",
         custo: formulario.custo || "0",
@@ -159,11 +182,24 @@ export function Estoque() {
     setCategoriasAbertas(true);
   }
 
+  function fecharCriacaoDeMarca() {
+    setNovaMarcaAberta(false);
+    setNomeNovaMarca("");
+    criarMarca.reset();
+  }
+
+  function abrirMarcas() {
+    setNomeNovaMarca("");
+    criarMarca.reset();
+    setMarcasAbertas(true);
+  }
+
   function abrirNovo() {
     setEmEdicao(null);
     setFormulario(FORMULARIO_VAZIO);
     salvar.reset();
     fecharCriacaoDeCategoria();
+    fecharCriacaoDeMarca();
     setFormularioAberto(true);
   }
 
@@ -171,7 +207,7 @@ export function Estoque() {
     setEmEdicao(produto);
     setFormulario({
       nome: produto.nome,
-      marca: produto.marca ?? "",
+      marca_id: produto.marca_id ?? "",
       codigo: produto.codigo,
       preco_venda: produto.preco_venda,
       custo: produto.custo,
@@ -180,6 +216,7 @@ export function Estoque() {
     });
     salvar.reset();
     fecharCriacaoDeCategoria();
+    fecharCriacaoDeMarca();
     setFormularioAberto(true);
   }
 
@@ -202,7 +239,7 @@ export function Estoque() {
       visiveis.map((p) => ({
         Codigo: p.codigo,
         Nome: p.nome,
-        Marca: p.marca ?? "",
+        Marca: nomeMarca(p.marca_id),
         Categoria: nomeCategoria(p.categoria_id),
         Custo: p.custo,
         "Preco de venda": p.preco_venda,
@@ -273,6 +310,9 @@ export function Estoque() {
           <Button variant="outline" onClick={abrirCategorias}>
             Categorias
           </Button>
+          <Button variant="outline" onClick={abrirMarcas}>
+            Marcas
+          </Button>
           <Button variant="destaque" onClick={abrirNovo}>
             Novo produto
           </Button>
@@ -336,7 +376,9 @@ export function Estoque() {
                       <p className="text-sm font-semibold">{produto.nome}</p>
                       <p className="text-[11px] text-suave">{produto.codigo}</p>
                     </TableCell>
-                    <TableCell className="text-sm text-suave">{produto.marca || "—"}</TableCell>
+                    <TableCell className="text-sm text-suave">
+                      {nomeMarca(produto.marca_id)}
+                    </TableCell>
                     <TableCell className="text-sm text-suave">
                       {nomeCategoria(produto.categoria_id)}
                     </TableCell>
@@ -405,14 +447,6 @@ export function Estoque() {
                 onChange={(e) => setFormulario({ ...formulario, nome: e.target.value })}
               />
             </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="marca">Marca (opcional)</Label>
-              <Input
-                id="marca"
-                value={formulario.marca}
-                onChange={(e) => setFormulario({ ...formulario, marca: e.target.value })}
-              />
-            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label htmlFor="codigo">Código</Label>
@@ -423,50 +457,50 @@ export function Estoque() {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="categoria">Categoria</Label>
+                <Label htmlFor="marca">Marca</Label>
                 <Select
-                  value={formulario.categoria_id || "nenhuma"}
+                  value={formulario.marca_id || "nenhuma"}
                   onValueChange={(v) =>
-                    setFormulario({ ...formulario, categoria_id: v === "nenhuma" ? "" : v })
+                    setFormulario({ ...formulario, marca_id: v === "nenhuma" ? "" : v })
                   }
                 >
-                  <SelectTrigger id="categoria">
+                  <SelectTrigger id="marca">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="nenhuma">Sem categoria</SelectItem>
-                    {(categorias.data ?? []).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nome}
+                    <SelectItem value="nenhuma">Sem marca</SelectItem>
+                    {(marcas.data ?? []).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
 
-                {novaCategoriaAberta ? (
+                {novaMarcaAberta ? (
                   <div className="mt-1.5 flex items-center gap-1.5">
                     <Input
                       autoFocus
-                      value={nomeNovaCategoria}
-                      onChange={(e) => setNomeNovaCategoria(e.target.value)}
-                      placeholder="Nome da categoria"
+                      value={nomeNovaMarca}
+                      onChange={(e) => setNomeNovaMarca(e.target.value)}
+                      placeholder="Nome da marca"
                       className="h-8 text-xs"
                     />
                     <Button
                       type="button"
                       size="sm"
                       className="h-8 shrink-0"
-                      disabled={!nomeNovaCategoria.trim() || criarCategoria.isPending}
-                      onClick={() => criarCategoria.mutate()}
+                      disabled={!nomeNovaMarca.trim() || criarMarca.isPending}
+                      onClick={() => criarMarca.mutate()}
                     >
-                      {criarCategoria.isPending ? "Criando…" : "Criar"}
+                      {criarMarca.isPending ? "Criando…" : "Criar"}
                     </Button>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       className="h-8 shrink-0"
-                      onClick={fecharCriacaoDeCategoria}
+                      onClick={fecharCriacaoDeMarca}
                     >
                       Cancelar
                     </Button>
@@ -477,17 +511,83 @@ export function Estoque() {
                     variant="link"
                     size="sm"
                     className="mt-0.5 h-auto justify-start p-0 text-xs text-suave"
-                    onClick={() => setNovaCategoriaAberta(true)}
+                    onClick={() => setNovaMarcaAberta(true)}
                   >
-                    + Nova categoria
+                    + Nova marca
                   </Button>
                 )}
-                {criarCategoria.error && (
+                {criarMarca.error && (
                   <p className="text-[11px] text-perigo">
-                    {mensagemDeErro(criarCategoria.error, AVISOS)}
+                    {mensagemDeErro(criarMarca.error, AVISOS)}
                   </p>
                 )}
               </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="categoria">Categoria</Label>
+              <Select
+                value={formulario.categoria_id || "nenhuma"}
+                onValueChange={(v) =>
+                  setFormulario({ ...formulario, categoria_id: v === "nenhuma" ? "" : v })
+                }
+              >
+                <SelectTrigger id="categoria">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nenhuma">Sem categoria</SelectItem>
+                  {(categorias.data ?? []).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {novaCategoriaAberta ? (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <Input
+                    autoFocus
+                    value={nomeNovaCategoria}
+                    onChange={(e) => setNomeNovaCategoria(e.target.value)}
+                    placeholder="Nome da categoria"
+                    className="h-8 text-xs"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 shrink-0"
+                    disabled={!nomeNovaCategoria.trim() || criarCategoria.isPending}
+                    onClick={() => criarCategoria.mutate()}
+                  >
+                    {criarCategoria.isPending ? "Criando…" : "Criar"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 shrink-0"
+                    onClick={fecharCriacaoDeCategoria}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="mt-0.5 h-auto justify-start p-0 text-xs text-suave"
+                  onClick={() => setNovaCategoriaAberta(true)}
+                >
+                  + Nova categoria
+                </Button>
+              )}
+              {criarCategoria.error && (
+                <p className="text-[11px] text-perigo">
+                  {mensagemDeErro(criarCategoria.error, AVISOS)}
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
@@ -583,6 +683,58 @@ export function Estoque() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setCategoriasAbertas(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- marcas --- */}
+      <Dialog open={marcasAbertas} onOpenChange={setMarcasAbertas}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Marcas</DialogTitle>
+            <DialogDescription>Usadas para organizar os produtos por fabricante.</DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-56 overflow-y-auto rounded-lg border border-borda">
+            {(marcas.data ?? []).length === 0 && (
+              <p className="p-3 text-sm text-suave">Nenhuma marca cadastrada ainda.</p>
+            )}
+            {(marcas.data ?? []).map((m) => (
+              <p key={m.id} className="border-b border-borda px-3 py-2 text-sm last:border-b-0">
+                {m.nome}
+              </p>
+            ))}
+          </div>
+
+          <div>
+            <Label htmlFor="marca-nova">Nova marca</Label>
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <Input
+                id="marca-nova"
+                value={nomeNovaMarca}
+                onChange={(e) => setNomeNovaMarca(e.target.value)}
+                placeholder="Nome da marca"
+              />
+              <Button
+                type="button"
+                className="shrink-0"
+                disabled={!nomeNovaMarca.trim() || criarMarca.isPending}
+                onClick={() => criarMarca.mutate()}
+              >
+                {criarMarca.isPending ? "Criando…" : "Criar"}
+              </Button>
+            </div>
+            {criarMarca.error && (
+              <p className="mt-1.5 text-[11px] text-perigo">
+                {mensagemDeErro(criarMarca.error, AVISOS)}
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMarcasAbertas(false)}>
               Fechar
             </Button>
           </DialogFooter>

@@ -17,7 +17,7 @@ from app.excecoes import (
 )
 from app.models.acesso import TentativaLogin
 from app.models.auditoria import LogAcesso, LogAuditoria
-from app.models.cadastro import Colaborador, Empresa, Produto
+from app.models.cadastro import Colaborador, Empresa, Marca, Produto
 from app.modules import colaboradores, produtos
 from app.modules.auditoria import Ator
 from app.modules.colaboradores import DadosColaborador
@@ -58,6 +58,7 @@ def faxina():
         s.execute(delete(TentativaLogin).where(TentativaLogin.codigo.like(f"{PREFIXO}%")))
         s.execute(delete(Colaborador).where(Colaborador.codigo.like(f"{PREFIXO}%")))
         s.execute(delete(Produto).where(Produto.codigo.like(f"{PREFIXO}%")))
+        s.execute(delete(Marca).where(Marca.nome.like(f"{PREFIXO}%")))
         s.commit()
 
 
@@ -332,6 +333,10 @@ def test_alteracao_de_produto_registra_apenas_o_que_mudou(admin, faxina):
 
 def test_marca_e_opcional_e_pode_ser_removida_na_alteracao(admin, faxina):
     with FabricaDeSessao() as s:
+        marca = produtos.criar_marca(s, admin, f"{PREFIXO}Marca X")
+        s.flush()
+        marca_id = marca.id
+
         criado = produtos.criar(
             s,
             admin,
@@ -340,12 +345,12 @@ def test_marca_e_opcional_e_pode_ser_removida_na_alteracao(admin, faxina):
                 codigo=f"{PREFIXO}S",
                 preco_venda=Decimal("4"),
                 custo=Decimal("2"),
-                marca="Marca X",
+                marca_id=marca_id,
             ),
         )
         s.flush()
         produto_id = criado.id
-        assert criado.marca == "Marca X"
+        assert criado.marca_id == marca_id
 
         produtos.alterar(
             s,
@@ -358,4 +363,4 @@ def test_marca_e_opcional_e_pode_ser_removida_na_alteracao(admin, faxina):
         s.commit()
 
     with FabricaDeSessao() as s:
-        assert s.get(Produto, produto_id).marca is None
+        assert s.get(Produto, produto_id).marca_id is None
