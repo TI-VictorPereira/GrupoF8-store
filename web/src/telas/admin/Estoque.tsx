@@ -56,6 +56,7 @@ const AVISOS: Record<string, string> = {
 
 const FORMULARIO_VAZIO = {
   nome: "",
+  marca: "",
   codigo: "",
   preco_venda: "",
   custo: "",
@@ -109,6 +110,7 @@ export function Estoque() {
     mutationFn: () => {
       const corpo = {
         nome: formulario.nome.trim(),
+        marca: formulario.marca.trim() || null,
         codigo: formulario.codigo.trim(),
         preco_venda: formulario.preco_venda || "0",
         custo: formulario.custo || "0",
@@ -169,6 +171,7 @@ export function Estoque() {
     setEmEdicao(produto);
     setFormulario({
       nome: produto.nome,
+      marca: produto.marca ?? "",
       codigo: produto.codigo,
       preco_venda: produto.preco_venda,
       custo: produto.custo,
@@ -199,6 +202,7 @@ export function Estoque() {
       visiveis.map((p) => ({
         Codigo: p.codigo,
         Nome: p.nome,
+        Marca: p.marca ?? "",
         Categoria: nomeCategoria(p.categoria_id),
         Custo: p.custo,
         "Preco de venda": p.preco_venda,
@@ -218,12 +222,14 @@ export function Estoque() {
       coluna(linha, "preco de venda", "preco", "venda", "valor de venda"),
     );
     const estoque = numeroDaPlanilha(coluna(linha, "estoque", "quantidade"));
+    const marca = coluna(linha, "marca");
     const categoria = coluna(linha, "categoria");
     const ativo = simOuNao(coluna(linha, "ativo", "situacao"));
 
     return {
       codigo,
       ...(coluna(linha, "nome", "produto") ? { nome: coluna(linha, "nome", "produto") } : {}),
+      ...(marca ? { marca } : {}),
       ...(categoria ? { categoria } : {}),
       ...(custo !== null ? { custo } : {}),
       ...(venda !== null ? { preco_venda: venda } : {}),
@@ -251,6 +257,7 @@ export function Estoque() {
             modelo={{
               Codigo: "REF001",
               Nome: "Exemplo de produto",
+              Marca: "Exemplo",
               Categoria: categorias.data?.[0]?.nome ?? "",
               Custo: "2,00",
               "Preco de venda": "5,00",
@@ -309,6 +316,7 @@ export function Estoque() {
             <TableHeader>
               <TableRow>
                 <TableHead>Produto</TableHead>
+                <TableHead>Marca</TableHead>
                 <TableHead>Categoria</TableHead>
                 <TableHead className="text-right">Custo</TableHead>
                 <TableHead className="text-right">Venda</TableHead>
@@ -328,6 +336,7 @@ export function Estoque() {
                       <p className="text-sm font-semibold">{produto.nome}</p>
                       <p className="text-[11px] text-suave">{produto.codigo}</p>
                     </TableCell>
+                    <TableCell className="text-sm text-suave">{produto.marca || "—"}</TableCell>
                     <TableCell className="text-sm text-suave">
                       {nomeCategoria(produto.categoria_id)}
                     </TableCell>
@@ -394,6 +403,14 @@ export function Estoque() {
                 id="nome"
                 value={formulario.nome}
                 onChange={(e) => setFormulario({ ...formulario, nome: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="marca">Marca (opcional)</Label>
+              <Input
+                id="marca"
+                value={formulario.marca}
+                onChange={(e) => setFormulario({ ...formulario, marca: e.target.value })}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">

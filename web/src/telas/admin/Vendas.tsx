@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { Carregando } from "@/componentes/Carregando";
+import { TableHeadOrdenavel } from "@/componentes/TableHeadOrdenavel";
 import { Vazio } from "@/componentes/Vazio";
 import { Button } from "@/componentes/ui/button";
 import { Card, CardContent } from "@/componentes/ui/card";
@@ -11,13 +12,13 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/componentes/ui/table";
 import { mensagemDeErro } from "@/comum/erros";
 import { FiltroPeriodo } from "@/componentes/FiltroPeriodo";
 import { dataHora, dinheiro } from "@/comum/formato";
+import { ordenar, useOrdenacao } from "@/comum/ordenacao";
 import { intervaloDoFiltro, periodoInicial } from "@/comum/periodo";
 import { baixarCsv } from "@/comum/planilha";
 import type { LinhaPedido } from "@/interfaces/admin";
@@ -31,6 +32,18 @@ interface Totais {
   receita: number;
   custo: number;
   unidades: number;
+}
+
+interface LinhaProduto extends Totais {
+  nome: string;
+  lucro: number;
+  margem: number;
+}
+
+type ColunaProduto = "nome" | "unidades" | "receita" | "custo" | "lucro" | "margem";
+
+function valorOrdenavel(linha: LinhaProduto, coluna: ColunaProduto): string | number {
+  return coluna === "nome" ? linha.nome.toLowerCase() : linha[coluna];
 }
 
 export function Vendas() {
@@ -68,7 +81,7 @@ export function Vendas() {
     [validos],
   );
 
-  const porProduto = useMemo(() => {
+  const porProduto = useMemo<LinhaProduto[]>(() => {
     const mapa = new Map<string, Totais>();
     for (const linha of validos) {
       for (const item of linha.pedido.itens) {
@@ -79,8 +92,17 @@ export function Vendas() {
         mapa.set(item.nome_produto, atual);
       }
     }
-    return [...mapa.entries()].sort((a, b) => b[1].receita - a[1].receita);
+    return [...mapa.entries()].map(([nome, dados]) => {
+      const lucro = dados.receita - dados.custo;
+      return { nome, ...dados, lucro, margem: dados.receita ? (lucro / dados.receita) * 100 : 0 };
+    });
   }, [validos]);
+
+  const ordenacaoProduto = useOrdenacao<ColunaProduto>("receita", "desc");
+  const produtosOrdenados = useMemo(
+    () => ordenar(porProduto, ordenacaoProduto, valorOrdenavel),
+    [porProduto, ordenacaoProduto],
+  );
 
   const lucro = totais.receita - totais.custo;
   const margem = totais.receita ? (lucro / totais.receita) * 100 : 0;
@@ -256,36 +278,72 @@ export function Vendas() {
           <Table className="tabela-admin">
             <TableHeader>
               <TableRow>
-                <TableHead>Produto</TableHead>
-                <TableHead className="text-right">Unidades</TableHead>
-                <TableHead className="text-right">Receita</TableHead>
-                <TableHead className="text-right">Custo</TableHead>
-                <TableHead className="text-right">Lucro</TableHead>
-                <TableHead className="text-right">Margem</TableHead>
+                <TableHeadOrdenavel
+                  coluna="nome"
+                  estado={ordenacaoProduto}
+                  aoClicar={ordenacaoProduto.alternar}
+                >
+                  Produto
+                </TableHeadOrdenavel>
+                <TableHeadOrdenavel
+                  coluna="unidades"
+                  estado={ordenacaoProduto}
+                  aoClicar={ordenacaoProduto.alternar}
+                  alinhar="direita"
+                >
+                  Unidades
+                </TableHeadOrdenavel>
+                <TableHeadOrdenavel
+                  coluna="receita"
+                  estado={ordenacaoProduto}
+                  aoClicar={ordenacaoProduto.alternar}
+                  alinhar="direita"
+                >
+                  Receita
+                </TableHeadOrdenavel>
+                <TableHeadOrdenavel
+                  coluna="custo"
+                  estado={ordenacaoProduto}
+                  aoClicar={ordenacaoProduto.alternar}
+                  alinhar="direita"
+                >
+                  Custo
+                </TableHeadOrdenavel>
+                <TableHeadOrdenavel
+                  coluna="lucro"
+                  estado={ordenacaoProduto}
+                  aoClicar={ordenacaoProduto.alternar}
+                  alinhar="direita"
+                >
+                  Lucro
+                </TableHeadOrdenavel>
+                <TableHeadOrdenavel
+                  coluna="margem"
+                  estado={ordenacaoProduto}
+                  aoClicar={ordenacaoProduto.alternar}
+                  alinhar="direita"
+                >
+                  Margem
+                </TableHeadOrdenavel>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {porProduto.map(([nome, dados]) => {
-                const lucroItem = dados.receita - dados.custo;
-                return (
-                  <TableRow key={nome}>
-                    <TableCell className="text-sm font-semibold">{nome}</TableCell>
-                    <TableCell className="text-right text-sm">{dados.unidades}</TableCell>
-                    <TableCell className="text-right text-sm">
-                      {dinheiro(dados.receita)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-suave">
-                      {dinheiro(dados.custo)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-semibold text-sucesso">
-                      {dinheiro(lucroItem)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-suave">
-                      {dados.receita ? ((lucroItem / dados.receita) * 100).toFixed(0) : 0}%
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {produtosOrdenados.map((linha) => (
+                <TableRow key={linha.nome}>
+                  <TableCell className="text-sm font-semibold">{linha.nome}</TableCell>
+                  <TableCell className="text-right text-sm">{linha.unidades}</TableCell>
+                  <TableCell className="text-right text-sm">{dinheiro(linha.receita)}</TableCell>
+                  <TableCell className="text-right text-sm text-suave">
+                    {dinheiro(linha.custo)}
+                  </TableCell>
+                  <TableCell className="text-right text-sm font-semibold text-sucesso">
+                    {dinheiro(linha.lucro)}
+                  </TableCell>
+                  <TableCell className="text-right text-sm text-suave">
+                    {linha.margem.toFixed(0)}%
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </Card>

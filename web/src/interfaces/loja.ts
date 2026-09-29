@@ -16,13 +16,6 @@ export interface ProdutoVitrine {
   foto_url: string | null;
 }
 
-/**
- * Item de um pedido.
- *
- * Não tem `id`: a API devolve o retrato do item, não a linha do banco. Quem
- * precisar de chave de lista usa produto_id + posição — o mesmo produto não
- * aparece duas vezes no mesmo pedido, mas produto removido vem com null.
- */
 export interface ItemPedido {
   produto_id: string | null;
   nome_produto: string;
@@ -38,10 +31,11 @@ export interface Pedido {
   valor_total: string;
   criado_em: string;
   status: StatusPedido;
+  cancelado_em: string | null;
+  motivo_cancelamento: string | null;
   itens: ItemPedido[];
 }
 
-/** O POST /pedidos devolve só o identificador; o detalhe vem depois. */
 export interface PedidoCriado {
   id: string;
 }

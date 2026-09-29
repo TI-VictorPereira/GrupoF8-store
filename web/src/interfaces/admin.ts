@@ -23,6 +23,7 @@ export interface PedidoCompleto {
   entregue_por: string | null;
   cancelado_em: string | null;
   motivo_cancelamento: string | null;
+  cancelado_por: string | null;
   itens: ItemDePedido[];
 }
 
@@ -32,6 +33,7 @@ export interface LinhaEntrega {
   colaborador_nome: string;
   colaborador_codigo: string;
   departamento: string | null;
+  cancelado_por_nome: string | null;
 }
 
 /** Linha do relatório de vendas. */
@@ -40,11 +42,13 @@ export interface LinhaPedido {
   colaborador_nome: string;
   colaborador_codigo: string;
   departamento: string | null;
+  cancelado_por_nome: string | null;
 }
 
 export interface ProdutoCompleto {
   id: string;
   nome: string;
+  marca: string | null;
   codigo: string;
   categoria_id: string | null;
   custo: string;

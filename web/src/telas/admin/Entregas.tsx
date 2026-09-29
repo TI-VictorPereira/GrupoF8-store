@@ -18,6 +18,7 @@ import {
 } from "@/componentes/ui/dialog";
 import { Input } from "@/componentes/ui/input";
 import { Label } from "@/componentes/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/componentes/ui/tabs";
 import { mensagemDeErro } from "@/comum/erros";
 import { dataHora, dinheiro } from "@/comum/formato";
 import type { LinhaEntrega } from "@/interfaces/admin";
@@ -28,8 +29,11 @@ const AVISOS: Record<string, string> = {
   pedido_nao_pendente: "Alguém já tratou este pedido. A lista foi atualizada.",
 };
 
+const CHAVE_CANCELADOS = ["pedidos-cancelados"] as const;
+
 export function Entregas() {
   const clienteConsulta = useQueryClient();
+  const [aba, setAba] = useState<"pendentes" | "cancelados">("pendentes");
   const [aCancelar, setACancelar] = useState<LinhaEntrega | null>(null);
   const [motivo, setMotivo] = useState("");
   const [busca, setBusca] = useState("");
@@ -41,17 +45,19 @@ export function Entregas() {
     refetchInterval: 15_000,
   });
 
+  const cancelados = useQuery({
+    queryKey: CHAVE_CANCELADOS,
+    queryFn: () => api.get<LinhaEntrega[]>("/pedidos/cancelados"),
+    enabled: aba === "cancelados",
+  });
+
   function recarregar() {
     void clienteConsulta.invalidateQueries({ queryKey: CHAVE });
+    void clienteConsulta.invalidateQueries({ queryKey: CHAVE_CANCELADOS });
     void clienteConsulta.invalidateQueries({ queryKey: ["admin-pendencias"] });
   }
 
-  /**
-   * O estoque saiu da prateleira na compra, não aqui. Entregar só muda o
-   * status; cancelar devolve as unidades e por isso precisa avisar as telas
-   * que mostram estoque — sem isto a aba Estoque continua com o número de
-   * antes do cancelamento.
-   */
+
   function recarregarEstoque() {
     void clienteConsulta.invalidateQueries({ queryKey: ["produtos-admin"] });
     void clienteConsulta.invalidateQueries({ queryKey: ["vitrine"] });
@@ -76,8 +82,7 @@ export function Entregas() {
     },
   });
 
-  // Filtra sobre `pendentes.data` e não sobre uma lista já derivada: `?? []`
-  // devolve um array novo a cada render, e o memo nunca memorizaria nada.
+  
   const linhas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     const todas = pendentes.data ?? [];
@@ -91,8 +96,7 @@ export function Entregas() {
   const total = pendentes.data?.length ?? 0;
   const erro = entregar.error ?? cancelar.error;
 
-  // A confirmação some sozinha: ninguém no balcão vai clicar para fechar, e
-  // um "entregue" parado na tela confunde a próxima pessoa da fila.
+  
   useEffect(() => {
     if (!confirmado) return;
     const id = setTimeout(() => setConfirmado(null), 5000);
@@ -126,86 +130,150 @@ export function Entregas() {
         </div>
       )}
 
-      {/* Com a fila cheia, achar a pessoa na lista é o que toma tempo no
-          balcão. O crachá dela traz nome e código, que é por onde se busca. */}
-      {total > 0 && (
-        <Input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Achar pelo nome ou pelo código do colaborador"
-          className="mb-3"
-        />
-      )}
+      <Tabs value={aba} onValueChange={(v) => setAba(v as "pendentes" | "cancelados")}>
+        <TabsList className="mb-3">
+          <TabsTrigger value="pendentes">Pendentes</TabsTrigger>
+          <TabsTrigger value="cancelados">Cancelados</TabsTrigger>
+        </TabsList>
 
-      {pendentes.isLoading && <Carregando />}
-      {pendentes.data && linhas.length === 0 && (
-        <Vazio>
-          {total === 0
-            ? "Nenhum pedido aguardando retirada."
-            : "Ninguém na fila com esse nome ou código."}
-        </Vazio>
-      )}
+        <TabsContent value="pendentes">
+          {total > 0 && (
+            <Input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Achar pelo nome ou pelo código do colaborador"
+              className="mb-3"
+            />
+          )}
 
-      <div className="grid gap-3 md:grid-cols-2">
-        {linhas.map((linha) => (
-          <Card key={linha.pedido.id}>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold">{linha.colaborador_nome}</p>
-                  <p className="truncate text-[11px] text-suave">
-                    {linha.colaborador_codigo}
-                    {linha.departamento ? ` · ${linha.departamento}` : ""} ·{" "}
-                    {dataHora(linha.pedido.criado_em)}
-                  </p>
-                </div>
-                <span className="shrink-0 text-[11px] font-semibold text-suave">
-                  aguardando
-                </span>
-              </div>
+          {pendentes.isLoading && <Carregando />}
+          {pendentes.data && linhas.length === 0 && (
+            <Vazio>
+              {total === 0
+                ? "Nenhum pedido aguardando retirada."
+                : "Ninguém na fila com esse nome ou código."}
+            </Vazio>
+          )}
 
-              <div className="mt-3 border-t border-borda pt-2">
-                {linha.pedido.itens.map((item, indice) => (
-                  <div
-                    key={`${item.produto_id ?? item.nome_produto}-${indice}`}
-                    className="flex justify-between gap-2 py-0.5 text-[13px]"
-                  >
-                    <span className="min-w-0 truncate text-suave">
-                      {item.quantidade}× {item.nome_produto}
-                    </span>
-                    <span className="shrink-0 font-semibold">
-                      {dinheiro(Number(item.preco_unitario) * item.quantidade)}
+          <div className="grid gap-3 md:grid-cols-2">
+            {linhas.map((linha) => (
+              <Card key={linha.pedido.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold">{linha.colaborador_nome}</p>
+                      <p className="truncate text-[11px] text-suave">
+                        {linha.colaborador_codigo}
+                        {linha.departamento ? ` · ${linha.departamento}` : ""} ·{" "}
+                        {dataHora(linha.pedido.criado_em)}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-[11px] font-semibold text-suave">
+                      aguardando
                     </span>
                   </div>
-                ))}
-                <div className="mt-1 flex justify-between border-t border-borda pt-1.5 text-sm font-extrabold">
-                  <span>Total</span>
-                  <span>{dinheiro(linha.pedido.valor_total)}</span>
-                </div>
-              </div>
 
-              <div className="mt-3 flex items-center justify-end gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setACancelar(linha)}
-                  disabled={cancelar.isPending}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  variant="destaque"
-                  size="sm"
-                  onClick={() => entregar.mutate(linha)}
-                  disabled={entregar.isPending}
-                >
-                  Entregar
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                  <div className="mt-3 border-t border-borda pt-2">
+                    {linha.pedido.itens.map((item, indice) => (
+                      <div
+                        key={`${item.produto_id ?? item.nome_produto}-${indice}`}
+                        className="flex justify-between gap-2 py-0.5 text-[13px]"
+                      >
+                        <span className="min-w-0 truncate text-suave">
+                          {item.quantidade}× {item.nome_produto}
+                        </span>
+                        <span className="shrink-0 font-semibold">
+                          {dinheiro(Number(item.preco_unitario) * item.quantidade)}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="mt-1 flex justify-between border-t border-borda pt-1.5 text-sm font-extrabold">
+                      <span>Total</span>
+                      <span>{dinheiro(linha.pedido.valor_total)}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setACancelar(linha)}
+                      disabled={cancelar.isPending}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      variant="destaque"
+                      size="sm"
+                      onClick={() => entregar.mutate(linha)}
+                      disabled={entregar.isPending}
+                    >
+                      Entregar
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="cancelados">
+          {cancelados.isLoading && <Carregando />}
+          {cancelados.data && cancelados.data.length === 0 && (
+            <Vazio>Nenhum pedido cancelado por aqui.</Vazio>
+          )}
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {(cancelados.data ?? []).map((linha) => (
+              <Card key={linha.pedido.id} className="opacity-80">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold">{linha.colaborador_nome}</p>
+                      <p className="truncate text-[11px] text-suave">
+                        {linha.colaborador_codigo}
+                        {linha.departamento ? ` · ${linha.departamento}` : ""} ·{" "}
+                        {dataHora(linha.pedido.criado_em)}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-[11px] font-semibold text-perigo">
+                      cancelado
+                    </span>
+                  </div>
+
+                  <div className="mt-3 border-t border-borda pt-2">
+                    {linha.pedido.itens.map((item, indice) => (
+                      <div
+                        key={`${item.produto_id ?? item.nome_produto}-${indice}`}
+                        className="flex justify-between gap-2 py-0.5 text-[13px]"
+                      >
+                        <span className="min-w-0 truncate text-suave">
+                          {item.quantidade}× {item.nome_produto}
+                        </span>
+                        <span className="shrink-0 font-semibold">
+                          {dinheiro(Number(item.preco_unitario) * item.quantidade)}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="mt-1 flex justify-between border-t border-borda pt-1.5 text-sm font-extrabold">
+                      <span>Total</span>
+                      <span>{dinheiro(linha.pedido.valor_total)}</span>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 truncate text-[11px] text-suave">
+                    Cancelado por {linha.cancelado_por_nome ?? "—"} em{" "}
+                    {linha.pedido.cancelado_em ? dataHora(linha.pedido.cancelado_em) : "—"}
+                    {linha.pedido.motivo_cancelamento
+                      ? ` · ${linha.pedido.motivo_cancelamento}`
+                      : ""}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={aCancelar !== null} onOpenChange={(aberto) => !aberto && setACancelar(null)}>
         <DialogContent>

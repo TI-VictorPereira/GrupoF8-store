@@ -1,6 +1,8 @@
 /** Intervalos de data usados pelas telas de relatório. */
 
-export type Periodo = "hoje" | "7dias" | "ciclo" | "personalizado";
+export type Periodo = "hoje" | "7dias" | "ciclo" | "geral" | "personalizado";
+
+const INICIO_DOS_TEMPOS = "2000-01-01";
 
 
 export const DIA_CORTE = 20;
@@ -46,6 +48,7 @@ export function intervaloDe(periodo: Periodo): { de: string; ate: string } {
     return { de: iso(inicio), ate: iso(hoje) };
   }
   if (periodo === "ciclo") return cicloDe(competenciaDe(hoje));
+  if (periodo === "geral") return { de: INICIO_DOS_TEMPOS, ate: iso(hoje) };
   return { de: iso(hoje), ate: iso(hoje) };
 }
 
@@ -54,14 +57,13 @@ export const ROTULOS_PERIODO: { valor: Periodo; rotulo: string }[] = [
   { valor: "hoje", rotulo: "Hoje" },
   { valor: "7dias", rotulo: "7 dias" },
   { valor: "ciclo", rotulo: "Ciclo" },
+  { valor: "geral", rotulo: "Geral" },
   { valor: "personalizado", rotulo: "Escolher datas" },
 ];
 
-/** Estado dos três modos do filtro. A tela guarda isto e pergunta o intervalo. */
 export interface EstadoPeriodo {
   periodo: Periodo;
-  /** Competência escolhida quando o modo é "ciclo". */
-  ciclo: string;
+    ciclo: string;
   personalizado: { de: string; ate: string };
 }
 

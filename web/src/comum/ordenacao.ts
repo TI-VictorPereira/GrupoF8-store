@@ -7,10 +7,13 @@ export interface EstadoOrdenacao<Coluna extends string> {
   direcao: Direcao;
 }
 
-export function useOrdenacao<Coluna extends string>(colunaInicial: Coluna) {
+export function useOrdenacao<Coluna extends string>(
+  colunaInicial: Coluna,
+  direcaoInicial: Direcao = "asc",
+) {
   const [estado, setEstado] = useState<EstadoOrdenacao<Coluna>>({
     coluna: colunaInicial,
-    direcao: "asc",
+    direcao: direcaoInicial,
   });
 
   function alternar(coluna: Coluna) {

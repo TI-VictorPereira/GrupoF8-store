@@ -16,15 +16,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/componentes/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/componentes/ui/tabs";
 import { dataHora, diaMes, dinheiro, mesPorExtenso } from "@/comum/formato";
 import { PAGINA_APP } from "@/comum/layout";
 import { cicloDe } from "@/comum/periodo";
 import { cn } from "@/comum/utilitarios";
 import type { Extrato } from "@/interfaces/consumo";
+import type { Pedido } from "@/interfaces/loja";
 
-// Só chegam aqui lançamentos que viraram consumo: o servidor não manda
-// cancelado nem expirado. Sobram a compra esperando retirada, a já retirada
-// e o almoço liberado.
+
 const ROTULO_STATUS: Record<string, string> = {
   pendente: "Aguardando retirada",
   entregue: "Entregue",
@@ -33,14 +33,7 @@ const ROTULO_STATUS: Record<string, string> = {
 
 const CHAVE_AVISO_VISTO = "f8:consumo:ciclo-explicado";
 
-/**
- * Se a pessoa já viu a explicação do ciclo, uma vez que seja.
- *
- * Fica no localStorage do navegador, não no servidor: é lembrança de
- * interface, não dado de negócio — não precisa sincronizar entre aparelhos,
- * e se falhar (aba anônima, storage bloqueado) o pior caso é mostrar de novo,
- * não travar a tela.
- */
+
 function useAvisoDeCicloVisto() {
   const [visto, setVisto] = useState(() => {
     try {
@@ -54,7 +47,6 @@ function useAvisoDeCicloVisto() {
     try {
       localStorage.setItem(CHAVE_AVISO_VISTO, "1");
     } catch {
-      // sem storage, só não persiste — a tela continua funcionando
     }
     setVisto(true);
   }
@@ -64,6 +56,7 @@ function useAvisoDeCicloVisto() {
 
 export function Consumo() {
   const [competencia, setCompetencia] = useState<string | undefined>(undefined);
+  const [aba, setAba] = useState("consumo");
   const { visto, marcarComoVisto } = useAvisoDeCicloVisto();
 
   const meses = useQuery({
@@ -76,11 +69,24 @@ export function Consumo() {
       api.get<Extrato>(`/consumo/me${competencia ? `?competencia=${competencia}` : ""}`),
   });
 
+  const meusPedidos = useQuery({
+    queryKey: ["meus-pedidos"],
+    queryFn: () => api.get<Pedido[]>("/pedidos/me"),
+    enabled: aba === "cancelados",
+  });
+  const cancelados = (meusPedidos.data ?? []).filter((p) => p.status === "cancelado");
+
   return (
     <Moldura>
       <Cabecalho titulo="Meu consumo" />
 
-      <div className={cn(PAGINA_APP, "pt-4")}>
+      <Tabs value={aba} onValueChange={setAba} className={cn(PAGINA_APP, "pt-4")}>
+        <TabsList>
+          <TabsTrigger value="consumo">Consumo</TabsTrigger>
+          <TabsTrigger value="cancelados">Cancelados</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="consumo">
         {!visto && (
           <Card className="border-accent mb-3">
             <CardContent className="p-3">
@@ -126,50 +132,79 @@ export function Consumo() {
             })}
           </SelectContent>
         </Select>
-      </div>
 
-      {extrato.data && (
-        <div
-          className={cn(
-            PAGINA_APP,
-            "mt-4 grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3",
-          )}
-        >
-          <div className="rounded-xl border border-borda p-3">
-            <p className="text-[11px] text-suave">Gasto na loja</p>
-            <p className="mt-1 text-lg font-bold">{dinheiro(extrato.data.total_loja)}</p>
-          </div>
-          <div className="rounded-xl border border-borda p-3">
-            <p className="text-[11px] text-suave">Almoços</p>
-            <p className="mt-1 text-lg font-bold">{extrato.data.quantidade_almocos}</p>
-          </div>
-        </div>
-      )}
-
-      <div className={cn(PAGINA_APP, "py-5")}>
-        {extrato.isLoading && <Carregando />}
-        {extrato.data?.lancamentos.length === 0 && <Vazio>Nenhum consumo neste mês.</Vazio>}
-
-        {extrato.data?.lancamentos.map((lancamento) => (
+        {extrato.data && (
           <div
-            key={`${lancamento.tipo}-${lancamento.id}`}
-            className="flex items-center justify-between gap-3 border-b border-borda py-2.5 last:border-b-0"
+            className={cn(
+              "mt-4 grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3",
+            )}
           >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">
-                {lancamento.tipo === "loja" ? "Compra na loja" : "Almoço"}
-              </p>
-              <p className="truncate text-[11px] text-suave">
-                {lancamento.descricao} · {dataHora(lancamento.data)} ·{" "}
-                {ROTULO_STATUS[lancamento.status] ?? lancamento.status}
-              </p>
+            <div className="rounded-xl border border-borda p-3">
+              <p className="text-[11px] text-suave">Gasto na loja</p>
+              <p className="mt-1 text-lg font-bold">{dinheiro(extrato.data.total_loja)}</p>
             </div>
-            <span className="shrink-0 text-sm font-bold">
-              {Number(lancamento.valor) > 0 ? dinheiro(lancamento.valor) : "—"}
-            </span>
+            <div className="rounded-xl border border-borda p-3">
+              <p className="text-[11px] text-suave">Almoços</p>
+              <p className="mt-1 text-lg font-bold">{extrato.data.quantidade_almocos}</p>
+            </div>
           </div>
-        ))}
-      </div>
+        )}
+
+        <div className="py-5">
+          {extrato.isLoading && <Carregando />}
+          {extrato.data?.lancamentos.length === 0 && <Vazio>Nenhum consumo neste mês.</Vazio>}
+
+          {extrato.data?.lancamentos.map((lancamento) => (
+            <div
+              key={`${lancamento.tipo}-${lancamento.id}`}
+              className="flex items-center justify-between gap-3 border-b border-borda py-2.5 last:border-b-0"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">
+                  {lancamento.tipo === "loja" ? "Compra na loja" : "Almoço"}
+                </p>
+                <p className="truncate text-[11px] text-suave">
+                  {lancamento.descricao} · {dataHora(lancamento.data)} ·{" "}
+                  {ROTULO_STATUS[lancamento.status] ?? lancamento.status}
+                </p>
+              </div>
+              <span className="shrink-0 text-sm font-bold">
+                {Number(lancamento.valor) > 0 ? dinheiro(lancamento.valor) : "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+        </TabsContent>
+
+        <TabsContent value="cancelados">
+          <div className="py-5">
+            {meusPedidos.isLoading && <Carregando />}
+            {meusPedidos.data && cancelados.length === 0 && (
+              <Vazio>Nenhum pedido cancelado.</Vazio>
+            )}
+
+            {cancelados.map((pedido) => (
+              <div
+                key={pedido.id}
+                className="border-b border-borda py-2.5 last:border-b-0"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="truncate text-sm font-semibold">
+                    Pedido {pedido.codigo_retirada}
+                  </p>
+                  <span className="shrink-0 text-sm font-bold text-suave line-through">
+                    {dinheiro(pedido.valor_total)}
+                  </span>
+                </div>
+                <p className="truncate text-[11px] text-suave">
+                  {dataHora(pedido.cancelado_em ?? pedido.criado_em)}
+                  {pedido.motivo_cancelamento ? ` · ${pedido.motivo_cancelamento}` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        </TabsContent>
+      </Tabs>
     </Moldura>
   );
 }

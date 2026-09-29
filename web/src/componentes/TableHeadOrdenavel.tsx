@@ -11,12 +11,14 @@ export function TableHeadOrdenavel<Coluna extends string>({
   aoClicar,
   children,
   className,
+  alinhar = "esquerda",
 }: {
   coluna: Coluna;
   estado: EstadoOrdenacao<Coluna>;
   aoClicar: (coluna: Coluna) => void;
   children: ReactNode;
   className?: string;
+  alinhar?: "esquerda" | "direita";
 }) {
   const ativa = estado.coluna === coluna;
   return (
@@ -24,7 +26,10 @@ export function TableHeadOrdenavel<Coluna extends string>({
       <button
         type="button"
         onClick={() => aoClicar(coluna)}
-        className="flex h-10 w-full items-center gap-1 px-2 text-left font-medium hover:text-suave"
+        className={cn(
+          "flex h-10 w-full items-center gap-1 px-2 font-medium hover:text-suave",
+          alinhar === "direita" ? "justify-end text-right" : "text-left",
+        )}
       >
         {children}
         {ativa ? (
