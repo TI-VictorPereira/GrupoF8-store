@@ -106,3 +106,13 @@ class BrindeForaDoCarrinho(DadosInvalidos):
 class MesAniversarioInvalido(DadosInvalidos):
     codigo = "mes_aniversario_invalido"
     mensagem = "O mês do aniversário deve estar entre 1 e 12."
+
+
+class TipoDeArquivoInvalido(DadosInvalidos):
+    codigo = "tipo_de_arquivo_invalido"
+    mensagem = "Envie uma imagem JPEG, PNG ou WEBP."
+
+
+class ArquivoGrandeDemais(DadosInvalidos):
+    codigo = "arquivo_grande_demais"
+    mensagem = "A imagem precisa ter no máximo 5 MB."

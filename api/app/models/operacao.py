@@ -11,7 +11,7 @@ from app.models.base import Base, criado_em, dinheiro, fk_uuid, pk_uuid
 
 PEDIDO_STATUS = ("pendente", "entregue", "cancelado")
 ALMOCO_STATUS = ("pendente", "confirmado", "expirado", "cancelado")
-ALMOCO_ORIGEM = ("totem", "manual")
+ALMOCO_ORIGEM = ("totem", "manual", "visitante")
 AJUSTE_TIPO = ("entrada", "baixa")
 
 
@@ -74,13 +74,25 @@ class Almoco(Base):
         CheckConstraint(f"status in {ALMOCO_STATUS}", name="status_valido"),
         CheckConstraint(f"origem in {ALMOCO_ORIGEM}", name="origem_valida"),
         CheckConstraint("valor >= 0", name="valor_nao_negativo"),
+        # Visitante não tem colaborador cadastrado — um almoço é de um jeito ou
+        # do outro, nunca dos dois nem de nenhum.
+        CheckConstraint(
+            "(colaborador_id is not null) != (visitante_nome is not null)",
+            name="colaborador_xor_visitante",
+        ),
         Index("ix_almocos_colaborador_criado", "colaborador_id", "criado_em"),
         Index("ix_almocos_status_criado", "status", "criado_em"),
     )
 
     id: Mapped[uuid.UUID] = pk_uuid()
-    colaborador_id: Mapped[uuid.UUID] = fk_uuid("colaboradores.id")
-    empresa_id: Mapped[uuid.UUID] = fk_uuid("empresas.id")
+    colaborador_id: Mapped[uuid.UUID | None] = fk_uuid("colaboradores.id", obrigatorio=False)
+    empresa_id: Mapped[uuid.UUID | None] = fk_uuid("empresas.id", obrigatorio=False)
+    visitante_nome: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    # Departamento que recebe o visitante — só faz sentido junto de
+    # visitante_nome, mas sem CHECK disso: departamento em si já é opcional.
+    visitante_departamento_id: Mapped[uuid.UUID | None] = fk_uuid(
+        "departamentos.id", obrigatorio=False
+    )
     vinculo: Mapped[str] = mapped_column(String(10), nullable=False)
     matricula: Mapped[int | None] = mapped_column(Integer, nullable=True)
     codigo_barras: Mapped[str] = mapped_column(String(40), nullable=False, unique=True)
@@ -110,4 +122,7 @@ class AjusteEstoque(Base):
     quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
     motivo: Mapped[str] = mapped_column(String(300), nullable=False)
     criado_por: Mapped[uuid.UUID | None] = fk_uuid("colaboradores.id", obrigatorio=False)
+    # Responsável/solicitante — frigobar de um setor, cortesia pra visita etc.
+    # Não é quem paga: ajuste de estoque nunca gerou cobrança pra ninguém.
+    colaborador_id: Mapped[uuid.UUID | None] = fk_uuid("colaboradores.id", obrigatorio=False)
     criado_em: Mapped[datetime] = criado_em()

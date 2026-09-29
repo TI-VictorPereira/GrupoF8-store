@@ -15,11 +15,18 @@ class EntradaAlmocoManual(BaseModel):
     colaborador_id: uuid.UUID
 
 
+class EntradaVisitanteAlmoco(BaseModel):
+    nome: str = Field(min_length=1, max_length=160)
+    departamento_id: uuid.UUID
+    termos_aceitos: bool = Field(description="Precisa ser true — a tela exige aceite antes.")
+
+
 class AlmocoSaida(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    colaborador_id: uuid.UUID
+    colaborador_id: uuid.UUID | None
+    visitante_nome: str | None
     codigo_barras: str
     status: str
     origem: str
@@ -41,6 +48,7 @@ class LinhaPainelSaida(BaseModel):
     colaborador_nome: str
     colaborador_codigo: str
     departamento: str | None
+    eh_visitante: bool = False
 
 
 class PrecoAlmocoSaida(BaseModel):

@@ -10,6 +10,7 @@ from sqlalchemy import delete, select
 from app.core import contexto, seguranca
 from app.core.db import FabricaDeSessao
 from app.excecoes import (
+    ColaboradorNaoEncontrado,
     CodparcDuplicado,
     DadosInvalidos,
     MatriculaDuplicada,
@@ -18,7 +19,8 @@ from app.excecoes import (
 from app.models.acesso import TentativaLogin
 from app.models.auditoria import LogAcesso, LogAuditoria
 from app.models.cadastro import Colaborador, Empresa, Marca, Produto
-from app.modules import colaboradores, produtos
+from app.models.operacao import AjusteEstoque
+from app.modules import colaboradores, estoque, produtos
 from app.modules.auditoria import Ator
 from app.modules.colaboradores import DadosColaborador
 from app.modules.produtos import DadosProduto
@@ -56,6 +58,13 @@ def faxina():
         s.execute(delete(LogAcesso).where(LogAcesso.codigo.like(f"{PREFIXO}%")))
         s.execute(delete(LogAuditoria).where(LogAuditoria.usuario_id.in_(alvos)))
         s.execute(delete(TentativaLogin).where(TentativaLogin.codigo.like(f"{PREFIXO}%")))
+        s.execute(
+            delete(AjusteEstoque).where(
+                AjusteEstoque.produto_id.in_(
+                    select(Produto.id).where(Produto.codigo.like(f"{PREFIXO}%"))
+                )
+            )
+        )
         s.execute(delete(Colaborador).where(Colaborador.codigo.like(f"{PREFIXO}%")))
         s.execute(delete(Produto).where(Produto.codigo.like(f"{PREFIXO}%")))
         s.execute(delete(Marca).where(Marca.nome.like(f"{PREFIXO}%")))
@@ -364,3 +373,55 @@ def test_marca_e_opcional_e_pode_ser_removida_na_alteracao(admin, faxina):
 
     with FabricaDeSessao() as s:
         assert s.get(Produto, produto_id).marca_id is None
+
+
+def test_ajuste_de_estoque_aceita_responsavel_opcional(admin, dados, faxina):
+    """Baixa pra frigobar de setor ou cortesia pra visita: registra quem pediu,
+    sem nenhum efeito de cobrança — ajuste de estoque nunca gerou consumo."""
+    with FabricaDeSessao() as s:
+        produto = produtos.criar(
+            s,
+            admin,
+            DadosProduto(
+                nome="Água com gás",
+                codigo=f"{PREFIXO}FRIGO",
+                preco_venda=Decimal("3"),
+                custo=Decimal("1"),
+            ),
+        )
+        s.flush()
+        produto_id = produto.id
+        estoque.ajustar(s, admin, produto_id, "entrada", 10, "Compra inicial")
+
+        atualizado = estoque.ajustar(
+            s, admin, produto_id, "baixa", 2, "Frigobar da diretoria", dados["inativo"]
+        )
+        s.commit()
+        assert atualizado.estoque == 8
+
+    with FabricaDeSessao() as s:
+        ajuste = s.scalar(
+            select(AjusteEstoque).where(
+                AjusteEstoque.produto_id == produto_id, AjusteEstoque.tipo == "baixa"
+            )
+        )
+        assert ajuste is not None
+        assert ajuste.colaborador_id == dados["inativo"]
+
+
+def test_ajuste_de_estoque_recusa_colaborador_inexistente(admin, faxina):
+    with FabricaDeSessao() as s:
+        produto = produtos.criar(
+            s,
+            admin,
+            DadosProduto(
+                nome="Refrigerante",
+                codigo=f"{PREFIXO}REFRI",
+                preco_venda=Decimal("3"),
+                custo=Decimal("1"),
+            ),
+        )
+        s.flush()
+
+        with pytest.raises(ColaboradorNaoEncontrado):
+            estoque.ajustar(s, admin, produto.id, "entrada", 5, "Compra", uuid.uuid4())

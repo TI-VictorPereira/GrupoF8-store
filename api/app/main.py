@@ -25,6 +25,7 @@ from app.routers import (
     organizacao,
     pedidos,
     produtos,
+    relatorios,
     relogio,
 )
 
@@ -75,6 +76,7 @@ app.include_router(colaboradores.rotas)
 app.include_router(organizacao.rotas)
 app.include_router(consumo.rotas)
 app.include_router(exportacoes.rotas)
+app.include_router(relatorios.rotas)
 app.include_router(relogio.rotas)
 
 

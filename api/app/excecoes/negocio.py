@@ -125,6 +125,15 @@ class MarcaDuplicada(Conflito):
     mensagem = "Já existe uma marca com este nome."
 
 
+class FalhaNoEnvioDeArquivo(ErroDaAplicacao):
+    """O serviço de armazenamento recusou ou não respondeu — não é erro de
+    quem enviou, por isso não é 4xx."""
+
+    status = 502
+    codigo = "falha_no_envio_de_arquivo"
+    mensagem = "Não foi possível enviar o arquivo agora. Tente de novo."
+
+
 class CadastroDuplicado(Conflito):
     """Violação de unicidade que não caiu em nenhuma das específicas.
 

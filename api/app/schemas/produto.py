@@ -91,3 +91,7 @@ class ResultadoImportacaoProdutoSaida(BaseModel):
     criados: int
     atualizados: int
     erros: list[str]
+
+
+class FotoSaida(BaseModel):
+    url: str

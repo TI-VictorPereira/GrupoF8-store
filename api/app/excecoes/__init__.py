@@ -43,6 +43,7 @@ from app.excecoes.negocio import (
     DepartamentoDuplicado,
     EmpresaComColaboradores,
     EstoqueInsuficiente,
+    FalhaNoEnvioDeArquivo,
     MarcaDuplicada,
     MatriculaDuplicada,
     PedidoNaoPendente,
@@ -61,6 +62,7 @@ from app.excecoes.recursos import (
     SolicitacaoNaoEncontrada,
 )
 from app.excecoes.validacao import (
+    ArquivoGrandeDemais,
     BrindeForaDoCarrinho,
     CodempInvalido,
     CompetenciaInvalida,
@@ -76,11 +78,15 @@ from app.excecoes.validacao import (
     ProdutoIncompletoNaImportacao,
     QuantidadeInvalida,
     TipoDeAjusteInvalido,
+    TipoDeArquivoInvalido,
     ValorNegativo,
     VinculoInvalido,
 )
 
 __all__ = [
+    "ArquivoGrandeDemais",
+    "TipoDeArquivoInvalido",
+    "FalhaNoEnvioDeArquivo",
     "CicloAindaAberto",
     "LoteNaoEncontrado",
     "BrindeForaDoCarrinho",

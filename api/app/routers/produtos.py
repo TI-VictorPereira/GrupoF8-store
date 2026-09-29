@@ -1,8 +1,9 @@
 """Rotas do catálogo: vitrine para o colaborador, manutenção para o admin."""
 
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter
+from fastapi import APIRouter, File, UploadFile
 
 from app.core.deps import AdminLiberado, ConsumidorLiberado, Sessao
 from app.models.cadastro import CategoriaProduto, Marca, Produto
@@ -15,6 +16,7 @@ from app.schemas.produto import (
     EntradaImportacaoProduto,
     EntradaMarca,
     EntradaProduto,
+    FotoSaida,
     MarcaSaida,
     ProdutoCompleto,
     ProdutoVitrine,
@@ -62,6 +64,17 @@ def marcas(ator: ConsumidorLiberado, sessao: Sessao) -> list[Marca]:
 @rotas.post("/marcas", response_model=MarcaSaida, status_code=201)
 def criar_marca(dados: EntradaMarca, ator: AdminLiberado, sessao: Sessao) -> Marca:
     return produtos.criar_marca(sessao, ator, dados.nome)
+
+
+@rotas.post("/fotos", response_model=FotoSaida)
+async def enviar_foto(ator: AdminLiberado, arquivo: Annotated[UploadFile, File()]) -> FotoSaida:
+    """Sobe a imagem e devolve a URL. Salvar essa URL no produto é uma
+    chamada separada — a mesma que já existe pra colar uma URL pronta."""
+    conteudo = await arquivo.read()
+    url = produtos.enviar_foto(
+        ator, arquivo.filename or "foto", conteudo, arquivo.content_type or ""
+    )
+    return FotoSaida(url=url)
 
 
 @rotas.get("", response_model=list[ProdutoCompleto])

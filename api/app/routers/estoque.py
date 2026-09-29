@@ -17,4 +17,6 @@ rotas = APIRouter(prefix="/estoque", tags=["estoque"])
 def ajustar(
     produto_id: uuid.UUID, dados: EntradaAjusteEstoque, ator: AdminLiberado, sessao: Sessao
 ) -> Produto:
-    return estoque.ajustar(sessao, ator, produto_id, dados.tipo, dados.quantidade, dados.motivo)
+    return estoque.ajustar(
+        sessao, ator, produto_id, dados.tipo, dados.quantidade, dados.motivo, dados.colaborador_id
+    )

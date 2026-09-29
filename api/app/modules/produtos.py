@@ -10,10 +10,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core import blob
 from app.excecoes import (
+    ArquivoGrandeDemais,
     CategoriaDuplicada,
     CategoriaNaoEncontrada,
     CodigoDuplicado,
+    FalhaNoEnvioDeArquivo,
     FotoUrlLonga,
     ImportacaoGrandeDemais,
     ImportacaoVazia,
@@ -23,11 +26,15 @@ from app.excecoes import (
     ProdutoIncompletoNaImportacao,
     ProdutoNaoEncontrado,
     SemPermissao,
+    TipoDeArquivoInvalido,
     ValorNegativo,
 )
 from app.models.cadastro import CategoriaProduto, Marca, Produto
 from app.modules import auditoria
 from app.modules.auditoria import Ator
+
+TIPOS_DE_IMAGEM_PERMITIDOS = {"image/jpeg", "image/png", "image/webp"}
+TAMANHO_MAXIMO_DA_FOTO = 5 * 1024 * 1024
 
 
 @dataclass
@@ -131,6 +138,21 @@ def criar_marca(sessao: Session, ator: Ator, nome: str) -> Marca:
         dados_novos={"nome": marca.nome},
     )
     return marca
+
+
+def enviar_foto(ator: Ator, nome_arquivo: str, conteudo: bytes, content_type: str) -> str:
+    """Sobe a foto pro storage e devolve a URL — quem chama ainda precisa
+    salvar essa URL no produto, separadamente."""
+    _exigir_admin(ator)
+    if content_type not in TIPOS_DE_IMAGEM_PERMITIDOS:
+        raise TipoDeArquivoInvalido()
+    if len(conteudo) > TAMANHO_MAXIMO_DA_FOTO:
+        raise ArquivoGrandeDemais()
+
+    try:
+        return blob.enviar(nome_arquivo, conteudo)
+    except blob.FalhaNoUploadDeArquivo as erro:
+        raise FalhaNoEnvioDeArquivo(str(erro)) from erro
 
 
 def listar_vitrine(sessao: Session) -> list[Produto]:

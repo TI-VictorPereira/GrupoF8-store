@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.core.config import obter_config
 from app.excecoes import (
@@ -20,8 +20,11 @@ from app.excecoes import (
     AlmocoNaoEncontrado,
     CodigoDeBarrasInvalido,
     ColaboradorNaoEncontrado,
+    DepartamentoNaoEncontrado,
+    NomeObrigatorio,
     PeriodoInvalido,
     SemPermissao,
+    TermosNaoAceitos,
 )
 from app.models.cadastro import Colaborador, Departamento
 from app.models.operacao import Almoco
@@ -103,6 +106,56 @@ def gerar(sessao: Session, ator: Ator) -> Almoco:
     return almoco
 
 
+def registrar_visitante(
+    sessao: Session, ator: Ator, nome: str, departamento_id: uuid.UUID, termos_aceitos: bool
+) -> Almoco:
+    """Cadastra e já libera o visitante — não existe conferência separada
+    depois, então não faz sentido gerar código pra escanear em seguida.
+
+    Quem chama precisa estar no totem autenticado como refeitório/admin; é a
+    tela quem garante que o visitante leu o termo antes de digitar o nome, e
+    é por isso que `termos_aceitos` é conferido aqui de novo — a tela pode
+    até deixar de checar por algum bug, o servidor não deixa passar.
+    """
+    if ator.papel not in {"admin", "refeitorio"}:
+        raise SemPermissao()
+    if not termos_aceitos:
+        raise TermosNaoAceitos()
+    if not nome.strip():
+        raise NomeObrigatorio(detalhes={"entidade": "visitante"})
+    if sessao.get(Departamento, departamento_id) is None:
+        raise DepartamentoNaoEncontrado()
+
+    agora = _agora()
+    almoco = Almoco(
+        colaborador_id=None,
+        empresa_id=None,
+        visitante_nome=nome.strip(),
+        visitante_departamento_id=departamento_id,
+        vinculo="visitante",
+        matricula=None,
+        codigo_barras=_codigo_barras(),
+        status="confirmado",
+        origem="visitante",
+        valor=_preco_vigente(sessao, agora),
+        expira_em=agora + timedelta(minutes=_config.almoco_validade_minutos),
+        confirmado_em=agora,
+        confirmado_por=ator.id,
+    )
+    sessao.add(almoco)
+    sessao.flush()
+    auditoria.registrar(
+        sessao,
+        ator,
+        acao="almoco.visitante_registrado",
+        entidade="almoco",
+        entidade_id=almoco.id,
+        descricao=f"Registrou e liberou o visitante {almoco.visitante_nome}.",
+        dados_novos={"visitante_nome": almoco.visitante_nome, "status": "confirmado"},
+    )
+    return almoco
+
+
 def confirmar(sessao: Session, ator: Ator, codigo_barras: str) -> Almoco:
     if ator.papel not in {"admin", "refeitorio"}:
         raise SemPermissao()
@@ -136,6 +189,7 @@ class LinhaPainel:
     colaborador_nome: str
     colaborador_codigo: str
     departamento: str | None
+    eh_visitante: bool = False
 
 
 def meu_de_hoje(sessao: Session, ator: Ator) -> Almoco | None:
@@ -143,15 +197,48 @@ def meu_de_hoje(sessao: Session, ator: Ator) -> Almoco | None:
     return _almoco_hoje(sessao, ator.id, _agora())
 
 
+_DepartamentoDoVisitante = aliased(Departamento)
+
+
 def _entre(inicio: datetime, fim: datetime, status: str | None):
     consulta = (
-        select(Almoco, Colaborador.nome_completo, Colaborador.codigo, Departamento.nome)
-        .join(Colaborador, Colaborador.id == Almoco.colaborador_id)
+        select(
+            Almoco,
+            Colaborador.nome_completo,
+            Colaborador.codigo,
+            Departamento.nome,
+            _DepartamentoDoVisitante.nome,
+        )
+        .outerjoin(Colaborador, Colaborador.id == Almoco.colaborador_id)
         .outerjoin(Departamento, Departamento.id == Colaborador.departamento_id)
+        .outerjoin(
+            _DepartamentoDoVisitante,
+            _DepartamentoDoVisitante.id == Almoco.visitante_departamento_id,
+        )
         .where(Almoco.criado_em >= inicio, Almoco.criado_em < fim)
         .order_by(Almoco.criado_em.desc())
     )
     return consulta.where(Almoco.status == status) if status else consulta
+
+
+def _linha_painel(
+    almoco: Almoco,
+    nome: str | None,
+    codigo: str | None,
+    dep: str | None,
+    dep_visitante: str | None,
+) -> LinhaPainel:
+    if almoco.visitante_nome:
+        return LinhaPainel(
+            almoco=almoco,
+            colaborador_nome=almoco.visitante_nome,
+            colaborador_codigo="—",
+            departamento=dep_visitante,
+            eh_visitante=True,
+        )
+    return LinhaPainel(
+        almoco=almoco, colaborador_nome=nome, colaborador_codigo=codigo, departamento=dep
+    )
 
 
 def expirar_vencidos(sessao: Session) -> int:
@@ -180,8 +267,10 @@ def listar_do_dia(sessao: Session, ator: Ator, status: str | None = None) -> lis
     expirar_vencidos(sessao)
     inicio, fim = _limites_do_dia(_agora())
     return [
-        LinhaPainel(almoco=a, colaborador_nome=nome, colaborador_codigo=codigo, departamento=dep)
-        for a, nome, codigo, dep in sessao.execute(_entre(inicio, fim, status)).all()
+        _linha_painel(a, nome, codigo, dep, dep_visitante)
+        for a, nome, codigo, dep, dep_visitante in sessao.execute(
+            _entre(inicio, fim, status)
+        ).all()
     ]
 
 
@@ -204,8 +293,8 @@ def listar_periodo(
     fim = (datetime(ate.year, ate.month, ate.day, tzinfo=fuso) + timedelta(days=1)).astimezone(UTC)
 
     return [
-        LinhaPainel(almoco=a, colaborador_nome=nome, colaborador_codigo=codigo, departamento=dep)
-        for a, nome, codigo, dep in sessao.execute(_entre(inicio, fim, status)).all()
+        _linha_painel(a, nome, codigo, dep, dep_visitante)
+        for a, nome, codigo, dep, dep_visitante in sessao.execute(_entre(inicio, fim, status)).all()
     ]
 
 
@@ -308,6 +397,18 @@ class ColaboradorParaAlmoco:
     nome_completo: str
     codigo: str
     departamento: str | None
+
+
+def listar_departamentos_para_visitante(sessao: Session, ator: Ator) -> list[Departamento]:
+    """Pra tela de visitante escolher a área responsável, direto do totem.
+
+    Separado de `organizacao.listar_departamentos` porque aquele exige admin,
+    e quem cadastra visitante é o refeitório — mesmo motivo de existir
+    `buscar_colaboradores` em vez de reaproveitar a listagem do admin.
+    """
+    if ator.papel not in {"admin", "refeitorio"}:
+        raise SemPermissao()
+    return list(sessao.scalars(select(Departamento).order_by(Departamento.nome)))
 
 
 def buscar_colaboradores(sessao: Session, ator: Ator, busca: str) -> list[ColaboradorParaAlmoco]:

@@ -11,7 +11,7 @@ from app.core.deps import (
     RefeitorioOuAdminLiberado,
     Sessao,
 )
-from app.models.cadastro import PrecoAlmoco
+from app.models.cadastro import Departamento, PrecoAlmoco
 from app.models.operacao import Almoco
 from app.modules import almocos, precos
 from app.schemas.almoco import (
@@ -20,10 +20,12 @@ from app.schemas.almoco import (
     EntradaAlmocoManual,
     EntradaConfirmacaoAlmoco,
     EntradaPrecoAlmoco,
+    EntradaVisitanteAlmoco,
     LinhaPainelSaida,
     PrecoAlmocoSaida,
 )
 from app.schemas.colaborador import ColaboradorResumo
+from app.schemas.departamento import DepartamentoSaida
 
 rotas = APIRouter(prefix="/almocos", tags=["almoços"])
 
@@ -50,14 +52,32 @@ def gerar(ator: ConsumidorLiberado, sessao: Sessao) -> Almoco:
     return almocos.gerar(sessao, ator)
 
 
+@rotas.get("/departamentos-visitante", response_model=list[DepartamentoSaida])
+def departamentos_para_visitante(
+    ator: RefeitorioOuAdminLiberado, sessao: Sessao
+) -> list[Departamento]:
+    return almocos.listar_departamentos_para_visitante(sessao, ator)
+
+
+@rotas.post("/visitante", response_model=AlmocoSaida, status_code=201)
+def visitante(
+    dados: EntradaVisitanteAlmoco, ator: RefeitorioOuAdminLiberado, sessao: Sessao
+) -> Almoco:
+    """Cadastra e já libera — feito no totem, não tem conferência depois."""
+    return almocos.registrar_visitante(
+        sessao, ator, dados.nome, dados.departamento_id, dados.termos_aceitos
+    )
+
+
 @rotas.post("/confirmar", response_model=ConfirmacaoSaida)
 def confirmar(
     dados: EntradaConfirmacaoAlmoco, ator: RefeitorioOuAdminLiberado, sessao: Sessao
 ) -> ConfirmacaoSaida:
     almoco = almocos.confirmar(sessao, ator, dados.codigo_barras.strip())
+    nome = almoco.visitante_nome or almocos.nome_de(sessao, almoco.colaborador_id)
     return ConfirmacaoSaida(
         **AlmocoSaida.model_validate(almoco).model_dump(),
-        colaborador_nome=almocos.nome_de(sessao, almoco.colaborador_id),
+        colaborador_nome=nome,
     )
 
 
@@ -82,6 +102,7 @@ def do_dia(
             colaborador_nome=linha.colaborador_nome,
             colaborador_codigo=linha.colaborador_codigo,
             departamento=linha.departamento,
+            eh_visitante=linha.eh_visitante,
         )
         for linha in almocos.listar_do_dia(sessao, ator, status)
     ]
@@ -118,6 +139,7 @@ def historico(
             colaborador_nome=linha.colaborador_nome,
             colaborador_codigo=linha.colaborador_codigo,
             departamento=linha.departamento,
+            eh_visitante=linha.eh_visitante,
         )
         for linha in almocos.listar_periodo(sessao, ator, de, ate, status)
     ]

@@ -6,20 +6,27 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.excecoes import (
+    ColaboradorNaoEncontrado,
     EstoqueInsuficiente,
     ProdutoNaoEncontrado,
     QuantidadeInvalida,
     SemPermissao,
     TipoDeAjusteInvalido,
 )
-from app.models.cadastro import Produto
+from app.models.cadastro import Colaborador, Produto
 from app.models.operacao import AjusteEstoque
 from app.modules import auditoria
 from app.modules.auditoria import Ator
 
 
 def ajustar(
-    sessao: Session, ator: Ator, produto_id: uuid.UUID, tipo: str, quantidade: int, motivo: str
+    sessao: Session,
+    ator: Ator,
+    produto_id: uuid.UUID,
+    tipo: str,
+    quantidade: int,
+    motivo: str,
+    colaborador_id: uuid.UUID | None = None,
 ) -> Produto:
     if not ator.eh_admin:
         raise SemPermissao()
@@ -29,6 +36,8 @@ def ajustar(
         raise TipoDeAjusteInvalido(detalhes={"tipo": tipo})
     if quantidade <= 0:
         raise QuantidadeInvalida(detalhes={"quantidade": quantidade})
+    if colaborador_id and sessao.get(Colaborador, colaborador_id) is None:
+        raise ColaboradorNaoEncontrado()
 
     valores = {"estoque": Produto.estoque + quantidade}
     condicoes = [Produto.id == produto_id]
@@ -53,6 +62,7 @@ def ajustar(
             quantidade=quantidade,
             motivo=motivo,
             criado_por=ator.id,
+            colaborador_id=colaborador_id,
         )
     )
     auditoria.registrar(
@@ -63,6 +73,11 @@ def ajustar(
         entidade_id=produto.id,
         descricao=f"Ajustou o estoque de {produto.nome}: {tipo} de {quantidade} unidade(s).",
         dados_anteriores={"estoque": anterior},
-        dados_novos={"estoque": produto.estoque, "tipo": tipo, "motivo": motivo},
+        dados_novos={
+            "estoque": produto.estoque,
+            "tipo": tipo,
+            "motivo": motivo,
+            "colaborador_id": str(colaborador_id) if colaborador_id else None,
+        },
     )
     return produto
