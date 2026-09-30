@@ -29,6 +29,8 @@ def enviar(nome_arquivo: str, conteudo: bytes) -> str:
     config = obter_config()
     if not config.blob_read_write_token:
         raise FalhaNoUploadDeArquivo("BLOB_READ_WRITE_TOKEN não configurado.")
+    if not config.blob_store_id:
+        raise FalhaNoUploadDeArquivo("BLOB_STORE_ID não configurado.")
 
     extensao = nome_arquivo.rsplit(".", 1)[-1].lower() if "." in nome_arquivo else "bin"
     pathname = f"produtos/{uuid.uuid4()}.{extensao}"
@@ -41,6 +43,9 @@ def enviar(nome_arquivo: str, conteudo: bytes) -> str:
             content=conteudo,
             headers={
                 "authorization": f"Bearer {config.blob_read_write_token}",
+                "x-vercel-blob-store-id": config.blob_store_id,
+                "x-api-blob-request-id": str(uuid.uuid4()),
+                "x-api-blob-request-attempt": "0",
                 "x-api-version": "7",
                 "x-vercel-blob-access": "public",
                 "x-content-type": tipo,

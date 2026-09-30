@@ -69,9 +69,11 @@ class Config(BaseSettings):
     cron_secret: str = ""
 
     # --- foto do produto -------------------------------------------------
-    # Token do Blob Store, gerado pelo próprio painel da Vercel. Vazio desliga
-    # o upload — a tela volta a aceitar só colar uma URL pronta.
+    # Token e ID do Blob Store, gerados pelo próprio painel da Vercel
+    # (Storage → o store → .env.local). Vazio desliga o upload — a tela
+    # volta a aceitar só colar uma URL pronta.
     blob_read_write_token: str = ""
+    blob_store_id: str = ""
 
     @property
     def url_para_alembic(self) -> str:
