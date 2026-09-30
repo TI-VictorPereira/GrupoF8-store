@@ -82,6 +82,7 @@ export function Estoque() {
   const [ajuste, setAjuste] = useState({ tipo: "entrada", quantidade: "", motivo: "" });
   const [responsavel, setResponsavel] = useState<ColaboradorParaAlmoco | null>(null);
   const [novaCategoriaAberta, setNovaCategoriaAberta] = useState(false);
+  const [urlManualAberta, setUrlManualAberta] = useState(false);
   const [nomeNovaCategoria, setNomeNovaCategoria] = useState("");
   const [categoriasAbertas, setCategoriasAbertas] = useState(false);
   const [novaMarcaAberta, setNovaMarcaAberta] = useState(false);
@@ -213,6 +214,7 @@ export function Estoque() {
     setFormulario(FORMULARIO_VAZIO);
     salvar.reset();
     enviarFoto.reset();
+    setUrlManualAberta(false);
     fecharCriacaoDeCategoria();
     fecharCriacaoDeMarca();
     setFormularioAberto(true);
@@ -231,6 +233,7 @@ export function Estoque() {
     });
     salvar.reset();
     enviarFoto.reset();
+    setUrlManualAberta(false);
     fecharCriacaoDeCategoria();
     fecharCriacaoDeMarca();
     setFormularioAberto(true);
@@ -632,41 +635,70 @@ export function Estoque() {
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="foto">Foto (opcional)</Label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 {formulario.foto_url && (
                   <img
                     src={formulario.foto_url}
                     alt=""
-                    className="h-9 w-9 shrink-0 rounded-md border border-borda object-cover"
+                    className="h-14 w-14 shrink-0 rounded-md border border-borda object-cover"
                   />
                 )}
+                <div className="flex flex-col items-start gap-1">
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={enviarFoto.isPending}
+                      onClick={() => inputFoto.current?.click()}
+                    >
+                      {enviarFoto.isPending
+                        ? "Enviando…"
+                        : formulario.foto_url
+                          ? "Trocar foto"
+                          : "Anexar foto"}
+                    </Button>
+                    {formulario.foto_url && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setFormulario((atual) => ({ ...atual, foto_url: "" }))}
+                      >
+                        Remover
+                      </Button>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto justify-start p-0 text-xs text-suave"
+                    onClick={() => setUrlManualAberta((atual) => !atual)}
+                  >
+                    {urlManualAberta ? "Cancelar" : "ou colar uma URL manualmente"}
+                  </Button>
+                </div>
+              </div>
+              {urlManualAberta && (
                 <Input
-                  id="foto"
                   value={formulario.foto_url}
                   onChange={(e) => setFormulario({ ...formulario, foto_url: e.target.value })}
-                  placeholder="https://… ou envie um arquivo"
+                  placeholder="https://…"
                 />
-                <input
-                  ref={inputFoto}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={(e) => {
-                    const arquivo = e.target.files?.[0];
-                    if (arquivo) enviarFoto.mutate(arquivo);
-                    e.target.value = "";
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="shrink-0"
-                  disabled={enviarFoto.isPending}
-                  onClick={() => inputFoto.current?.click()}
-                >
-                  {enviarFoto.isPending ? "Enviando…" : "Enviar"}
-                </Button>
-              </div>
+              )}
+              <input
+                id="foto"
+                ref={inputFoto}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const arquivo = e.target.files?.[0];
+                  if (arquivo) enviarFoto.mutate(arquivo);
+                  e.target.value = "";
+                }}
+              />
               {enviarFoto.error && (
                 <p className="text-[11px] text-perigo">
                   {mensagemDeErro(enviarFoto.error, AVISOS)}
