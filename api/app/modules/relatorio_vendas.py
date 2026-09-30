@@ -28,7 +28,7 @@ from app.modules.auditoria import Ator
 CODEMP_EMPRESA_SEPARADA = 17
 
 COLUNAS_DETALHADO = (
-    "Código",
+    "Codparc",
     "Colaborador",
     "Departamento",
     "Empresa",
@@ -44,7 +44,7 @@ COLUNAS_DETALHADO = (
 )
 
 COLUNAS_CONSOLIDADO = (
-    "Código",
+    "Codparc",
     "Colaborador",
     "Departamento",
     "Empresa",
@@ -59,7 +59,7 @@ COLUNAS_CONSOLIDADO = (
 class LinhaVenda:
     codemp: int
     empresa_nome: str
-    codigo: str
+    codparc: int
     colaborador_nome: str
     departamento: str | None
     data: datetime
@@ -77,7 +77,7 @@ class LinhaVenda:
 class LinhaConsolidada:
     codemp: int
     empresa_nome: str
-    codigo: str
+    codparc: int
     colaborador_nome: str
     departamento: str | None
     compras: int
@@ -120,7 +120,7 @@ def montar(sessao: Session, ator: Ator, de: date, ate: date) -> list[LinhaVenda]
             LinhaVenda(
                 codemp=codemp,
                 empresa_nome=empresa_nome,
-                codigo=colaborador.codigo,
+                codparc=colaborador.codparc,
                 colaborador_nome=colaborador.nome_completo,
                 departamento=departamento,
                 data=pedido.criado_em,
@@ -150,7 +150,7 @@ def montar(sessao: Session, ator: Ator, de: date, ate: date) -> list[LinhaVenda]
             LinhaVenda(
                 codemp=codemp,
                 empresa_nome=empresa_nome,
-                codigo=colaborador.codigo,
+                codparc=colaborador.codparc,
                 colaborador_nome=colaborador.nome_completo,
                 departamento=departamento,
                 data=almoco.criado_em,
@@ -175,12 +175,12 @@ def consolidar_por_pessoa(linhas: list[LinhaVenda]) -> list[LinhaConsolidada]:
     uma compra só. Por isso o código do pedido de cada um é guardado num
     conjunto à parte, e não somado direto como itens e almoços são.
     """
-    agregados: dict[str, dict] = {}
-    pedidos_por_pessoa: dict[str, set[str]] = {}
+    agregados: dict[int, dict] = {}
+    pedidos_por_pessoa: dict[int, set[str]] = {}
 
     for linha in linhas:
         dados = agregados.setdefault(
-            linha.codigo,
+            linha.codparc,
             {
                 "codemp": linha.codemp,
                 "empresa_nome": linha.empresa_nome,
@@ -196,21 +196,21 @@ def consolidar_por_pessoa(linhas: list[LinhaVenda]) -> list[LinhaConsolidada]:
             dados["almocos"] += 1
         else:
             dados["itens"] += linha.quantidade
-            pedidos_por_pessoa.setdefault(linha.codigo, set()).add(linha.codigo_pedido)
+            pedidos_por_pessoa.setdefault(linha.codparc, set()).add(linha.codigo_pedido)
 
     return [
         LinhaConsolidada(
             codemp=dados["codemp"],
             empresa_nome=dados["empresa_nome"],
-            codigo=codigo,
+            codparc=codparc,
             colaborador_nome=dados["colaborador_nome"],
             departamento=dados["departamento"],
-            compras=len(pedidos_por_pessoa.get(codigo, set())),
+            compras=len(pedidos_por_pessoa.get(codparc, set())),
             itens=dados["itens"],
             almocos=dados["almocos"],
             valor_total=dados["valor_total"],
         )
-        for codigo, dados in agregados.items()
+        for codparc, dados in agregados.items()
     ]
 
 
@@ -234,7 +234,7 @@ def _escrever_detalhado(aba: Worksheet, linhas: list[LinhaVenda]) -> None:
     for linha in linhas:
         aba.append(
             [
-                linha.codigo,
+                linha.codparc,
                 linha.colaborador_nome,
                 linha.departamento or "—",
                 f"{linha.codemp} — {linha.empresa_nome}",
@@ -264,7 +264,7 @@ def _escrever_consolidado(aba: Worksheet, linhas: list[LinhaConsolidada]) -> Non
     for linha in linhas:
         aba.append(
             [
-                linha.codigo,
+                linha.codparc,
                 linha.colaborador_nome,
                 linha.departamento or "—",
                 f"{linha.codemp} — {linha.empresa_nome}",
