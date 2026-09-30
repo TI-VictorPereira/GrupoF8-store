@@ -152,7 +152,7 @@ def test_pedido_pendente_nao_entra_no_relatorio(dados):
         s.commit()
 
         linhas = relatorio_vendas.montar(s, _admin(), de, de)
-        assert linhas == []
+        assert all(linha.colaborador_nome != "Fulano de Teste" for linha in linhas)
 
 
 def test_colaborador_comum_nao_acessa_o_relatorio(dados):

@@ -156,9 +156,15 @@ def enviar_foto(ator: Ator, nome_arquivo: str, conteudo: bytes, content_type: st
 
 
 def listar_vitrine(sessao: Session) -> list[Produto]:
-    """O que o colaborador vê na loja: só o que está ativo."""
+    """O que o colaborador vê na loja: só o que está ativo e tem estoque.
+    Sem estoque some da loja mas continua na tela de admin — é lá que se
+    repõe."""
     return list(
-        sessao.scalars(select(Produto).where(Produto.ativo.is_(True)).order_by(Produto.nome))
+        sessao.scalars(
+            select(Produto)
+            .where(Produto.ativo.is_(True), Produto.estoque > 0)
+            .order_by(Produto.nome)
+        )
     )
 
 

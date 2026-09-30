@@ -297,6 +297,7 @@ def test_vitrine_esconde_inativos_e_nao_expoe_custo(cliente, admin, dados, faxin
             s, admin, DadosProduto(nome="Oculto", codigo=f"{PREFIXO}O", preco_venda=Decimal("2"), custo=Decimal("1"))
         )
         s.flush()
+        estoque.ajustar(s, admin, visivel.id, "entrada", 10, "reposição")
         produtos.definir_ativo(s, admin, oculto.id, False)
         s.commit()
         visivel_id = visivel.id
@@ -312,6 +313,35 @@ def test_vitrine_esconde_inativos_e_nao_expoe_custo(cliente, admin, dados, faxin
     assert str(visivel_id) in ids
     assert all(p["nome"] != "Oculto" for p in corpo)
     assert all("custo" not in p for p in corpo)
+
+
+def test_vitrine_esconde_produto_sem_estoque_mas_admin_continua_vendo(
+    cliente, admin, dados, faxina
+):
+    with FabricaDeSessao() as s:
+        sem_estoque = produtos.criar(
+            s,
+            admin,
+            DadosProduto(
+                nome="Sem Estoque",
+                codigo=f"{PREFIXO}SE",
+                preco_venda=Decimal("2"),
+                custo=Decimal("1"),
+            ),
+        )
+        s.commit()
+        sem_estoque_id = sem_estoque.id
+
+    with FabricaDeSessao() as s:
+        s.get(Colaborador, dados["ativo"]).senha_provisoria = False
+        s.commit()
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+    corpo_vitrine = cliente.get("/produtos/vitrine").json()
+    assert all(p["nome"] != "Sem Estoque" for p in corpo_vitrine)
+
+    corpo_admin = cliente.get("/produtos").json()
+    assert any(p["id"] == str(sem_estoque_id) for p in corpo_admin)
 
 
 def test_alteracao_de_produto_registra_apenas_o_que_mudou(admin, faxina):
