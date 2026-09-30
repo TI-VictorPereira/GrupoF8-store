@@ -1,7 +1,7 @@
-"""Relatório de vendas por empresa: só entregue/confirmado, aba separada."""
+"""Relatórios de vendas: detalhado e consolidado, sempre com a empresa
+separada em aba própria — nomeada com o nome real dela, não "Empresa 17"."""
 
 import uuid
-from datetime import UTC, datetime
 from decimal import Decimal
 from io import BytesIO
 
@@ -14,7 +14,7 @@ from app.core.db import FabricaDeSessao
 from app.excecoes import SemPermissao
 from app.models.cadastro import Colaborador, Empresa
 from app.models.operacao import Almoco, ItemPedido, Pedido
-from app.modules import relatorio_vendas
+from app.modules import precos, relatorio_vendas
 from app.modules.auditoria import Ator
 from tests.conftest import SENHA
 
@@ -27,34 +27,38 @@ def _contexto_de_teste():
 
 
 @pytest.fixture
-def colaborador_empresa_17():
-    """A empresa 17 já vem da migration de dados iniciais — o teste usa a
-    real, só cria (e depois apaga) o colaborador e os lançamentos."""
+def empresa_separada():
     with FabricaDeSessao() as s:
         empresa = s.scalar(
             select(Empresa).where(Empresa.codemp == relatorio_vendas.CODEMP_EMPRESA_SEPARADA)
         )
-        assert empresa is not None, "empresa 17 deveria vir da migration de dados iniciais"
+        assert empresa is not None, "a empresa separada deveria vir da migration de dados iniciais"
+        return {"id": empresa.id, "nome": empresa.nome}
+
+
+@pytest.fixture
+def colaborador_empresa_separada(empresa_separada):
+    with FabricaDeSessao() as s:
         pessoa = Colaborador(
-            nome_completo="Pessoa da Empresa 17",
-            codigo=f"{PREFIXO}17",
+            nome_completo="Pessoa da Empresa Separada",
+            codigo=f"{PREFIXO}SEP",
             codparc=uuid.uuid4().int % 100000 + 800000,
             vinculo="clt",
             matricula=uuid.uuid4().int % 100000 + 800000,
-            empresa_id=empresa.id,
+            empresa_id=empresa_separada["id"],
             papel="colaborador",
             senha_hash=seguranca.gerar_hash(SENHA),
         )
         s.add(pessoa)
         s.commit()
-        ids = {"colaborador": pessoa.id, "empresa": empresa.id}
+        colaborador_id = pessoa.id
 
-    yield ids
+    yield colaborador_id
 
     with FabricaDeSessao() as s:
-        s.execute(delete(Pedido).where(Pedido.colaborador_id == ids["colaborador"]))
-        s.execute(delete(Almoco).where(Almoco.colaborador_id == ids["colaborador"]))
-        s.execute(delete(Colaborador).where(Colaborador.id == ids["colaborador"]))
+        s.execute(delete(Pedido).where(Pedido.colaborador_id == colaborador_id))
+        s.execute(delete(Almoco).where(Almoco.colaborador_id == colaborador_id))
+        s.execute(delete(Colaborador).where(Colaborador.id == colaborador_id))
         s.commit()
 
 
@@ -62,7 +66,7 @@ def _admin() -> Ator:
     return Ator(id=None, codigo="admin-teste", nome="Admin", papel="admin")
 
 
-def _pedido_entregue(colaborador_id, empresa_id) -> uuid.UUID:
+def _pedido_entregue(colaborador_id, empresa_id, *, brinde: bool = False) -> uuid.UUID:
     with FabricaDeSessao() as s:
         colaborador = s.get(Colaborador, colaborador_id)
         pedido = Pedido(
@@ -81,43 +85,58 @@ def _pedido_entregue(colaborador_id, empresa_id) -> uuid.UUID:
                 pedido_id=pedido.id,
                 nome_produto="Refrigerante",
                 quantidade=2,
-                preco_unitario=Decimal("5.00"),
+                preco_unitario=Decimal("0.00") if brinde else Decimal("5.00"),
                 custo_unitario=Decimal("2.00"),
+                brinde=brinde,
             )
         )
         s.commit()
         return pedido.id
 
 
-def test_planilha_separa_empresa_17_em_aba_propria(dados, colaborador_empresa_17):
-    de = datetime.now(UTC).date()
-    ate = de
+def test_detalhado_separa_a_empresa_em_aba_com_nome_real(
+    dados, empresa_separada, colaborador_empresa_separada
+):
+    de = precos.hoje_local()
 
     _pedido_entregue(dados["ativo"], dados["empresa"])
-    _pedido_entregue(colaborador_empresa_17["colaborador"], colaborador_empresa_17["empresa"])
+    _pedido_entregue(colaborador_empresa_separada, empresa_separada["id"])
 
     with FabricaDeSessao() as s:
-        linhas = relatorio_vendas.montar(s, _admin(), de, ate)
+        linhas = relatorio_vendas.montar(s, _admin(), de, de)
+        livro = load_workbook(BytesIO(relatorio_vendas.planilha_detalhada(s, linhas)))
 
-    nomes_nas_linhas = {linha.colaborador_nome for linha in linhas}
-    assert "Fulano de Teste" in nomes_nas_linhas
-    assert "Pessoa da Empresa 17" in nomes_nas_linhas
+    nome_esperado = empresa_separada["nome"][:31]
+    assert livro.sheetnames == ["Demais empresas", nome_esperado]
 
-    livro = load_workbook(BytesIO(relatorio_vendas.planilha(linhas)))
-    assert livro.sheetnames == ["Empresas", "Empresa 17"]
-
-    aba_demais = livro["Empresas"]
+    aba_demais = livro["Demais empresas"]
     nomes_demais = [linha[1].value for linha in aba_demais.iter_rows(min_row=2)]
     assert "Fulano de Teste" in nomes_demais
-    assert "Pessoa da Empresa 17" not in nomes_demais
+    assert "Pessoa da Empresa Separada" not in nomes_demais
 
-    aba_17 = livro["Empresa 17"]
-    nomes_17 = [linha[1].value for linha in aba_17.iter_rows(min_row=2)]
-    assert nomes_17 == ["Pessoa da Empresa 17"]
+    aba_separada = livro[nome_esperado]
+    nomes_separada = [linha[1].value for linha in aba_separada.iter_rows(min_row=2)]
+    assert nomes_separada == ["Pessoa da Empresa Separada"]
+
+
+def test_item_de_brinde_aparece_marcado_na_planilha(dados):
+    de = precos.hoje_local()
+    _pedido_entregue(dados["ativo"], dados["empresa"], brinde=True)
+
+    with FabricaDeSessao() as s:
+        linhas = relatorio_vendas.montar(s, _admin(), de, de)
+        assert linhas[0].brinde is True
+
+        livro = load_workbook(BytesIO(relatorio_vendas.planilha_detalhada(s, linhas)))
+
+    cabecalho = [c.value for c in livro["Demais empresas"][1]]
+    assert cabecalho[-1] == "Brinde de aniversário"
+    linha_da_planilha = next(livro["Demais empresas"].iter_rows(min_row=2))
+    assert linha_da_planilha[-1].value == "Sim"
 
 
 def test_pedido_pendente_nao_entra_no_relatorio(dados):
-    de = datetime.now(UTC).date()
+    de = precos.hoje_local()
     with FabricaDeSessao() as s:
         colaborador = s.get(Colaborador, dados["ativo"])
         pedido = Pedido(
@@ -140,4 +159,35 @@ def test_colaborador_comum_nao_acessa_o_relatorio(dados):
     comum = Ator(id=dados["ativo"], codigo="x", nome="x", papel="colaborador")
     with FabricaDeSessao() as s:
         with pytest.raises(SemPermissao):
-            relatorio_vendas.montar(s, comum, datetime.now(UTC).date(), datetime.now(UTC).date())
+            relatorio_vendas.montar(s, comum, precos.hoje_local(), precos.hoje_local())
+
+
+def test_consolidado_soma_as_compras_da_mesma_pessoa(dados):
+    de = precos.hoje_local()
+    _pedido_entregue(dados["ativo"], dados["empresa"])
+    _pedido_entregue(dados["ativo"], dados["empresa"])
+
+    with FabricaDeSessao() as s:
+        linhas = relatorio_vendas.montar(s, _admin(), de, de)
+        consolidado = relatorio_vendas.consolidar_por_pessoa(linhas)
+
+    minha = next(c for c in consolidado if c.colaborador_nome == "Fulano de Teste")
+    assert minha.compras == 2
+    assert minha.itens == 4
+    assert minha.valor_total == Decimal("20.00")
+
+
+def test_planilha_consolidada_tambem_separa_a_empresa(
+    dados, empresa_separada, colaborador_empresa_separada
+):
+    de = precos.hoje_local()
+    _pedido_entregue(dados["ativo"], dados["empresa"])
+    _pedido_entregue(colaborador_empresa_separada, empresa_separada["id"])
+
+    with FabricaDeSessao() as s:
+        linhas = relatorio_vendas.montar(s, _admin(), de, de)
+        consolidado = relatorio_vendas.consolidar_por_pessoa(linhas)
+        livro = load_workbook(BytesIO(relatorio_vendas.planilha_consolidada(s, consolidado)))
+
+    nome_esperado = empresa_separada["nome"][:31]
+    assert livro.sheetnames == ["Demais empresas", nome_esperado]

@@ -1,10 +1,12 @@
-"""Relatório de vendas por empresa, em Excel — uma aba por recorte.
+"""Relatórios de vendas em Excel — sempre em duas abas, uma empresa separada
+do resto do grupo.
 
-A empresa 17 sai separada por pedido de negócio, não por regra técnica: o
+A empresa separada sai por pedido de negócio, não por regra técnica: o
 CODEMP é só um valor de configuração, não um enum do domínio, por isso vive
 aqui como constante e não como caso especial em algum outro módulo.
 """
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -25,7 +27,7 @@ from app.modules.auditoria import Ator
 
 CODEMP_EMPRESA_SEPARADA = 17
 
-COLUNAS = (
+COLUNAS_DETALHADO = (
     "Código",
     "Colaborador",
     "Departamento",
@@ -38,6 +40,18 @@ COLUNAS = (
     "Valor unitário",
     "Valor total",
     "Código do pedido",
+    "Brinde de aniversário",
+)
+
+COLUNAS_CONSOLIDADO = (
+    "Código",
+    "Colaborador",
+    "Departamento",
+    "Empresa",
+    "Compras",
+    "Itens",
+    "Almoços",
+    "Valor total",
 )
 
 
@@ -56,6 +70,20 @@ class LinhaVenda:
     preco_unitario: Decimal
     valor_total: Decimal
     codigo_pedido: str
+    brinde: bool
+
+
+@dataclass
+class LinhaConsolidada:
+    codemp: int
+    empresa_nome: str
+    codigo: str
+    colaborador_nome: str
+    departamento: str | None
+    compras: int
+    itens: int
+    almocos: int
+    valor_total: Decimal
 
 
 def _intervalo(de: date, ate: date) -> tuple[datetime, datetime]:
@@ -103,6 +131,7 @@ def montar(sessao: Session, ator: Ator, de: date, ate: date) -> list[LinhaVenda]
                 preco_unitario=item.preco_unitario,
                 valor_total=item.preco_unitario * item.quantidade,
                 codigo_pedido=pedido.codigo_retirada,
+                brinde=item.brinde,
             )
         )
 
@@ -132,14 +161,72 @@ def montar(sessao: Session, ator: Ator, de: date, ate: date) -> list[LinhaVenda]
                 preco_unitario=almoco.valor,
                 valor_total=almoco.valor,
                 codigo_pedido="—",
+                brinde=False,
             )
         )
 
     return linhas
 
 
-def _escrever_aba(aba: Worksheet, linhas: list[LinhaVenda]) -> None:
-    aba.append(list(COLUNAS))
+def consolidar_por_pessoa(linhas: list[LinhaVenda]) -> list[LinhaConsolidada]:
+    """Uma linha por pessoa: total gasto no período, loja e refeitório juntos.
+
+    'Compras' conta pedido distinto, não item — uma compra de três produtos é
+    uma compra só. Por isso o código do pedido de cada um é guardado num
+    conjunto à parte, e não somado direto como itens e almoços são.
+    """
+    agregados: dict[str, dict] = {}
+    pedidos_por_pessoa: dict[str, set[str]] = {}
+
+    for linha in linhas:
+        dados = agregados.setdefault(
+            linha.codigo,
+            {
+                "codemp": linha.codemp,
+                "empresa_nome": linha.empresa_nome,
+                "colaborador_nome": linha.colaborador_nome,
+                "departamento": linha.departamento,
+                "itens": 0,
+                "almocos": 0,
+                "valor_total": Decimal("0"),
+            },
+        )
+        dados["valor_total"] += linha.valor_total
+        if linha.tipo == "Almoço":
+            dados["almocos"] += 1
+        else:
+            dados["itens"] += linha.quantidade
+            pedidos_por_pessoa.setdefault(linha.codigo, set()).add(linha.codigo_pedido)
+
+    return [
+        LinhaConsolidada(
+            codemp=dados["codemp"],
+            empresa_nome=dados["empresa_nome"],
+            codigo=codigo,
+            colaborador_nome=dados["colaborador_nome"],
+            departamento=dados["departamento"],
+            compras=len(pedidos_por_pessoa.get(codigo, set())),
+            itens=dados["itens"],
+            almocos=dados["almocos"],
+            valor_total=dados["valor_total"],
+        )
+        for codigo, dados in agregados.items()
+    ]
+
+
+def _nome_da_empresa_separada(sessao: Session) -> str:
+    nome = sessao.scalar(select(Empresa.nome).where(Empresa.codemp == CODEMP_EMPRESA_SEPARADA))
+    return nome or f"Empresa {CODEMP_EMPRESA_SEPARADA}"
+
+
+def _nome_de_aba(bruto: str) -> str:
+    """Excel proíbe alguns caracteres no título da aba e corta em 31."""
+    limpo = re.sub(r'[:\\/?*\[\]]', "", bruto).strip()
+    return (limpo or f"Empresa {CODEMP_EMPRESA_SEPARADA}")[:31]
+
+
+def _escrever_detalhado(aba: Worksheet, linhas: list[LinhaVenda]) -> None:
+    aba.append(list(COLUNAS_DETALHADO))
     for celula in aba[1]:
         celula.font = Font(bold=True)
     aba.freeze_panes = "A2"
@@ -159,27 +246,68 @@ def _escrever_aba(aba: Worksheet, linhas: list[LinhaVenda]) -> None:
                 float(linha.preco_unitario),
                 float(linha.valor_total),
                 linha.codigo_pedido,
+                "Sim" if linha.brinde else "—",
             ]
         )
 
-    larguras = (12, 28, 22, 28, 16, 16, 28, 16, 10, 14, 14, 16)
+    larguras = (12, 28, 22, 28, 16, 16, 28, 16, 10, 14, 14, 16, 18)
     for indice, largura in enumerate(larguras, start=1):
         aba.column_dimensions[aba.cell(row=1, column=indice).column_letter].width = largura
 
 
-def planilha(linhas: list[LinhaVenda]) -> bytes:
-    """Duas abas: a empresa separada por pedido de negócio fica isolada, o
-    resto do grupo fica junto."""
-    livro = Workbook()
+def _escrever_consolidado(aba: Worksheet, linhas: list[LinhaConsolidada]) -> None:
+    aba.append(list(COLUNAS_CONSOLIDADO))
+    for celula in aba[1]:
+        celula.font = Font(bold=True)
+    aba.freeze_panes = "A2"
 
+    for linha in linhas:
+        aba.append(
+            [
+                linha.codigo,
+                linha.colaborador_nome,
+                linha.departamento or "—",
+                f"{linha.codemp} — {linha.empresa_nome}",
+                linha.compras,
+                linha.itens,
+                linha.almocos,
+                float(linha.valor_total),
+            ]
+        )
+
+    larguras = (12, 28, 22, 28, 10, 10, 10, 14)
+    for indice, largura in enumerate(larguras, start=1):
+        aba.column_dimensions[aba.cell(row=1, column=indice).column_letter].width = largura
+
+
+def planilha_detalhada(sessao: Session, linhas: list[LinhaVenda]) -> bytes:
+    livro = Workbook()
     aba_demais: Worksheet = livro.active
-    aba_demais.title = "Empresas"
-    _escrever_aba(
+    aba_demais.title = "Demais empresas"
+    _escrever_detalhado(
         aba_demais, [linha for linha in linhas if linha.codemp != CODEMP_EMPRESA_SEPARADA]
     )
 
-    aba_separada = livro.create_sheet(f"Empresa {CODEMP_EMPRESA_SEPARADA}")
-    _escrever_aba(
+    aba_separada = livro.create_sheet(_nome_de_aba(_nome_da_empresa_separada(sessao)))
+    _escrever_detalhado(
+        aba_separada, [linha for linha in linhas if linha.codemp == CODEMP_EMPRESA_SEPARADA]
+    )
+
+    buffer = BytesIO()
+    livro.save(buffer)
+    return buffer.getvalue()
+
+
+def planilha_consolidada(sessao: Session, linhas: list[LinhaConsolidada]) -> bytes:
+    livro = Workbook()
+    aba_demais: Worksheet = livro.active
+    aba_demais.title = "Demais empresas"
+    _escrever_consolidado(
+        aba_demais, [linha for linha in linhas if linha.codemp != CODEMP_EMPRESA_SEPARADA]
+    )
+
+    aba_separada = livro.create_sheet(_nome_de_aba(_nome_da_empresa_separada(sessao)))
+    _escrever_consolidado(
         aba_separada, [linha for linha in linhas if linha.codemp == CODEMP_EMPRESA_SEPARADA]
     )
 

@@ -17,10 +17,9 @@ import {
 } from "@/componentes/ui/table";
 import { mensagemDeErro } from "@/comum/erros";
 import { FiltroPeriodo } from "@/componentes/FiltroPeriodo";
-import { dataHora, dinheiro } from "@/comum/formato";
+import { dinheiro } from "@/comum/formato";
 import { ordenar, useOrdenacao } from "@/comum/ordenacao";
 import { intervaloDoFiltro, periodoInicial } from "@/comum/periodo";
-import { baixarCsv } from "@/comum/planilha";
 import type { LinhaPedido } from "@/interfaces/admin";
 import type { LinhaPainel } from "@/interfaces/refeitorio";
 
@@ -116,137 +115,42 @@ export function Vendas() {
     (l) => l.almoco.status === "confirmado",
   );
 
-  /** Uma linha por item comprado e por almoço — o detalhado do Sankhya. */
-  function exportarConsumo() {
-    const daLoja = entregues.flatMap((linha) =>
-      linha.pedido.itens.map((item) => ({
-        Código: linha.colaborador_codigo,
-        Colaborador: linha.colaborador_nome,
-        Departamento: linha.departamento ?? "—",
-        Data: dataHora(linha.pedido.criado_em),
-        Tipo: "Compra na loja",
-        Item: item.nome_produto,
-        Categoria: item.categoria ?? "—",
-        Quantidade: item.quantidade,
-        "Valor unitário": Number(item.preco_unitario).toFixed(2),
-        "Valor total": (Number(item.preco_unitario) * item.quantidade).toFixed(2),
-        "Código do pedido": linha.pedido.codigo_retirada,
-        Status: linha.pedido.status,
-      })),
-    );
-    const doRefeitorio = almocosConfirmados.map((linha) => ({
-      Código: linha.colaborador_codigo,
-      Colaborador: linha.colaborador_nome,
-      Departamento: linha.departamento ?? "—",
-      Data: dataHora(linha.almoco.criado_em),
-      Tipo: "Almoço",
-      Item: "Almoço no refeitório",
-      Categoria: linha.almoco.origem === "manual" ? "Registro manual" : "Totem",
-      Quantidade: 1,
-      "Valor unitário": Number(linha.almoco.valor).toFixed(2),
-      "Valor total": Number(linha.almoco.valor).toFixed(2),
-      "Código de retirada": "—",
-      Status: linha.almoco.status,
-    }));
-
-    baixarCsv(
-      `consumo-detalhado-f8-${de}_a_${ate}`,
-      [...daLoja, ...doRefeitorio].sort((a, b) => a.Colaborador.localeCompare(b.Colaborador)),
-    );
-  }
-
-  /** Uma linha por pessoa — o resumo do Sankhya. */
-  function exportarPorColaborador() {
-    type Resumo = {
-      codigo: string;
-      nome: string;
-      departamento: string;
-      compras: number;
-      itens: number;
-      almocos: number;
-      valor: number;
-    };
-    const mapa = new Map<string, Resumo>();
-
-    const garantir = (codigo: string, nome: string, departamento: string | null): Resumo => {
-      const atual = mapa.get(codigo) ?? {
-        codigo,
-        nome,
-        departamento: departamento ?? "—",
-        compras: 0,
-        itens: 0,
-        almocos: 0,
-        valor: 0,
-      };
-      mapa.set(codigo, atual);
-      return atual;
-    };
-
-    for (const linha of entregues) {
-      const resumo = garantir(
-        linha.colaborador_codigo,
-        linha.colaborador_nome,
-        linha.departamento,
-      );
-      resumo.compras += 1;
-      for (const item of linha.pedido.itens) {
-        resumo.itens += item.quantidade;
-        resumo.valor += Number(item.preco_unitario) * item.quantidade;
-      }
-    }
-    for (const linha of almocosConfirmados) {
-      const resumo = garantir(
-        linha.colaborador_codigo,
-        linha.colaborador_nome,
-        linha.departamento,
-      );
-      resumo.almocos += 1;
-      resumo.valor += Number(linha.almoco.valor);
-    }
-
-    baixarCsv(
-      `consumo-por-colaborador-f8-${de}_a_${ate}`,
-      [...mapa.values()]
-        .sort((a, b) => b.valor - a.valor)
-        .map((r) => ({
-          Código: r.codigo,
-          Colaborador: r.nome,
-          Departamento: r.departamento,
-          "Compras realizadas": r.compras,
-          "Itens comprados": r.itens,
-          "Almoços confirmados": r.almocos,
-          "Valor total": r.valor.toFixed(2),
-        })),
-    );
-  }
-
-  const baixarPorEmpresa = useMutation({
+  const baixarDetalhado = useMutation({
     mutationFn: () =>
       api.baixar(
-        `/relatorios/vendas-por-empresa?de=${de}&ate=${ate}`,
-        `vendas-por-empresa-${de}_a_${ate}.xlsx`,
+        `/relatorios/vendas-detalhado?de=${de}&ate=${ate}`,
+        `vendas-detalhado-${de}_a_${ate}.xlsx`,
       ),
   });
 
-  const erro = vendas.error ?? almocos.error ?? baixarPorEmpresa.error;
+  const baixarConsolidado = useMutation({
+    mutationFn: () =>
+      api.baixar(
+        `/relatorios/vendas-consolidado?de=${de}&ate=${ate}`,
+        `vendas-consolidado-${de}_a_${ate}.xlsx`,
+      ),
+  });
+
+  const erro = vendas.error ?? almocos.error ?? baixarDetalhado.error ?? baixarConsolidado.error;
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-bold">Vendas</h1>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={exportarConsumo} disabled={!entregues.length}>
-            Consumo detalhado
-          </Button>
-          <Button variant="destaque" onClick={exportarPorColaborador} disabled={!entregues.length}>
-            Por colaborador
-          </Button>
           <Button
             variant="outline"
-            onClick={() => baixarPorEmpresa.mutate()}
-            disabled={!entregues.length || baixarPorEmpresa.isPending}
+            onClick={() => baixarDetalhado.mutate()}
+            disabled={!entregues.length || baixarDetalhado.isPending}
           >
-            {baixarPorEmpresa.isPending ? "Gerando…" : "Por empresa (Excel)"}
+            {baixarDetalhado.isPending ? "Gerando…" : "Detalhado"}
+          </Button>
+          <Button
+            variant="destaque"
+            onClick={() => baixarConsolidado.mutate()}
+            disabled={!entregues.length || baixarConsolidado.isPending}
+          >
+            {baixarConsolidado.isPending ? "Gerando…" : "Consolidado por pessoa"}
           </Button>
         </div>
       </div>
