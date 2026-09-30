@@ -228,6 +228,41 @@ def test_pedido_cancelado_e_almoco_expirado_nao_entram(dados, movimento):
     assert minhas[folha.CODEVENTO_REFEITORIO].valor == Decimal("18.50")
 
 
+def test_almoco_de_visitante_nao_quebra_a_folha_e_fica_fora_dela():
+    """Visitante não tem colaborador_id: não pode entrar na soma por pessoa.
+
+    Sem filtrar isso fora, o agrupamento por colaborador_id junta todo
+    visitante confirmado na competência numa chave (None, None, None), e a
+    busca por Colaborador correspondente explode com KeyError — quebrando a
+    exportação inteira, não só a linha do visitante.
+    """
+    with FabricaDeSessao() as s:
+        visitante = Almoco(
+            colaborador_id=None,
+            empresa_id=None,
+            visitante_nome="Visitante da Folha",
+            vinculo="visitante",
+            matricula=None,
+            codigo_barras=uuid.uuid4().hex[:20],
+            status="confirmado",
+            origem="visitante",
+            valor=Decimal("18.50"),
+            expira_em=datetime.now(UTC),
+            confirmado_em=datetime.now(UTC),
+        )
+        s.add(visitante)
+        s.commit()
+        visitante_id = visitante.id
+
+    try:
+        resultado = _montar()
+        assert all(pessoa.nome != "Visitante da Folha" for pessoa in resultado.pessoas)
+    finally:
+        with FabricaDeSessao() as s:
+            s.execute(delete(Almoco).where(Almoco.id == visitante_id))
+            s.commit()
+
+
 def test_dp_exporta_e_os_outros_nao(dados):
     """O DP fecha a folha; o refeitório e o colaborador comum, não.
 

@@ -197,20 +197,24 @@ def montar(
 
     inicio, fim = consumo.intervalo_da_competencia(competencia)
 
+    # Visitante não tem colaborador_id: não tem folha pra descontar, então
+    # nunca pode entrar nesta soma. Sem este filtro, `pessoas[colaborador_id]`
+    # explode com KeyError assim que um visitante aparecer na competência.
     if lote_id is not None:
-        
-        onde_loja = [Pedido.lote_id == lote_id]
-        onde_refeitorio = [Almoco.lote_id == lote_id]
+        onde_loja = [Pedido.lote_id == lote_id, Pedido.colaborador_id.isnot(None)]
+        onde_refeitorio = [Almoco.lote_id == lote_id, Almoco.colaborador_id.isnot(None)]
     else:
         onde_loja = [
             Pedido.criado_em >= inicio,
             Pedido.criado_em < fim,
             Pedido.status != "cancelado",
+            Pedido.colaborador_id.isnot(None),
         ]
         onde_refeitorio = [
             Almoco.criado_em >= inicio,
             Almoco.criado_em < fim,
             Almoco.status == "confirmado",
+            Almoco.colaborador_id.isnot(None),
         ]
 
     loja = _somar(sessao, Pedido, Pedido.valor_total, onde_loja)
