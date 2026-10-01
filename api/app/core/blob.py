@@ -1,14 +1,6 @@
 """Upload de arquivo pro Vercel Blob.
 
-⚠️ Não existe SDK oficial da Vercel para Python — isto é o protocolo HTTP que
-o SDK oficial em JS (`@vercel/blob`) usa por baixo, reconstruído a partir do
-código-fonte publicado dele. Não é um contrato documentado pela Vercel para
-uso de fora do próprio SDK, então pode mudar numa atualização deles sem
-aviso nenhum. Validado contra uma conta real em produção (2026-10-01) com
-`x-api-version: 12` — se o upload começar a falhar do nada um dia, é aqui que
-se começa a procurar: confira se essa versão mudou no `@vercel/blob` do
-GitHub e ajuste a URL, os cabeçalhos ou o formato da resposta conforme o que
-mudou.
+
 """
 
 import mimetypes
