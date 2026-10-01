@@ -14,10 +14,13 @@ export interface ItemDePedido {
 
 export interface PedidoCompleto {
   id: string;
-  colaborador_id: string;
+  colaborador_id: string | null;
+  visitante_nome: string | null;
   valor_total: string;
   status: StatusPedido;
   codigo_retirada: string;
+  pix_txid: string | null;
+  pix_confirmado_em: string | null;
   criado_em: string;
   entregue_em: string | null;
   entregue_por: string | null;
@@ -25,6 +28,24 @@ export interface PedidoCompleto {
   motivo_cancelamento: string | null;
   cancelado_por: string | null;
   itens: ItemDePedido[];
+}
+
+export interface ItemDeVendaAVisitante {
+  produto_id: string;
+  quantidade: number;
+  brinde: boolean;
+}
+
+export interface PixGerado {
+  valor: string;
+  txid: string;
+  copia_cola: string;
+  qr_code_base64: string;
+}
+
+export interface VendaAVisitanteResposta {
+  pedido: PedidoCompleto;
+  pix: PixGerado | null;
 }
 
 /** Linha da fila de entregas do balcão. */

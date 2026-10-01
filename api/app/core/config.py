@@ -75,6 +75,13 @@ class Config(BaseSettings):
     blob_read_write_token: str = ""
     blob_store_id: str = ""
 
+    # --- pix (venda de loja a visitante) ----------------------------------
+    # Chave única da empresa. Vazio desliga a geração de Pix — nesse caso uma
+    # venda a visitante com algo a pagar é recusada (ver PixNaoConfigurado).
+    pix_chave: str = ""
+    pix_recebedor: str = ""
+    pix_cidade: str = ""
+
     @property
     def url_para_alembic(self) -> str:
         return self.database_url_direta or self.database_url

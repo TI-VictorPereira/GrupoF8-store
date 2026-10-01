@@ -46,7 +46,7 @@ def enviar(nome_arquivo: str, conteudo: bytes) -> str:
                 "x-vercel-blob-store-id": config.blob_store_id,
                 "x-api-blob-request-id": str(uuid.uuid4()),
                 "x-api-blob-request-attempt": "0",
-                "x-api-version": "7",
+                "x-api-version": "12",
                 "x-vercel-blob-access": "public",
                 "x-content-type": tipo,
             },

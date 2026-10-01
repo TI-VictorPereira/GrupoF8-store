@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, criado_em, dinheiro, fk_uuid, pk_uuid
 
-PEDIDO_STATUS = ("pendente", "entregue", "cancelado")
+PEDIDO_STATUS = ("pendente", "entregue", "cancelado", "aguardando_pagamento")
 ALMOCO_STATUS = ("pendente", "confirmado", "expirado", "cancelado")
 ALMOCO_ORIGEM = ("totem", "manual", "visitante")
 AJUSTE_TIPO = ("entrada", "baixa")
@@ -20,18 +20,32 @@ class Pedido(Base):
     __table_args__ = (
         CheckConstraint(f"status in {PEDIDO_STATUS}", name="status_valido"),
         CheckConstraint("valor_total >= 0", name="valor_nao_negativo"),
+        # Visitante não tem cadastro de colaborador — um pedido é de um jeito
+        # ou do outro, nunca dos dois nem de nenhum. Mesma regra do Almoco.
+        CheckConstraint(
+            "(colaborador_id is not null) != (visitante_nome is not null)",
+            name="colaborador_xor_visitante",
+        ),
         Index("ix_pedidos_colaborador_criado", "colaborador_id", "criado_em"),
         Index("ix_pedidos_status_criado", "status", "criado_em"),
     )
 
     id: Mapped[uuid.UUID] = pk_uuid()
-    colaborador_id: Mapped[uuid.UUID] = fk_uuid("colaboradores.id")
-    empresa_id: Mapped[uuid.UUID] = fk_uuid("empresas.id")
-    vinculo: Mapped[str] = mapped_column(String(10), nullable=False)
+    colaborador_id: Mapped[uuid.UUID | None] = fk_uuid("colaboradores.id", obrigatorio=False)
+    empresa_id: Mapped[uuid.UUID | None] = fk_uuid("empresas.id", obrigatorio=False)
+    vinculo: Mapped[str | None] = mapped_column(String(10), nullable=True)
     matricula: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    visitante_nome: Mapped[str | None] = mapped_column(String(160), nullable=True)
     valor_total: Mapped[Decimal] = dinheiro()
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pendente")
     codigo_retirada: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Só existe quando a venda foi a visitante e teve algo a pagar — não é
+    # gerado pra compra de colaborador (paga em folha) nem pra venda 100%
+    # cortesia (nada a cobrar).
+    pix_txid: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    pix_confirmado_em: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     criado_em: Mapped[datetime] = criado_em()
     entregue_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     entregue_por: Mapped[uuid.UUID | None] = fk_uuid("colaboradores.id", obrigatorio=False)

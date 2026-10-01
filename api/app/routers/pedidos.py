@@ -13,9 +13,12 @@ from app.schemas.pedido import (
     BrindeSaida,
     EntradaCancelamento,
     EntradaPedido,
+    EntradaVendaAVisitante,
     LinhaPedidoSaida,
     PedidoDetalheSaida,
     PedidoSaida,
+    PixSaida,
+    VendaAVisitanteSaida,
 )
 
 rotas = APIRouter(prefix="/pedidos", tags=["pedidos"])
@@ -52,6 +55,37 @@ def brinde(ator: ConsumidorLiberado, sessao: Sessao) -> BrindeSaida:
 @rotas.get("/me", response_model=list[PedidoDetalheSaida])
 def meus_pedidos(ator: ConsumidorLiberado, sessao: Sessao) -> list[PedidoDetalheSaida]:
     return [_detalhe(sessao, pedido) for pedido in pedidos.listar_proprios(sessao, ator)]
+
+
+@rotas.post("/visitante", response_model=VendaAVisitanteSaida, status_code=201)
+def vender_a_visitante(
+    dados: EntradaVendaAVisitante, ator: AdminLiberado, sessao: Sessao
+) -> VendaAVisitanteSaida:
+    itens = [
+        pedidos.ItemDeVendaAVisitante(
+            produto_id=item.produto_id, quantidade=item.quantidade, brinde=item.brinde
+        )
+        for item in dados.itens
+    ]
+    resultado = pedidos.vender_a_visitante(sessao, ator, dados.visitante_nome, itens)
+    return VendaAVisitanteSaida(
+        pedido=_detalhe(sessao, resultado.pedido),
+        pix=PixSaida(**vars(resultado.pix)) if resultado.pix else None,
+    )
+
+
+@rotas.get("/visitante", response_model=list[PedidoDetalheSaida])
+def vendas_a_visitante(
+    de: date, ate: date, ator: AdminLiberado, sessao: Sessao
+) -> list[PedidoDetalheSaida]:
+    """Histórico de vendas a visitante do período, pra aba própria em Vendas."""
+    linhas = pedidos.listar_vendas_a_visitante(sessao, ator, de, ate)
+    return [_detalhe(sessao, linha.pedido) for linha in linhas]
+
+
+@rotas.post("/{pedido_id}/confirmar-pix", response_model=PedidoSaida)
+def confirmar_pix(pedido_id: uuid.UUID, ator: AdminLiberado, sessao: Sessao) -> Pedido:
+    return pedidos.confirmar_pix(sessao, ator, pedido_id)
 
 
 @rotas.get("/pendentes", response_model=list[LinhaPedidoSaida])

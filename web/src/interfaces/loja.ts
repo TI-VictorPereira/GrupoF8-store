@@ -1,6 +1,6 @@
 /** Vitrine, carrinho e pedidos da loja interna. */
 
-export type StatusPedido = "pendente" | "entregue" | "cancelado";
+export type StatusPedido = "pendente" | "entregue" | "cancelado" | "aguardando_pagamento";
 
 export interface Categoria {
   id: string;

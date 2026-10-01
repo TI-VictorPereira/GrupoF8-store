@@ -12,6 +12,7 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
+from app.core import pix as pix_core
 from app.core.config import obter_config
 from app.excecoes import (
     BrindeForaDoCarrinho,
@@ -22,8 +23,11 @@ from app.excecoes import (
     CodigoRetiradaIndisponivel,
     ColaboradorInativo,
     EstoqueInsuficiente,
+    NomeObrigatorio,
+    PedidoNaoAguardandoPagamento,
     PedidoNaoPendente,
     PeriodoInvalido,
+    PixNaoConfigurado,
     ProdutoIndisponivel,
     SemPermissao,
 )
@@ -214,6 +218,216 @@ def finalizar(
     return pedido
 
 
+@dataclass
+class ItemDeVendaAVisitante:
+    produto_id: uuid.UUID
+    quantidade: int
+    brinde: bool
+
+
+@dataclass
+class VendaAVisitante:
+    pedido: Pedido
+    pix: pix_core.PixGerado | None
+
+
+def vender_a_visitante(
+    sessao: Session, ator: Ator, visitante_nome: str, itens: list[ItemDeVendaAVisitante]
+) -> VendaAVisitante:
+    """Venda avulsa a quem não tem colaborador cadastrado, cobrada por Pix.
+
+    Cortesia é por item (não por unidade, como o brinde de aniversário): o
+    admin marca a linha inteira como cortesia ou não, sem regra de limite —
+    é decisão dele, não um direito automático. Se o total pago der zero, a
+    venda já sai confirmada, sem gerar Pix de R$ 0,00.
+    """
+    if not ator.eh_admin:
+        raise SemPermissao()
+    if not itens:
+        raise CarrinhoVazio()
+    nome = visitante_nome.strip()
+    if not nome:
+        raise NomeObrigatorio(detalhes={"entidade": "visitante"})
+
+    quantidades = Counter()
+    cortesia: set[uuid.UUID] = set()
+    for item in itens:
+        if item.quantidade <= 0:
+            raise CarrinhoVazio()
+        quantidades[item.produto_id] += item.quantidade
+        if item.brinde:
+            cortesia.add(item.produto_id)
+
+    snapshots: list[tuple[Produto, int, str | None, bool]] = []
+    total = Decimal("0")
+    for produto_id, quantidade in sorted(quantidades.items(), key=lambda item: str(item[0])):
+        produto = sessao.execute(
+            update(Produto)
+            .where(
+                Produto.id == produto_id,
+                Produto.ativo.is_(True),
+                Produto.estoque >= quantidade,
+            )
+            .values(estoque=Produto.estoque - quantidade)
+            .returning(Produto)
+        ).scalar_one_or_none()
+        if produto is None:
+            existente = sessao.get(Produto, produto_id)
+            if existente is None or not existente.ativo:
+                raise ProdutoIndisponivel()
+            raise EstoqueInsuficiente(detalhes={"produto_id": str(produto_id)})
+
+        categoria = (
+            sessao.get(CategoriaProduto, produto.categoria_id) if produto.categoria_id else None
+        )
+        eh_cortesia = produto.id in cortesia
+        snapshots.append((produto, quantidade, categoria.nome if categoria else None, eh_cortesia))
+        if not eh_cortesia:
+            total += produto.preco_venda * quantidade
+
+    pedido: Pedido | None = None
+    for _ in range(10):
+        candidato = Pedido(
+            colaborador_id=None,
+            empresa_id=None,
+            vinculo=None,
+            matricula=None,
+            visitante_nome=nome,
+            valor_total=total,
+            status="entregue" if total == 0 else "aguardando_pagamento",
+            codigo_retirada=_codigo_retirada(),
+        )
+        try:
+            with sessao.begin_nested():
+                sessao.add(candidato)
+                sessao.flush()
+        except IntegrityError:
+            continue
+        pedido = candidato
+        break
+    if pedido is None:
+        raise CodigoRetiradaIndisponivel()
+
+    for produto, quantidade, categoria, eh_cortesia in snapshots:
+        sessao.add(
+            ItemPedido(
+                pedido_id=pedido.id,
+                produto_id=produto.id,
+                nome_produto=produto.nome,
+                categoria=categoria,
+                quantidade=quantidade,
+                preco_unitario=Decimal("0.00") if eh_cortesia else produto.preco_venda,
+                custo_unitario=produto.custo,
+                brinde=eh_cortesia,
+            )
+        )
+
+    pix_gerado: pix_core.PixGerado | None = None
+    if total > 0:
+        pedido.pix_txid = pedido.codigo_retirada
+        try:
+            pix_gerado = pix_core.gerar(valor=total, txid=pedido.pix_txid)
+        except pix_core.PixNaoConfigurado as erro:
+            raise PixNaoConfigurado() from erro
+    else:
+        pedido.entregue_em = _agora()
+        pedido.entregue_por = ator.id
+
+    sessao.flush()
+    # Sem isto, colunas nunca atribuídas neste objeto (entregue_em,
+    # cancelado_em etc.) ficam ausentes de `pedido.__dict__` — e é
+    # `__dict__`, não os atributos, que `_detalhe()` usa pra montar a
+    # resposta. Todo outro caminho já lê um Pedido vindo de um SELECT (que
+    # popula tudo); este é o único que devolve o objeto recém-criado.
+    sessao.refresh(pedido)
+    auditoria.registrar(
+        sessao,
+        ator,
+        acao="pedido.venda_a_visitante",
+        entidade="pedido",
+        entidade_id=pedido.id,
+        descricao=f"Registrou venda a visitante ({nome}): {pedido.codigo_retirada}.",
+        dados_anteriores={},
+        dados_novos={
+            "visitante_nome": nome,
+            "valor_total": str(total),
+            "status": pedido.status,
+        },
+    )
+    return VendaAVisitante(pedido=pedido, pix=pix_gerado)
+
+
+def confirmar_pix(sessao: Session, ator: Ator, pedido_id: uuid.UUID) -> Pedido:
+    """O admin viu o Pix cair na própria conta (fora do sistema) e confirma
+    aqui — não há webhook de banco ou PSP nesta versão."""
+    if not ator.eh_admin:
+        raise SemPermissao()
+    pedido = sessao.get(Pedido, pedido_id)
+    if pedido is None or pedido.status != "aguardando_pagamento":
+        raise PedidoNaoAguardandoPagamento()
+
+    agora = _agora()
+    pedido.status = "entregue"
+    pedido.entregue_em = agora
+    pedido.entregue_por = ator.id
+    pedido.pix_confirmado_em = agora
+    auditoria.registrar(
+        sessao,
+        ator,
+        acao="pedido.pix_confirmado",
+        entidade="pedido",
+        entidade_id=pedido.id,
+        descricao=f"Confirmou o pagamento Pix do pedido {pedido.codigo_retirada}.",
+        dados_anteriores={"status": "aguardando_pagamento"},
+        dados_novos={"status": "entregue"},
+    )
+    return pedido
+
+
+@dataclass
+class LinhaVendaAVisitante:
+    pedido: Pedido
+    itens: list[ItemPedido]
+
+
+def listar_vendas_a_visitante(
+    sessao: Session, ator: Ator, de: date, ate: date
+) -> list[LinhaVendaAVisitante]:
+    """Vendas a visitante do período, pra aba própria da tela de Vendas."""
+    if not ator.eh_admin:
+        raise SemPermissao()
+    if ate < de:
+        raise PeriodoInvalido()
+
+    fuso = ZoneInfo(_config.fuso)
+    inicio = datetime(de.year, de.month, de.day, tzinfo=fuso).astimezone(UTC)
+    fim = (datetime(ate.year, ate.month, ate.day, tzinfo=fuso) + timedelta(days=1)).astimezone(UTC)
+
+    pedidos = list(
+        sessao.scalars(
+            select(Pedido)
+            .where(
+                Pedido.colaborador_id.is_(None),
+                Pedido.criado_em >= inicio,
+                Pedido.criado_em < fim,
+            )
+            .order_by(Pedido.criado_em.desc())
+        )
+    )
+    if not pedidos:
+        return []
+
+    ids = [pedido.id for pedido in pedidos]
+    itens_por_pedido: dict[uuid.UUID, list[ItemPedido]] = {}
+    for item in sessao.scalars(select(ItemPedido).where(ItemPedido.pedido_id.in_(ids))):
+        itens_por_pedido.setdefault(item.pedido_id, []).append(item)
+
+    return [
+        LinhaVendaAVisitante(pedido=pedido, itens=itens_por_pedido.get(pedido.id, []))
+        for pedido in pedidos
+    ]
+
+
 def listar_proprios(sessao: Session, ator: Ator) -> list[Pedido]:
     return list(
         sessao.scalars(
@@ -312,9 +526,12 @@ def cancelar(sessao: Session, ator: Ator, pedido_id: uuid.UUID, motivo: str) -> 
     if not ator.eh_admin:
         raise SemPermissao()
     pedido = sessao.get(Pedido, pedido_id)
-    if pedido is None or pedido.status != "pendente":
+    # Venda a visitante ainda não paga (aguardando_pagamento) também pode ser
+    # cancelada — é o "visitante desistiu antes de pagar".
+    if pedido is None or pedido.status not in {"pendente", "aguardando_pagamento"}:
         raise PedidoNaoPendente()
 
+    status_anterior = pedido.status
     _devolver_ao_estoque(sessao, pedido)
 
     pedido.status = "cancelado"
@@ -328,7 +545,7 @@ def cancelar(sessao: Session, ator: Ator, pedido_id: uuid.UUID, motivo: str) -> 
         entidade="pedido",
         entidade_id=pedido.id,
         descricao=f"Cancelou o pedido {pedido.codigo_retirada}: {motivo}",
-        dados_anteriores={"status": "pendente", "valor_total": str(pedido.valor_total)},
+        dados_anteriores={"status": status_anterior, "valor_total": str(pedido.valor_total)},
         dados_novos={"status": "cancelado", "motivo": motivo},
     )
     return pedido

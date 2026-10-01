@@ -21,6 +21,17 @@ class EntradaCancelamento(BaseModel):
     motivo: str = Field(min_length=3, max_length=300)
 
 
+class ItemDeVendaAVisitante(BaseModel):
+    produto_id: uuid.UUID
+    quantidade: int = Field(gt=0, le=999)
+    brinde: bool = False
+
+
+class EntradaVendaAVisitante(BaseModel):
+    visitante_nome: str = Field(min_length=1, max_length=160)
+    itens: list[ItemDeVendaAVisitante] = Field(min_length=1, max_length=100)
+
+
 class ItemPedidoSaida(BaseModel):
     """Retrato do item no momento da compra, não o produto atual.
 
@@ -44,10 +55,13 @@ class PedidoSaida(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    colaborador_id: uuid.UUID
+    colaborador_id: uuid.UUID | None
+    visitante_nome: str | None
     valor_total: Decimal
     status: str
     codigo_retirada: str
+    pix_txid: str | None
+    pix_confirmado_em: datetime | None
     criado_em: datetime
     entregue_em: datetime | None
     entregue_por: uuid.UUID | None
@@ -58,6 +72,18 @@ class PedidoSaida(BaseModel):
 
 class PedidoDetalheSaida(PedidoSaida):
     itens: list[ItemPedidoSaida]
+
+
+class PixSaida(BaseModel):
+    valor: Decimal
+    txid: str
+    copia_cola: str
+    qr_code_base64: str
+
+
+class VendaAVisitanteSaida(BaseModel):
+    pedido: PedidoDetalheSaida
+    pix: PixSaida | None
 
 
 class LinhaPedidoSaida(BaseModel):

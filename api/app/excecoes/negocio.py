@@ -50,6 +50,19 @@ class PedidoNaoPendente(Conflito):
     mensagem = "O pedido não está mais pendente."
 
 
+class PedidoNaoAguardandoPagamento(Conflito):
+    codigo = "pedido_nao_aguardando_pagamento"
+    mensagem = "Este pedido não está aguardando pagamento."
+
+
+class PixNaoConfigurado(Conflito):
+    """Falta chave/recebedor/cidade no ambiente — venda com algo a pagar não
+    pode gerar um Pix sem isso."""
+
+    codigo = "pix_nao_configurado"
+    mensagem = "Pix não configurado. Fale com o suporte."
+
+
 class CompetenciaFechada(Conflito):
     codigo = "competencia_fechada"
     mensagem = "Esta competência já foi fechada."
