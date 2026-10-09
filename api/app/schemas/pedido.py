@@ -79,6 +79,8 @@ class PixSaida(BaseModel):
     txid: str
     copia_cola: str
     qr_code_base64: str
+    recebedor: str
+    chave: str
 
 
 class VendaAVisitanteSaida(BaseModel):

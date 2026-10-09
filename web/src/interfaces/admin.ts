@@ -41,6 +41,8 @@ export interface PixGerado {
   txid: string;
   copia_cola: string;
   qr_code_base64: string;
+  recebedor: string;
+  chave: string;
 }
 
 export interface VendaAVisitanteResposta {

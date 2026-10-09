@@ -6,6 +6,7 @@ que o pagamento realmente caiu é sempre manual — ver `pedidos.confirmar_pix`.
 """
 
 import base64
+import re
 import unicodedata
 from dataclasses import dataclass
 from decimal import Decimal
@@ -26,6 +27,8 @@ class PixGerado:
     txid: str
     copia_cola: str
     qr_code_base64: str
+    recebedor: str
+    chave: str
 
 
 def _normalizar(texto: str) -> str:
@@ -34,6 +37,14 @@ def _normalizar(texto: str) -> str:
     sem_acento = unicodedata.normalize("NFD", texto)
     sem_acento = "".join(c for c in sem_acento if unicodedata.category(c) != "Mn")
     return sem_acento.upper().strip()
+
+
+def _normalizar_chave(chave: str) -> str:
+    """CPF/CNPJ como chave Pix precisa ser só dígito — colar com pontuação
+    (ex: 38.486.931/0001-14) é o erro mais comum e faz o banco recusar o QR
+    inteiro. E-mail, telefone e chave aleatória passam direto."""
+    so_digitos = re.sub(r"[.\-/\s()]", "", chave)
+    return so_digitos if so_digitos.isdigit() and len(so_digitos) in (11, 14) else chave
 
 
 def _tlv(id_campo: str, valor: str) -> str:
@@ -77,10 +88,18 @@ def gerar(valor: Decimal, txid: str) -> PixGerado:
     if not (config.pix_chave and config.pix_recebedor and config.pix_cidade):
         raise PixNaoConfigurado()
 
-    copia_cola = _payload(config.pix_chave, config.pix_recebedor, config.pix_cidade, valor, txid)
+    chave = _normalizar_chave(config.pix_chave)
+    copia_cola = _payload(chave, config.pix_recebedor, config.pix_cidade, valor, txid)
 
     buffer = BytesIO()
     qrcode.make(copia_cola).save(buffer, format="PNG")
     qr_code_base64 = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
 
-    return PixGerado(valor=valor, txid=txid, copia_cola=copia_cola, qr_code_base64=qr_code_base64)
+    return PixGerado(
+        valor=valor,
+        txid=txid,
+        copia_cola=copia_cola,
+        qr_code_base64=qr_code_base64,
+        recebedor=config.pix_recebedor,
+        chave=chave,
+    )

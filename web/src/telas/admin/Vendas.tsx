@@ -33,7 +33,7 @@ import { FiltroPeriodo } from "@/componentes/FiltroPeriodo";
 import { dataHora, dinheiro } from "@/comum/formato";
 import { ordenar, useOrdenacao } from "@/comum/ordenacao";
 import { intervaloDoFiltro, periodoInicial } from "@/comum/periodo";
-import type { PedidoCompleto, LinhaPedido } from "@/interfaces/admin";
+import type { PedidoCompleto, LinhaPedido, PixGerado } from "@/interfaces/admin";
 import type { LinhaPainel } from "@/interfaces/refeitorio";
 import type { ProdutoVitrine } from "@/interfaces/loja";
 
@@ -95,7 +95,7 @@ export function Vendas() {
   >({});
   const [vendaGerada, setVendaGerada] = useState<{
     pedido: PedidoCompleto;
-    pix: { valor: string; txid: string; copia_cola: string; qr_code_base64: string } | null;
+    pix: PixGerado | null;
   } | null>(null);
   const [copiado, setCopiado] = useState(false);
   const [confirmarCortesiaAberto, setConfirmarCortesiaAberto] = useState(false);
@@ -207,10 +207,7 @@ export function Vendas() {
 
   const gerarVenda = useMutation({
     mutationFn: () =>
-      api.post<{
-        pedido: PedidoCompleto;
-        pix: { valor: string; txid: string; copia_cola: string; qr_code_base64: string } | null;
-      }>("/pedidos/visitante", {
+      api.post<{ pedido: PedidoCompleto; pix: PixGerado | null }>("/pedidos/visitante", {
         visitante_nome: nomeVisitante.trim(),
         itens: Object.entries(carrinhoVisitante).map(([produto_id, item]) => ({
           produto_id,
@@ -700,6 +697,10 @@ export function Vendas() {
                     className="mx-auto h-48 w-48"
                   />
                   <p className="text-xl font-extrabold">{dinheiro(vendaGerada.pix.valor)}</p>
+                  <div className="text-xs text-suave">
+                    <p>{vendaGerada.pix.recebedor}</p>
+                    <p>{vendaGerada.pix.chave}</p>
+                  </div>
                   <Button type="button" variant="outline" onClick={() => void copiarCodigoPix()}>
                     {copiado ? <Check /> : <Copy />}
                     {copiado ? "Copiado!" : "Copiar código Pix"}

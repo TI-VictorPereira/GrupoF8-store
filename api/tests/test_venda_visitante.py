@@ -75,6 +75,15 @@ def test_crc16_bate_com_vetor_de_referencia():
     assert pix._crc16("123456789") == "29B1"
 
 
+def test_normaliza_cnpj_e_cpf_colados_com_pontuacao():
+    """Bug real: CNPJ copiado como '38.486.931/0001-14' faz o banco recusar o
+    QR inteiro — chave Pix de CNPJ/CPF tem que ser só dígito."""
+    assert pix._normalizar_chave("38.486.931/0001-14") == "38486931000114"
+    assert pix._normalizar_chave("123.456.789-00") == "12345678900"
+    assert pix._normalizar_chave("financeiro@exemplo.com") == "financeiro@exemplo.com"
+    assert pix._normalizar_chave("+5562999999999") == "+5562999999999"
+
+
 def test_payload_pix_tem_os_campos_no_formato_padrao():
     gerado = pix.gerar(valor=Decimal("47.00"), txid="000123")
 
