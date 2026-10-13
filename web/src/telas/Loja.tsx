@@ -12,6 +12,7 @@ import { Moldura } from "@/componentes/Moldura";
 import { Vazio } from "@/componentes/Vazio";
 import { Button } from "@/componentes/ui/button";
 import { Card } from "@/componentes/ui/card";
+import { Input } from "@/componentes/ui/input";
 import { ESTILO_CATEGORIA, chaveCategoria } from "@/comum/categorias";
 import { mensagemDeErro } from "@/comum/erros";
 import { dinheiro } from "@/comum/formato";
@@ -40,6 +41,7 @@ export function Loja() {
   const navegar = useNavigate();
   const clienteConsulta = useQueryClient();
   const [filtro, setFiltro] = useState<string>("todas");
+  const [busca, setBusca] = useState("");
   const [carrinho, setCarrinho] = useState<Record<string, number>>({});
   const [brindeEm, setBrindeEm] = useState<string | null>(null);
 
@@ -74,9 +76,12 @@ export function Loja() {
   });
 
   const visiveis = useMemo(() => {
-    const lista = produtos.data ?? [];
-    return filtro === "todas" ? lista : lista.filter((p) => p.categoria_id === filtro);
-  }, [produtos.data, filtro]);
+    let lista = produtos.data ?? [];
+    if (filtro !== "todas") lista = lista.filter((p) => p.categoria_id === filtro);
+    const termo = busca.trim().toLowerCase();
+    if (termo) lista = lista.filter((p) => p.nome.toLowerCase().includes(termo));
+    return lista;
+  }, [produtos.data, filtro, busca]);
 
   
   const total = useMemo(
@@ -120,6 +125,12 @@ export function Loja() {
       <Cabecalho titulo="Loja interna" />
 
       <div className={cn(PAGINA_APP, "pt-4")}>
+        <Input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar produto…"
+          className="mb-3"
+        />
         <div className="no-scrollbar flex gap-2 overflow-x-auto">
           {[{ id: "todas", nome: "Todos" }, ...(categorias.data ?? [])].map((c) => (
             <Button
@@ -154,7 +165,9 @@ export function Loja() {
           </Card>
         )}
 
-        {produtos.data && visiveis.length === 0 && <Vazio>Nada nesta categoria.</Vazio>}
+        {produtos.data && visiveis.length === 0 && (
+          <Vazio>{busca ? "Nenhum produto encontrado." : "Nada nesta categoria."}</Vazio>
+        )}
 
         <div className={GRADE_PRODUTOS}>
           {visiveis.map((produto) => {
