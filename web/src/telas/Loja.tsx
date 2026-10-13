@@ -211,9 +211,10 @@ export function Loja() {
                         variant="destaque"
                         disabled={semEstoque}
                         onClick={() => alterar(produto, 1)}
-                        className="h-7 px-2.5 text-[11px]"
+                        className="h-7 w-7 px-0 text-sm"
+                        aria-label="Adicionar"
                       >
-                        Add
+                        <Plus />
                       </Button>
                     ) : (
                       <div className="flex items-center gap-1.5">
