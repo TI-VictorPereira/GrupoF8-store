@@ -173,6 +173,25 @@ export function Vendas() {
     (l) => l.almoco.status === "confirmado",
   );
 
+  const visitantePix = useMemo(() => {
+    const pagos = (vendasVisitante.data ?? []).filter(
+      (p) => p.status === "entregue" && p.pix_txid,
+    );
+    return {
+      total: pagos.reduce((soma, p) => soma + Number(p.valor_total), 0),
+      quantidade: pagos.length,
+    };
+  }, [vendasVisitante.data]);
+
+  const cortesiasVisitante = useMemo(
+    () =>
+      (vendasVisitante.data ?? [])
+        .flatMap((p) => p.itens)
+        .filter((item) => Number(item.preco_unitario) === 0)
+        .reduce((soma, item) => soma + item.quantidade, 0),
+    [vendasVisitante.data],
+  );
+
   const baixarDetalhado = useMutation({
     mutationFn: () =>
       api.baixar(
@@ -363,7 +382,7 @@ export function Vendas() {
         </div>
       )}
 
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <Card>
           <CardContent className="p-4">
             <p className="text-[11px] text-suave">Receita</p>
@@ -389,6 +408,20 @@ export function Vendas() {
             <p className="text-[11px] text-suave">Almoços</p>
             <p className="mt-1 text-xl font-bold">{almocosConfirmados.length}</p>
             <p className="text-[11px] text-muito-suave">confirmados</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[11px] text-suave">Visitantes (Pix)</p>
+            <p className="mt-1 text-xl font-bold">{dinheiro(visitantePix.total)}</p>
+            <p className="text-[11px] text-muito-suave">{visitantePix.quantidade} pago(s)</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[11px] text-suave">Cortesias</p>
+            <p className="mt-1 text-xl font-bold">{cortesiasVisitante}</p>
+            <p className="text-[11px] text-muito-suave">itens dados de graça</p>
           </CardContent>
         </Card>
       </div>

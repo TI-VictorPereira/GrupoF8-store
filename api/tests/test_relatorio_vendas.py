@@ -2,7 +2,6 @@
 separada em aba própria — nomeada com o nome real dela, não "Empresa 17"."""
 
 import uuid
-from datetime import UTC, datetime
 from decimal import Decimal
 from io import BytesIO
 
@@ -222,71 +221,6 @@ def test_compra_de_visitante_vai_pra_aba_propria_com_pagamento(dados):
     finally:
         with FabricaDeSessao() as s:
             s.execute(delete(Pedido).where(Pedido.visitante_nome == f"{PREFIXO}Visitante"))
-            s.commit()
-
-
-def test_almoco_de_visitante_cortesia_vai_pra_aba_propria(dados):
-    de = precos.hoje_local()
-    with FabricaDeSessao() as s:
-        almoco = Almoco(
-            colaborador_id=None,
-            empresa_id=None,
-            visitante_nome=f"{PREFIXO}Almoco Visitante",
-            vinculo="visitante",
-            matricula=None,
-            codigo_barras=uuid.uuid4().hex[:20],
-            status="confirmado",
-            origem="visitante",
-            valor=Decimal("0.00"),
-            cortesia=True,
-            expira_em=datetime.now(UTC),
-        )
-        s.add(almoco)
-        s.commit()
-        almoco_id = almoco.id
-
-    try:
-        with FabricaDeSessao() as s:
-            linhas = relatorio_vendas.montar(s, _admin(), de, de)
-            minha = next(v for v in linhas if v.colaborador_nome == f"{PREFIXO}Almoco Visitante")
-            assert minha.forma_pagamento == "Cortesia"
-            assert minha.tipo == "Almoço"
-    finally:
-        with FabricaDeSessao() as s:
-            s.execute(delete(Almoco).where(Almoco.id == almoco_id))
-            s.commit()
-
-
-def test_almoco_de_isento_mostra_pagamento_proprio(dados):
-    de = precos.hoje_local()
-    with FabricaDeSessao() as s:
-        colaborador = s.get(Colaborador, dados["ativo"])
-        almoco = Almoco(
-            colaborador_id=colaborador.id,
-            empresa_id=colaborador.empresa_id,
-            vinculo=colaborador.vinculo,
-            matricula=colaborador.matricula,
-            codigo_barras=uuid.uuid4().hex[:20],
-            status="confirmado",
-            origem="totem",
-            valor=Decimal("18.50"),
-            isento=True,
-            expira_em=datetime.now(UTC),
-        )
-        s.add(almoco)
-        s.commit()
-        almoco_id = almoco.id
-
-    try:
-        with FabricaDeSessao() as s:
-            linhas = relatorio_vendas.montar(s, _admin(), de, de)
-            minha = next(
-                v for v in linhas if v.tipo == "Almoço" and v.codparc == colaborador.codparc
-            )
-            assert minha.forma_pagamento == "Isento (empresa paga)"
-    finally:
-        with FabricaDeSessao() as s:
-            s.execute(delete(Almoco).where(Almoco.id == almoco_id))
             s.commit()
 
 

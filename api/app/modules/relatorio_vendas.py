@@ -1,6 +1,10 @@
 """Relatórios de vendas em Excel — sempre em três abas: uma empresa separada
 do resto do grupo, e os visitantes à parte (não têm empresa nenhuma).
 
+Só produto de loja — almoço tem relatório próprio (export da tela de
+Almoços, seção de cortesias/isentos no Fechamento). Misturar os dois aqui
+só confundia quem olha a planilha.
+
 A empresa separada sai por pedido de negócio, não por regra técnica: o
 CODEMP é só um valor de configuração, não um enum do domínio, por isso vive
 aqui como constante e não como caso especial em algum outro módulo.
@@ -22,7 +26,7 @@ from sqlalchemy.orm import Session
 from app.core.config import obter_config
 from app.excecoes import PeriodoInvalido, SemPermissao
 from app.models.cadastro import Colaborador, Departamento, Empresa
-from app.models.operacao import Almoco, ItemPedido, Pedido
+from app.models.operacao import ItemPedido, Pedido
 from app.modules.auditoria import Ator
 
 CODEMP_EMPRESA_SEPARADA = 17
@@ -34,7 +38,6 @@ COLUNAS_DETALHADO = (
     "Departamento",
     "Empresa",
     "Data",
-    "Tipo",
     "Item",
     "Categoria",
     "Quantidade",
@@ -52,7 +55,6 @@ COLUNAS_CONSOLIDADO = (
     "Empresa",
     "Compras",
     "Itens",
-    "Almoços",
     "Valor total",
 )
 
@@ -65,7 +67,6 @@ class LinhaVenda:
     colaborador_nome: str
     departamento: str | None
     data: datetime
-    tipo: str
     item: str
     categoria: str | None
     quantidade: int
@@ -85,7 +86,6 @@ class LinhaConsolidada:
     departamento: str | None
     compras: int
     itens: int
-    almocos: int
     valor_total: Decimal
 
 
@@ -99,8 +99,8 @@ def _intervalo(de: date, ate: date) -> tuple[datetime, datetime]:
 
 
 def montar(sessao: Session, ator: Ator, de: date, ate: date) -> list[LinhaVenda]:
-    """Só o que já virou entrega/confirmação de verdade — é dado pra terceiro,
-    não pode incluir pedido ainda pendente."""
+    """Só o que já virou entrega de verdade — é dado pra terceiro, não pode
+    incluir pedido ainda pendente."""
     if not ator.eh_admin:
         raise SemPermissao()
     inicio, fim = _intervalo(de, ate)
@@ -127,7 +127,6 @@ def montar(sessao: Session, ator: Ator, de: date, ate: date) -> list[LinhaVenda]
                 colaborador_nome=colaborador.nome_completo,
                 departamento=departamento,
                 data=pedido.criado_em,
-                tipo="Compra na loja",
                 item=item.nome_produto,
                 categoria=item.categoria,
                 quantidade=item.quantidade,
@@ -136,37 +135,6 @@ def montar(sessao: Session, ator: Ator, de: date, ate: date) -> list[LinhaVenda]
                 codigo_pedido=pedido.codigo_retirada,
                 brinde=item.brinde,
                 forma_pagamento="Cortesia" if item.brinde else "Folha",
-            )
-        )
-
-    consulta_refeitorio = (
-        select(Almoco, Colaborador, Departamento.nome, Empresa.codemp, Empresa.nome)
-        .join(Colaborador, Colaborador.id == Almoco.colaborador_id)
-        .outerjoin(Departamento, Departamento.id == Colaborador.departamento_id)
-        .join(Empresa, Empresa.id == Almoco.empresa_id)
-        .where(Almoco.status == "confirmado", Almoco.criado_em >= inicio, Almoco.criado_em < fim)
-        .order_by(Colaborador.nome_completo, Almoco.criado_em)
-    )
-    for almoco, colaborador, departamento, codemp, empresa_nome in sessao.execute(
-        consulta_refeitorio
-    ).all():
-        linhas.append(
-            LinhaVenda(
-                codemp=codemp,
-                empresa_nome=empresa_nome,
-                codparc=colaborador.codparc,
-                colaborador_nome=colaborador.nome_completo,
-                departamento=departamento,
-                data=almoco.criado_em,
-                tipo="Almoço",
-                item="Almoço no refeitório",
-                categoria=None,
-                quantidade=1,
-                preco_unitario=almoco.valor,
-                valor_total=almoco.valor,
-                codigo_pedido="—",
-                brinde=False,
-                forma_pagamento="Isento (empresa paga)" if almoco.isento else "Folha",
             )
         )
 
@@ -192,7 +160,6 @@ def montar(sessao: Session, ator: Ator, de: date, ate: date) -> list[LinhaVenda]
                 colaborador_nome=pedido.visitante_nome or "Visitante",
                 departamento=None,
                 data=pedido.criado_em,
-                tipo="Compra na loja",
                 item=item.nome_produto,
                 categoria=item.categoria,
                 quantidade=item.quantidade,
@@ -204,52 +171,18 @@ def montar(sessao: Session, ator: Ator, de: date, ate: date) -> list[LinhaVenda]
             )
         )
 
-    consulta_refeitorio_visitante = (
-        select(Almoco)
-        .where(
-            Almoco.colaborador_id.is_(None),
-            Almoco.status == "confirmado",
-            Almoco.criado_em >= inicio,
-            Almoco.criado_em < fim,
-        )
-        .order_by(Almoco.visitante_nome, Almoco.criado_em)
-    )
-    for almoco in sessao.scalars(consulta_refeitorio_visitante).all():
-        linhas.append(
-            LinhaVenda(
-                codemp=None,
-                empresa_nome=None,
-                codparc=None,
-                colaborador_nome=almoco.visitante_nome or "Visitante",
-                departamento=None,
-                data=almoco.criado_em,
-                tipo="Almoço",
-                item="Almoço no refeitório",
-                categoria=None,
-                quantidade=1,
-                preco_unitario=almoco.valor,
-                valor_total=almoco.valor,
-                # Sem pedido de loja: o código de barras é o que identifica
-                # este almoço de forma única, pro consolidado não juntar
-                # visitantes diferentes na mesma linha.
-                codigo_pedido=almoco.codigo_barras,
-                brinde=almoco.cortesia,
-                forma_pagamento="Cortesia" if almoco.cortesia else "Pix",
-            )
-        )
-
     return linhas
 
 
 def consolidar_por_pessoa(linhas: list[LinhaVenda]) -> list[LinhaConsolidada]:
-    """Uma linha por pessoa: total gasto no período, loja e refeitório juntos.
+    """Uma linha por pessoa: total comprado na loja no período.
 
-    Visitante não tem codparc — a chave vira o código do pedido/almoço (único
-    por visita), já que não existe uma identidade estável entre visitas.
+    Visitante não tem codparc — a chave vira o código do pedido (único por
+    visita), já que não existe uma identidade estável entre visitas.
 
     'Compras' conta pedido distinto, não item — uma compra de três produtos é
     uma compra só. Por isso o código do pedido de cada um é guardado num
-    conjunto à parte, e não somado direto como itens e almoços são.
+    conjunto à parte, e não somado direto como os itens são.
     """
     agregados: dict[int | str, dict] = {}
     pedidos_por_pessoa: dict[int | str, set[str]] = {}
@@ -265,16 +198,12 @@ def consolidar_por_pessoa(linhas: list[LinhaVenda]) -> list[LinhaConsolidada]:
                 "colaborador_nome": linha.colaborador_nome,
                 "departamento": linha.departamento,
                 "itens": 0,
-                "almocos": 0,
                 "valor_total": Decimal("0"),
             },
         )
         dados["valor_total"] += linha.valor_total
-        if linha.tipo == "Almoço":
-            dados["almocos"] += 1
-        else:
-            dados["itens"] += linha.quantidade
-            pedidos_por_pessoa.setdefault(chave, set()).add(linha.codigo_pedido)
+        dados["itens"] += linha.quantidade
+        pedidos_por_pessoa.setdefault(chave, set()).add(linha.codigo_pedido)
 
     return [
         LinhaConsolidada(
@@ -285,7 +214,6 @@ def consolidar_por_pessoa(linhas: list[LinhaVenda]) -> list[LinhaConsolidada]:
             departamento=dados["departamento"],
             compras=len(pedidos_por_pessoa.get(chave, set())),
             itens=dados["itens"],
-            almocos=dados["almocos"],
             valor_total=dados["valor_total"],
         )
         for chave, dados in agregados.items()
@@ -321,7 +249,6 @@ def _escrever_detalhado(aba: Worksheet, linhas: list[LinhaVenda]) -> None:
                 linha.departamento or "—",
                 f"{linha.codemp} — {linha.empresa_nome}" if linha.codemp else "—",
                 linha.data.strftime("%d/%m/%Y %H:%M"),
-                linha.tipo,
                 linha.item,
                 linha.categoria or "—",
                 linha.quantidade,
@@ -333,7 +260,7 @@ def _escrever_detalhado(aba: Worksheet, linhas: list[LinhaVenda]) -> None:
             ]
         )
 
-    larguras = (12, 28, 22, 28, 16, 16, 28, 16, 10, 14, 14, 16, 12, 20)
+    larguras = (12, 28, 22, 28, 16, 28, 16, 10, 14, 14, 16, 12, 20)
     for indice, largura in enumerate(larguras, start=1):
         aba.column_dimensions[aba.cell(row=1, column=indice).column_letter].width = largura
 
@@ -353,12 +280,11 @@ def _escrever_consolidado(aba: Worksheet, linhas: list[LinhaConsolidada]) -> Non
                 f"{linha.codemp} — {linha.empresa_nome}" if linha.codemp else "—",
                 linha.compras,
                 linha.itens,
-                linha.almocos,
                 float(linha.valor_total),
             ]
         )
 
-    larguras = (12, 28, 22, 28, 10, 10, 10, 14)
+    larguras = (12, 28, 22, 28, 10, 10, 14)
     for indice, largura in enumerate(larguras, start=1):
         aba.column_dimensions[aba.cell(row=1, column=indice).column_letter].width = largura
 
