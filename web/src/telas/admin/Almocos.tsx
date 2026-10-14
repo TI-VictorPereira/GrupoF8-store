@@ -99,6 +99,14 @@ export function Almocos() {
   const hoje = hojeIso();
   const ocupado = confirmarManual.isPending || desfazer.isPending;
 
+  function formaPagamento(l: LinhaPainel): string {
+    if (l.eh_visitante) {
+      if (l.almoco.cortesia) return "Cortesia";
+      return l.almoco.pix_confirmado_em ? "Pix confirmado" : "Pix pendente";
+    }
+    return l.almoco.isento ? "Isento (empresa paga)" : "Folha";
+  }
+
   function exportar() {
     baixarCsv(
       `almocos-f8-${de}_a_${ate}`,
@@ -108,7 +116,8 @@ export function Almocos() {
         "Código do colaborador": l.colaborador_codigo,
         Departamento: l.departamento ?? "—",
         Status: l.almoco.status,
-        "Paga almoço": l.almoco.cortesia || l.almoco.isento ? "Nao" : "Sim",
+        Pagamento: formaPagamento(l),
+        Valor: l.almoco.valor,
         Origem: l.almoco.origem,
         "Código de barras": l.almoco.codigo_barras,
         "Gerado em": hora(l.almoco.criado_em),

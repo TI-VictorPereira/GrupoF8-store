@@ -24,6 +24,9 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# Ferramental pessoal do Claude Code (skills, agents, etc.) — não é parte do projeto
+.claude/
 .DS_Store
 *.suo
 *.ntvs*

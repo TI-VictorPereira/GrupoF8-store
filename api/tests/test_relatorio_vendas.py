@@ -2,6 +2,7 @@
 separada em aba própria — nomeada com o nome real dela, não "Empresa 17"."""
 
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 from io import BytesIO
 
@@ -107,7 +108,7 @@ def test_detalhado_separa_a_empresa_em_aba_com_nome_real(
         livro = load_workbook(BytesIO(relatorio_vendas.planilha_detalhada(s, linhas)))
 
     nome_esperado = empresa_separada["nome"][:31]
-    assert livro.sheetnames == ["Demais empresas", nome_esperado]
+    assert livro.sheetnames == ["Demais empresas", nome_esperado, relatorio_vendas.ABA_VISITANTES]
 
     aba_demais = livro["Demais empresas"]
     nomes_demais = [linha[1].value for linha in aba_demais.iter_rows(min_row=2)]
@@ -126,13 +127,16 @@ def test_item_de_brinde_aparece_marcado_na_planilha(dados):
     with FabricaDeSessao() as s:
         linhas = relatorio_vendas.montar(s, _admin(), de, de)
         assert linhas[0].brinde is True
+        assert linhas[0].forma_pagamento == "Cortesia"
 
         livro = load_workbook(BytesIO(relatorio_vendas.planilha_detalhada(s, linhas)))
 
     cabecalho = [c.value for c in livro["Demais empresas"][1]]
-    assert cabecalho[-1] == "Brinde de aniversário"
+    assert cabecalho[-2] == "Cortesia"
+    assert cabecalho[-1] == "Pagamento"
     linha_da_planilha = next(livro["Demais empresas"].iter_rows(min_row=2))
-    assert linha_da_planilha[-1].value == "Sim"
+    assert linha_da_planilha[-2].value == "Sim"
+    assert linha_da_planilha[-1].value == "Cortesia"
 
 
 def test_pedido_pendente_nao_entra_no_relatorio(dados):
@@ -177,6 +181,115 @@ def test_consolidado_soma_as_compras_da_mesma_pessoa(dados):
     assert minha.valor_total == Decimal("20.00")
 
 
+def test_compra_de_visitante_vai_pra_aba_propria_com_pagamento(dados):
+    de = precos.hoje_local()
+    with FabricaDeSessao() as s:
+        pedido = Pedido(
+            colaborador_id=None,
+            empresa_id=None,
+            visitante_nome=f"{PREFIXO}Visitante",
+            vinculo="visitante",
+            matricula=None,
+            valor_total=Decimal("10.00"),
+            status="entregue",
+            codigo_retirada=f"{uuid.uuid4().int % 999999:06d}",
+        )
+        s.add(pedido)
+        s.flush()
+        s.add(
+            ItemPedido(
+                pedido_id=pedido.id,
+                nome_produto="Refrigerante",
+                quantidade=2,
+                preco_unitario=Decimal("5.00"),
+                custo_unitario=Decimal("2.00"),
+                brinde=False,
+            )
+        )
+        s.commit()
+
+    try:
+        with FabricaDeSessao() as s:
+            linhas = relatorio_vendas.montar(s, _admin(), de, de)
+            minha = next(v for v in linhas if v.colaborador_nome == f"{PREFIXO}Visitante")
+            assert minha.forma_pagamento == "Pix"
+            assert minha.codemp is None
+
+            livro = load_workbook(BytesIO(relatorio_vendas.planilha_detalhada(s, linhas)))
+            aba = livro[relatorio_vendas.ABA_VISITANTES]
+            nomes = [linha[1].value for linha in aba.iter_rows(min_row=2)]
+            assert f"{PREFIXO}Visitante" in nomes
+    finally:
+        with FabricaDeSessao() as s:
+            s.execute(delete(Pedido).where(Pedido.visitante_nome == f"{PREFIXO}Visitante"))
+            s.commit()
+
+
+def test_almoco_de_visitante_cortesia_vai_pra_aba_propria(dados):
+    de = precos.hoje_local()
+    with FabricaDeSessao() as s:
+        almoco = Almoco(
+            colaborador_id=None,
+            empresa_id=None,
+            visitante_nome=f"{PREFIXO}Almoco Visitante",
+            vinculo="visitante",
+            matricula=None,
+            codigo_barras=uuid.uuid4().hex[:20],
+            status="confirmado",
+            origem="visitante",
+            valor=Decimal("0.00"),
+            cortesia=True,
+            expira_em=datetime.now(UTC),
+        )
+        s.add(almoco)
+        s.commit()
+        almoco_id = almoco.id
+
+    try:
+        with FabricaDeSessao() as s:
+            linhas = relatorio_vendas.montar(s, _admin(), de, de)
+            minha = next(v for v in linhas if v.colaborador_nome == f"{PREFIXO}Almoco Visitante")
+            assert minha.forma_pagamento == "Cortesia"
+            assert minha.tipo == "Almoço"
+    finally:
+        with FabricaDeSessao() as s:
+            s.execute(delete(Almoco).where(Almoco.id == almoco_id))
+            s.commit()
+
+
+def test_almoco_de_isento_mostra_pagamento_proprio(dados):
+    de = precos.hoje_local()
+    with FabricaDeSessao() as s:
+        colaborador = s.get(Colaborador, dados["ativo"])
+        almoco = Almoco(
+            colaborador_id=colaborador.id,
+            empresa_id=colaborador.empresa_id,
+            vinculo=colaborador.vinculo,
+            matricula=colaborador.matricula,
+            codigo_barras=uuid.uuid4().hex[:20],
+            status="confirmado",
+            origem="totem",
+            valor=Decimal("18.50"),
+            isento=True,
+            expira_em=datetime.now(UTC),
+        )
+        s.add(almoco)
+        s.commit()
+        almoco_id = almoco.id
+
+    try:
+        with FabricaDeSessao() as s:
+            linhas = relatorio_vendas.montar(s, _admin(), de, de)
+            minha = next(
+                v for v in linhas if v.tipo == "Almoço" and v.codparc == colaborador.codparc
+            )
+            assert minha.forma_pagamento == "Isento (empresa paga)"
+    finally:
+        with FabricaDeSessao() as s:
+            s.execute(delete(Almoco).where(Almoco.id == almoco_id))
+            s.commit()
+
+
 def test_planilha_consolidada_tambem_separa_a_empresa(
     dados, empresa_separada, colaborador_empresa_separada
 ):
@@ -190,4 +303,4 @@ def test_planilha_consolidada_tambem_separa_a_empresa(
         livro = load_workbook(BytesIO(relatorio_vendas.planilha_consolidada(s, consolidado)))
 
     nome_esperado = empresa_separada["nome"][:31]
-    assert livro.sheetnames == ["Demais empresas", nome_esperado]
+    assert livro.sheetnames == ["Demais empresas", nome_esperado, relatorio_vendas.ABA_VISITANTES]
