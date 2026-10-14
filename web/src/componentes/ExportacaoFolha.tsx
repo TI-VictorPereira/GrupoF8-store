@@ -37,6 +37,13 @@ interface PessoaSemMatricula {
   total: string;
 }
 
+interface CortesiaIsento {
+  tipo: "visitante" | "isento";
+  nome: string;
+  data: string;
+  valor: string;
+}
+
 interface ConsumoDaPessoa {
   codemp: number;
   codparc: number;
@@ -64,6 +71,8 @@ interface ResumoFolha {
   pessoas: ConsumoDaPessoa[];
   sem_matricula: PessoaSemMatricula[];
   total_sem_matricula: string;
+  cortesias_isentos: CortesiaIsento[];
+  total_cortesias_isentos: string;
   lote: Lote | null;
 }
 
@@ -110,6 +119,7 @@ export function ExportacaoFolha() {
   const dados = resumo.data;
   const faixa = cicloDe(competencia);
   const fora = dados?.sem_matricula ?? [];
+  const cortesiasIsentos = dados?.cortesias_isentos ?? [];
   const lote = dados?.lote ?? null;
   const fechado = lote?.status === "exportada";
 
@@ -191,6 +201,35 @@ export function ExportacaoFolha() {
                 <li key={pessoa.codparc} className="flex justify-between gap-2 text-[11px]">
                   <span className="min-w-0 truncate">{pessoa.nome}</span>
                   <span className="shrink-0 font-semibold">{dinheiro(pessoa.total)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {cortesiasIsentos.length > 0 && (
+          <div className="mt-4 rounded-lg border border-borda p-3">
+            <p className="text-xs font-bold">
+              {cortesiasIsentos.length} almoço(s) sem desconto de ninguém
+            </p>
+            <p className="mt-0.5 text-[11px] text-suave">
+              Visitante liberado de cortesia, ou funcionário isento (a empresa cobre). Nenhum dos
+              dois entra na folha: {dinheiro(dados?.total_cortesias_isentos ?? 0)} pra empresa
+              bancar por fora.
+            </p>
+            <ul className="mt-2 space-y-0.5">
+              {cortesiasIsentos.map((linha, indice) => (
+                <li
+                  key={`${linha.nome}-${linha.data}-${indice}`}
+                  className="flex justify-between gap-2 text-[11px]"
+                >
+                  <span className="min-w-0 truncate">
+                    {linha.nome}{" "}
+                    <span className="text-muito-suave">
+                      · {linha.tipo === "visitante" ? "visitante" : "isento"} · {diaMes(linha.data)}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-semibold">{dinheiro(linha.valor)}</span>
                 </li>
               ))}
             </ul>

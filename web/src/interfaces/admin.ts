@@ -89,6 +89,7 @@ export interface ColaboradorCompleto {
   codigo: string;  codparc: number;
   vinculo: Vinculo;  matricula: number | null;
   mes_aniversario: number | null;
+  isento_almoco: boolean;
   empresa_id: string;
   papel: Papel;
   departamento_id: string | null;
@@ -105,6 +106,7 @@ export interface EntradaColaborador {
   vinculo: Vinculo;
   matricula: number | null;
   mes_aniversario: number | null;
+  isento_almoco: boolean;
   papel: Papel;
   departamento_id: string | null;
 }

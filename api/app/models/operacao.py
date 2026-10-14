@@ -117,6 +117,16 @@ class Almoco(Base):
     expira_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     confirmado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     confirmado_por: Mapped[uuid.UUID | None] = fk_uuid("colaboradores.id", obrigatorio=False)
+    # Visitante que a recepção decidiu não cobrar — não gera Pix.
+    cortesia: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    # Cópia de colaborador.isento_almoco no momento deste almoço: não muda
+    # retroativamente se o cadastro mudar depois.
+    isento: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    # Só visitante não-cortesia gera Pix; os dois ficam nulos pro resto.
+    pix_txid: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    pix_confirmado_em: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     lote_id: Mapped[uuid.UUID | None] = fk_uuid("exportacoes.id", obrigatorio=False)
     exportado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

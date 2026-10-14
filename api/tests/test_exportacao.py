@@ -263,6 +263,43 @@ def test_almoco_de_visitante_nao_quebra_a_folha_e_fica_fora_dela():
             s.commit()
 
 
+def test_almoco_de_isento_nao_desconta_e_cai_na_lista_de_cortesias(dados):
+    """Isento = empresa paga, não desconta da pessoa. Some da soma por pessoa
+    e vira linha em `cortesias_isentos`, junto com o visitante cortesia."""
+    with FabricaDeSessao() as s:
+        colaborador = s.get(Colaborador, dados["ativo"])
+        colaborador.isento_almoco = True
+        almoco = Almoco(
+            colaborador_id=colaborador.id,
+            empresa_id=colaborador.empresa_id,
+            vinculo=colaborador.vinculo,
+            matricula=colaborador.matricula,
+            codigo_barras=uuid.uuid4().hex[:20],
+            status="confirmado",
+            origem="totem",
+            valor=Decimal("18.50"),
+            isento=True,
+            expira_em=datetime.now(UTC),
+            confirmado_em=datetime.now(UTC),
+        )
+        s.add(almoco)
+        s.commit()
+        almoco_id = almoco.id
+        nome = colaborador.nome_completo
+
+    try:
+        resultado = _montar()
+        assert all(pessoa.nome != nome for pessoa in resultado.pessoas)
+        linha = next(c for c in resultado.cortesias_isentos if c.nome == nome)
+        assert linha.tipo == "isento"
+        assert linha.valor == Decimal("18.50")
+        assert resultado.total_cortesias_isentos >= Decimal("18.50")
+    finally:
+        with FabricaDeSessao() as s:
+            s.execute(delete(Almoco).where(Almoco.id == almoco_id))
+            s.commit()
+
+
 def test_dp_exporta_e_os_outros_nao(dados):
     """O DP fecha a folha; o refeitório e o colaborador comum, não.
 

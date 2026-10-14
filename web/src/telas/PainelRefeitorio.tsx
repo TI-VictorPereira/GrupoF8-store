@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, CheckCircle2, UserPlus, XCircle } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, Copy, UserPlus, XCircle } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { api } from "@/api/cliente";
@@ -29,8 +29,8 @@ import { dinheiro, hora } from "@/comum/formato";
 import { PAGINA_PAINEL } from "@/comum/layout";
 import { cn } from "@/comum/utilitarios";
 import { useSair } from "@/hooks/sessao";
-import type { AlmocoDoDia } from "@/interfaces/almoco";
-import type { Departamento } from "@/interfaces/admin";
+import type { AlmocoDoDia, VisitanteAlmocoResposta } from "@/interfaces/almoco";
+import type { Departamento, PixGerado } from "@/interfaces/admin";
 import type { Eu } from "@/interfaces/sessao";
 
 const AVISOS: Record<string, string> = {
@@ -71,6 +71,12 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
   const [nomeVisitante, setNomeVisitante] = useState("");
   const [departamentoId, setDepartamentoId] = useState("");
   const [termosAceitos, setTermosAceitos] = useState(false);
+  const [cortesia, setCortesia] = useState(false);
+  const [visitanteGerado, setVisitanteGerado] = useState<{
+    almoco: AlmocoDoDia;
+    pix: PixGerado;
+  } | null>(null);
+  const [copiado, setCopiado] = useState(false);
 
   const departamentos = useQuery({
     queryKey: ["departamentos-visitante"],
@@ -86,27 +92,57 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
 
   const registrarVisitante = useMutation({
     mutationFn: () =>
-      api.post<AlmocoDoDia>("/almocos/visitante", {
+      api.post<VisitanteAlmocoResposta>("/almocos/visitante", {
         nome: nomeVisitante.trim(),
         departamento_id: departamentoId,
         termos_aceitos: termosAceitos,
+        cortesia,
       }),
-    onSuccess: () => {
+    onSuccess: (resposta) => {
       setFeedback({ tom: "ok", titulo: nomeVisitante.trim(), detalhe: "Visitante liberado" });
-      fecharVisitante();
+      if (resposta.pix) {
+        setVisitanteGerado({ almoco: resposta.almoco, pix: resposta.pix });
+      } else {
+        fecharVisitante();
+      }
     },
   });
+
+  const confirmarPixVisitante = useMutation({
+    mutationFn: (id: string) => api.post<AlmocoDoDia>(`/almocos/${id}/confirmar-pix`),
+    onSuccess: fecharVisitante,
+  });
+
+  async function copiarCodigoPix() {
+    if (!visitanteGerado) return;
+    try {
+      await navigator.clipboard.writeText(visitanteGerado.pix.copia_cola);
+      setCopiado(true);
+    } catch {
+      // Navegador sem permissão de clipboard — sem crash, só não copia.
+    }
+  }
+
+  useEffect(() => {
+    if (!copiado) return;
+    const id = setTimeout(() => setCopiado(false), 2000);
+    return () => clearTimeout(id);
+  }, [copiado]);
 
   function abrirVisitante() {
     setNomeVisitante("");
     setDepartamentoId("");
     setTermosAceitos(false);
+    setCortesia(false);
+    setVisitanteGerado(null);
     registrarVisitante.reset();
+    confirmarPixVisitante.reset();
     setVisitanteAberto(true);
   }
 
   function fecharVisitante() {
     setVisitanteAberto(false);
+    setVisitanteGerado(null);
     campo.current?.focus();
   }
 
@@ -245,83 +281,136 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
           <DialogHeader>
             <DialogTitle>Novo visitante</DialogTitle>
             <DialogDescription>
-              O visitante lê o termo abaixo e informa o nome e a área que o recebe.
+              {visitanteGerado
+                ? "Visitante já liberado. Pague pelo Pix abaixo quando puder."
+                : "O visitante lê o termo abaixo e informa o nome e a área que o recebe."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="nome-visitante">Nome completo</Label>
-              <Input
-                id="nome-visitante"
-                value={nomeVisitante}
-                onChange={(e) => setNomeVisitante(e.target.value)}
-                autoFocus
-              />
-            </div>
+          {!visitanteGerado && (
+            <div className="grid gap-3">
+              <div className="grid gap-1.5">
+                <Label htmlFor="nome-visitante">Nome completo</Label>
+                <Input
+                  id="nome-visitante"
+                  value={nomeVisitante}
+                  onChange={(e) => setNomeVisitante(e.target.value)}
+                  autoFocus
+                />
+              </div>
 
-            <div className="grid gap-1.5">
-              <Label htmlFor="departamento-visitante">Área responsável</Label>
-              <Select value={departamentoId} onValueChange={setDepartamentoId}>
-                <SelectTrigger id="departamento-visitante">
-                  <SelectValue placeholder="Escolha a área" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(departamentos.data ?? []).map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="departamento-visitante">Área responsável</Label>
+                <Select value={departamentoId} onValueChange={setDepartamentoId}>
+                  <SelectTrigger id="departamento-visitante">
+                    <SelectValue placeholder="Escolha a área" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(departamentos.data ?? []).map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="rounded-lg border border-borda p-3">
-              <p className="mb-1.5 text-xs font-bold">Antes de liberar</p>
-              <ul className="list-disc space-y-1 pl-4 text-[11px] text-suave">
-                {TERMOS_VISITANTE.map((linha) => (
-                  <li key={linha}>{linha}</li>
-                ))}
-                <li>
-                  Esta refeição custa{" "}
-                  <span className="font-bold text-ink">
-                    {preco.data ? dinheiro(preco.data.valor) : "—"}
-                  </span>
-                  , o mesmo valor cobrado de todo mundo.
-                </li>
-              </ul>
-              <label className="mt-3 flex cursor-pointer items-start gap-2 text-[11px]">
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  checked={termosAceitos}
-                  onChange={(e) => setTermosAceitos(e.target.checked)}
-                  className="mt-0.5"
+                  checked={cortesia}
+                  onChange={(e) => setCortesia(e.target.checked)}
                 />
-                O visitante leu e aceita as informações acima.
+                Cortesia (não cobra nada)
               </label>
-            </div>
 
-            {registrarVisitante.error && (
-              <Aviso>{mensagemDeErro(registrarVisitante.error, AVISOS)}</Aviso>
-            )}
-          </div>
+              <div className="rounded-lg border border-borda p-3">
+                <p className="mb-1.5 text-xs font-bold">Antes de liberar</p>
+                <ul className="list-disc space-y-1 pl-4 text-[11px] text-suave">
+                  {TERMOS_VISITANTE.map((linha) => (
+                    <li key={linha}>{linha}</li>
+                  ))}
+                  {cortesia ? (
+                    <li>Esta refeição é cortesia — não será cobrada.</li>
+                  ) : (
+                    <li>
+                      Esta refeição custa{" "}
+                      <span className="font-bold text-ink">
+                        {preco.data ? dinheiro(preco.data.valor) : "—"}
+                      </span>
+                      , o mesmo valor cobrado de todo mundo. Um Pix aparece na tela assim que
+                      liberar.
+                    </li>
+                  )}
+                </ul>
+                <label className="mt-3 flex cursor-pointer items-start gap-2 text-[11px]">
+                  <input
+                    type="checkbox"
+                    checked={termosAceitos}
+                    onChange={(e) => setTermosAceitos(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  O visitante leu e aceita as informações acima.
+                </label>
+              </div>
+
+              {registrarVisitante.error && (
+                <Aviso>{mensagemDeErro(registrarVisitante.error, AVISOS)}</Aviso>
+              )}
+            </div>
+          )}
+
+          {visitanteGerado && (
+            <div className="grid gap-3 text-center">
+              <img
+                src={visitanteGerado.pix.qr_code_base64}
+                alt="QR Code Pix"
+                className="mx-auto h-48 w-48"
+              />
+              <p className="text-xl font-extrabold">{dinheiro(visitanteGerado.pix.valor)}</p>
+              <Button type="button" variant="outline" onClick={() => void copiarCodigoPix()}>
+                {copiado ? <Check /> : <Copy />}
+                {copiado ? "Copiado!" : "Copiar código Pix"}
+              </Button>
+              {confirmarPixVisitante.error && (
+                <Aviso>{mensagemDeErro(confirmarPixVisitante.error, AVISOS)}</Aviso>
+              )}
+            </div>
+          )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={fecharVisitante}>
-              Cancelar
-            </Button>
-            <Button
-              variant="destaque"
-              disabled={
-                !nomeVisitante.trim() ||
-                !departamentoId ||
-                !termosAceitos ||
-                registrarVisitante.isPending
-              }
-              onClick={() => registrarVisitante.mutate()}
-            >
-              {registrarVisitante.isPending ? "Liberando…" : "Liberar visitante"}
-            </Button>
+            {!visitanteGerado ? (
+              <>
+                <Button variant="outline" onClick={fecharVisitante}>
+                  Cancelar
+                </Button>
+                <Button
+                  variant="destaque"
+                  disabled={
+                    !nomeVisitante.trim() ||
+                    !departamentoId ||
+                    !termosAceitos ||
+                    registrarVisitante.isPending
+                  }
+                  onClick={() => registrarVisitante.mutate()}
+                >
+                  {registrarVisitante.isPending ? "Liberando…" : "Liberar visitante"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={fecharVisitante}>
+                  Fechar
+                </Button>
+                <Button
+                  variant="destaque"
+                  disabled={confirmarPixVisitante.isPending}
+                  onClick={() => confirmarPixVisitante.mutate(visitanteGerado.almoco.id)}
+                >
+                  {confirmarPixVisitante.isPending ? "Confirmando…" : "Confirmar pagamento"}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

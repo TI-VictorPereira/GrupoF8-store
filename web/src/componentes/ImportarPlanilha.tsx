@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/componentes/ui/dialog";
 import { mensagemDeErro } from "@/comum/erros";
-import { baixarCsv, lerCsv } from "@/comum/planilha";
+import { baixarCsv, lerCsv, normalizar } from "@/comum/planilha";
 
 /** O que a API devolve nas duas importações. */
 export interface ResultadoImportacao {
@@ -77,6 +77,17 @@ export function ImportarPlanilha<L, R extends ResultadoImportacao>({
       if (cruas.length === 0) {
         setProblemaNoArquivo(
           "O arquivo não tem linhas. Confira se é CSV e se o cabeçalho bate com o modelo.",
+        );
+        return;
+      }
+
+      const colunasDoArquivo = new Set(Object.keys(cruas[0]!));
+      const colunasEsperadas = Object.keys(modelo).map(normalizar);
+      const faltando = colunasEsperadas.filter((c) => !colunasDoArquivo.has(c));
+      if (faltando.length > colunasEsperadas.length / 2) {
+        setProblemaNoArquivo(
+          "Este arquivo não parece ser o modelo certo — faltam colunas como " +
+            `${Object.keys(modelo).slice(0, 3).join(", ")}. Baixe o modelo de novo e confira o cabeçalho.`,
         );
         return;
       }

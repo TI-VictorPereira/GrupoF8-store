@@ -43,6 +43,13 @@ class ConsumoDaPessoaSaida(BaseModel):
     total: Decimal
 
 
+class CortesiaIsentoSaida(BaseModel):
+    tipo: str
+    nome: str
+    data: date
+    valor: Decimal
+
+
 class LoteSaida(BaseModel):
     """O fechamento do ciclo. Enquanto for `null`, nada foi exportado ainda."""
 
@@ -66,6 +73,8 @@ class ResumoSaida(BaseModel):
     pessoas: list[ConsumoDaPessoaSaida]
     sem_matricula: list[PessoaSemMatriculaSaida]
     total_sem_matricula: Decimal
+    cortesias_isentos: list[CortesiaIsentoSaida]
+    total_cortesias_isentos: Decimal
     lote: LoteSaida | None
 
 
@@ -129,6 +138,13 @@ def resumo(competencia: str, ator: DpOuAdminLiberado, sessao: Sessao) -> ResumoS
         total_sem_matricula=sum(
             (pessoa.total for pessoa in dados.sem_matricula), Decimal("0.00")
         ),
+        cortesias_isentos=[
+            CortesiaIsentoSaida(
+                tipo=linha.tipo, nome=linha.nome, data=linha.data, valor=linha.valor
+            )
+            for linha in dados.cortesias_isentos
+        ],
+        total_cortesias_isentos=dados.total_cortesias_isentos,
         lote=LoteSaida.model_validate(lote, from_attributes=True) if lote else None,
     )
 

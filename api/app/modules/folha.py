@@ -12,7 +12,7 @@ Quem não consumiu de um lado não gera a linha daquele lado.
 
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from io import BytesIO
 
@@ -89,6 +89,21 @@ class LinhaSemMatricula:
 
 
 @dataclass
+class LinhaCortesiaIsento:
+    """Almoço que ninguém paga do próprio bolso: visitante liberado de graça,
+    ou funcionário isento (a empresa cobre, não desconta da pessoa).
+
+    Existe pro DP ver quanto a empresa está bancando no refeitório — nenhuma
+    das duas entra na soma por pessoa nem no arquivo da folha.
+    """
+
+    tipo: str
+    nome: str
+    data: date
+    valor: Decimal
+
+
+@dataclass
 class ConsumoDaPessoa:
     """O que uma pessoa consumiu no ciclo, antes de virar linha de arquivo.
 
@@ -115,6 +130,7 @@ class Folha:
     competencia: str
     referencia: date
     pessoas: list[ConsumoDaPessoa]
+    cortesias_isentos: list[LinhaCortesiaIsento]
 
     @property
     def linhas(self) -> list[LinhaFolha]:
@@ -154,6 +170,10 @@ class Folha:
     def total(self) -> Decimal:
         return sum((linha.valor for linha in self.linhas), Decimal("0.00"))
 
+    @property
+    def total_cortesias_isentos(self) -> Decimal:
+        return sum((linha.valor for linha in self.cortesias_isentos), Decimal("0.00"))
+
 
 def _referencia(competencia: str) -> date:
     """Primeiro dia do mês em que o ciclo fecha.
@@ -163,6 +183,36 @@ def _referencia(competencia: str) -> date:
     """
     ano, mes = (int(parte) for parte in competencia.split("-"))
     return date(ano, mes, 1)
+
+def _cortesias_e_isentos(
+    sessao: Session, inicio: datetime, fim: datetime
+) -> list[LinhaCortesiaIsento]:
+    visitantes = sessao.execute(
+        select(Almoco.visitante_nome, Almoco.criado_em, Almoco.valor).where(
+            Almoco.cortesia.is_(True),
+            Almoco.status == "confirmado",
+            Almoco.criado_em >= inicio,
+            Almoco.criado_em < fim,
+        )
+    ).all()
+    isentos = sessao.execute(
+        select(Colaborador.nome_completo, Almoco.criado_em, Almoco.valor)
+        .join(Colaborador, Colaborador.id == Almoco.colaborador_id)
+        .where(
+            Almoco.isento.is_(True),
+            Almoco.status == "confirmado",
+            Almoco.criado_em >= inicio,
+            Almoco.criado_em < fim,
+        )
+    ).all()
+    return [
+        LinhaCortesiaIsento("visitante", nome, criado_em.date(), valor)
+        for nome, criado_em, valor in visitantes
+    ] + [
+        LinhaCortesiaIsento("isento", nome, criado_em.date(), valor)
+        for nome, criado_em, valor in isentos
+    ]
+
 
 type _Chave = tuple[uuid.UUID, uuid.UUID, int | None]
 
@@ -202,7 +252,11 @@ def montar(
     # explode com KeyError assim que um visitante aparecer na competência.
     if lote_id is not None:
         onde_loja = [Pedido.lote_id == lote_id, Pedido.colaborador_id.isnot(None)]
-        onde_refeitorio = [Almoco.lote_id == lote_id, Almoco.colaborador_id.isnot(None)]
+        onde_refeitorio = [
+            Almoco.lote_id == lote_id,
+            Almoco.colaborador_id.isnot(None),
+            Almoco.isento.is_(False),
+        ]
     else:
         onde_loja = [
             Pedido.criado_em >= inicio,
@@ -215,6 +269,9 @@ def montar(
             Almoco.criado_em < fim,
             Almoco.status == "confirmado",
             Almoco.colaborador_id.isnot(None),
+            # Isento: a empresa paga, não desconta da pessoa — vira linha
+            # separada em `cortesias_isentos`, não entra nesta soma.
+            Almoco.isento.is_(False),
         ]
 
     loja = _somar(sessao, Pedido, Pedido.valor_total, onde_loja)
@@ -253,6 +310,7 @@ def montar(
         pessoas=sorted(
             consolidado, key=lambda p: (p.matricula is None, p.matricula or 0, p.nome)
         ),
+        cortesias_isentos=_cortesias_e_isentos(sessao, inicio, fim),
     )
 
 

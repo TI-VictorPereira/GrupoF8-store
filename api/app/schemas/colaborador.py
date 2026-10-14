@@ -16,6 +16,7 @@ class EntradaColaborador(BaseModel):
     papel: str = Field(default="colaborador", pattern="^(colaborador|refeitorio|dp|admin)$")
     departamento_id: uuid.UUID | None = None
     mes_aniversario: int | None = Field(default=None, ge=1, le=12)
+    isento_almoco: bool = False
 
 
 class ColaboradorSaida(BaseModel):
@@ -30,6 +31,7 @@ class ColaboradorSaida(BaseModel):
     vinculo: str
     matricula: int | None
     mes_aniversario: int | None
+    isento_almoco: bool
     empresa_id: uuid.UUID
     papel: str
     departamento_id: uuid.UUID | None

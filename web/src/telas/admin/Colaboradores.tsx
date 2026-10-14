@@ -40,7 +40,7 @@ import {
 import { mensagemDeErro } from "@/comum/erros";
 import { dataHora } from "@/comum/formato";
 import { ordenar, useOrdenacao } from "@/comum/ordenacao";
-import { baixarCsv, coluna, normalizar, numeroDaPlanilha } from "@/comum/planilha";
+import { baixarCsv, coluna, normalizar, numeroDaPlanilha, simOuNao } from "@/comum/planilha";
 import type {
   ColaboradorCompleto,
   ColaboradorCriado,
@@ -82,6 +82,7 @@ const FORMULARIO_VAZIO = {
   vinculo: "clt" as Vinculo,
   matricula: "",
   mes_aniversario: "",
+  isento_almoco: false,
   papel: "colaborador" as Papel,
   departamento_id: "",
 };
@@ -148,6 +149,7 @@ export function Colaboradores() {
       vinculo: formulario.vinculo,
       matricula: formulario.vinculo === "clt" ? Number(formulario.matricula) : null,
       mes_aniversario: formulario.mes_aniversario ? Number(formulario.mes_aniversario) : null,
+      isento_almoco: formulario.isento_almoco,
       papel: formulario.papel,
       departamento_id: formulario.departamento_id || null,
     };
@@ -246,6 +248,7 @@ export function Colaboradores() {
       matricula: pessoa.matricula === null ? "" : String(pessoa.matricula),
       mes_aniversario:
         pessoa.mes_aniversario === null ? "" : String(pessoa.mes_aniversario),
+      isento_almoco: pessoa.isento_almoco,
       papel: pessoa.papel,
       departamento_id: pessoa.departamento_id ?? "",
     });
@@ -275,6 +278,7 @@ export function Colaboradores() {
         Codparc: p.codparc,
         Matricula: p.matricula ?? "",
         "Mes de aniversario": p.mes_aniversario ?? "",
+        "Isento almoco": p.isento_almoco ? "Sim" : "Nao",
         Vinculo: p.vinculo,
         Empresa: nomeEmpresa(p.empresa_id),
         Departamento: nomeDepartamento(p.departamento_id),
@@ -308,6 +312,7 @@ export function Colaboradores() {
       vinculo,
       matricula: vinculo === "clt" && matricula ? Number(matricula) : null,
       mes_aniversario: mesAniversario ? Number(mesAniversario) : null,
+      isento_almoco: simOuNao(coluna(linha, "isento almoco", "isento_almoco")) ?? false,
       papel: (["refeitorio", "dp", "admin"].includes(normalizar(coluna(linha, "papel")))
         ? normalizar(coluna(linha, "papel"))
         : "colaborador") as Papel,
@@ -347,6 +352,8 @@ export function Colaboradores() {
               Codparc: 5678,
               Matricula: 1234,
               Vinculo: "clt",
+              "Mes de aniversario": 5,
+              "Isento almoco": "Nao",
               Empresa: empresas.data?.[0]?.codemp ?? 1,
               Departamento: departamentos.data?.[0]?.nome ?? "",
               Papel: "colaborador",
@@ -613,6 +620,17 @@ export function Colaboradores() {
                 />
               </div>
             </div>
+
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={formulario.isento_almoco}
+                onChange={(e) =>
+                  setFormulario({ ...formulario, isento_almoco: e.target.checked })
+                }
+              />
+              Não paga almoço (empresa paga)
+            </label>
 
             <div className="grid gap-1.5">
               <Label htmlFor="empresa">Empresa</Label>

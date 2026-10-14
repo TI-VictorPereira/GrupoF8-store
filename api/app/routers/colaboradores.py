@@ -33,6 +33,7 @@ def _dados(entrada: EntradaColaborador) -> DadosColaborador:
         papel=entrada.papel,
         departamento_id=entrada.departamento_id,
         mes_aniversario=entrada.mes_aniversario,
+        isento_almoco=entrada.isento_almoco,
     )
 
 

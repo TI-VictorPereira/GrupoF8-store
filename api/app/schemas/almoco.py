@@ -6,6 +6,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.pedido import PixSaida
+
 
 class EntradaConfirmacaoAlmoco(BaseModel):
     codigo_barras: str = Field(min_length=1, max_length=40)
@@ -19,6 +21,7 @@ class EntradaVisitanteAlmoco(BaseModel):
     nome: str = Field(min_length=1, max_length=160)
     departamento_id: uuid.UUID
     termos_aceitos: bool = Field(description="Precisa ser true — a tela exige aceite antes.")
+    cortesia: bool = False
 
 
 class AlmocoSaida(BaseModel):
@@ -31,10 +34,19 @@ class AlmocoSaida(BaseModel):
     status: str
     origem: str
     valor: Decimal
+    cortesia: bool
+    isento: bool
+    pix_txid: str | None
+    pix_confirmado_em: datetime | None
     criado_em: datetime
     expira_em: datetime
     confirmado_em: datetime | None
     confirmado_por: uuid.UUID | None
+
+
+class VisitanteAlmocoSaida(BaseModel):
+    almoco: AlmocoSaida
+    pix: PixSaida | None
 
 
 class LinhaPainelSaida(BaseModel):

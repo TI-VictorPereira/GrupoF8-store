@@ -98,6 +98,9 @@ class Colaborador(Base):
     papel: Mapped[str] = mapped_column(String(20), nullable=False, server_default="colaborador")
     departamento_id: Mapped[uuid.UUID | None] = fk_uuid("departamentos.id", obrigatorio=False)
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    # Almoço dele é bancado pela empresa: entra confirmado igual a todo mundo,
+    # mas não desconta na folha — vira linha separada pro DP ver e cobrir.
+    isento_almoco: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     senha_provisoria: Mapped[bool] = mapped_column(

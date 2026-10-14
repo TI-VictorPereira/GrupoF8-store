@@ -51,6 +51,7 @@ class DadosColaborador:
     papel: str = "colaborador"
     departamento_id: uuid.UUID | None = None
     mes_aniversario: int | None = None
+    isento_almoco: bool = False
 
 
 @dataclass
@@ -166,6 +167,7 @@ def criar(sessao: Session, ator: Ator, dados: DadosColaborador) -> tuple[Colabor
         vinculo=dados.vinculo,
         matricula=dados.matricula,
         mes_aniversario=dados.mes_aniversario,
+        isento_almoco=dados.isento_almoco,
         empresa_id=dados.empresa_id,
         papel=dados.papel,
         departamento_id=dados.departamento_id,
@@ -208,6 +210,7 @@ def alterar(
     colaborador.vinculo = dados.vinculo
     colaborador.matricula = dados.matricula
     colaborador.mes_aniversario = dados.mes_aniversario
+    colaborador.isento_almoco = dados.isento_almoco
     colaborador.empresa_id = dados.empresa_id
     colaborador.papel = dados.papel
     colaborador.departamento_id = dados.departamento_id

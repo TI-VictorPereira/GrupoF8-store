@@ -23,9 +23,11 @@ from app.schemas.almoco import (
     EntradaVisitanteAlmoco,
     LinhaPainelSaida,
     PrecoAlmocoSaida,
+    VisitanteAlmocoSaida,
 )
 from app.schemas.colaborador import ColaboradorResumo
 from app.schemas.departamento import DepartamentoSaida
+from app.schemas.pedido import PixSaida
 
 rotas = APIRouter(prefix="/almocos", tags=["almoços"])
 
@@ -67,14 +69,23 @@ def departamentos_para_visitante(
     return almocos.listar_departamentos_para_visitante(sessao, ator)
 
 
-@rotas.post("/visitante", response_model=AlmocoSaida, status_code=201)
+@rotas.post("/visitante", response_model=VisitanteAlmocoSaida, status_code=201)
 def visitante(
     dados: EntradaVisitanteAlmoco, ator: RefeitorioOuAdminLiberado, sessao: Sessao
-) -> Almoco:
+) -> VisitanteAlmocoSaida:
     """Cadastra e já libera — feito no totem, não tem conferência depois."""
-    return almocos.registrar_visitante(
-        sessao, ator, dados.nome, dados.departamento_id, dados.termos_aceitos
+    resultado = almocos.registrar_visitante(
+        sessao, ator, dados.nome, dados.departamento_id, dados.termos_aceitos, dados.cortesia
     )
+    return VisitanteAlmocoSaida(
+        almoco=AlmocoSaida.model_validate(resultado.almoco),
+        pix=PixSaida(**vars(resultado.pix)) if resultado.pix else None,
+    )
+
+
+@rotas.post("/{almoco_id}/confirmar-pix", response_model=AlmocoSaida)
+def confirmar_pix(almoco_id: uuid.UUID, ator: RefeitorioOuAdminLiberado, sessao: Sessao) -> Almoco:
+    return almocos.confirmar_pix(sessao, ator, almoco_id)
 
 
 @rotas.post("/confirmar", response_model=ConfirmacaoSaida)

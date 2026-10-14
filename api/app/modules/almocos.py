@@ -11,6 +11,7 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
+from app.core import pix as pix_core
 from app.core.config import obter_config
 from app.excecoes import (
     AlmocoExpirado,
@@ -23,6 +24,7 @@ from app.excecoes import (
     DepartamentoNaoEncontrado,
     NomeObrigatorio,
     PeriodoInvalido,
+    PixNaoConfigurado,
     SemPermissao,
     TermosNaoAceitos,
 )
@@ -93,6 +95,7 @@ def gerar(sessao: Session, ator: Ator) -> Almoco:
         origem="totem",
         valor=_preco_vigente(sessao, agora),
         expira_em=agora + timedelta(minutes=_config.almoco_validade_minutos),
+        isento=colaborador.isento_almoco,
     )
     try:
         with sessao.begin_nested():
@@ -106,11 +109,26 @@ def gerar(sessao: Session, ator: Ator) -> Almoco:
     return almoco
 
 
+@dataclass
+class VisitanteRegistrado:
+    almoco: Almoco
+    pix: pix_core.PixGerado | None
+
+
 def registrar_visitante(
-    sessao: Session, ator: Ator, nome: str, departamento_id: uuid.UUID, termos_aceitos: bool
-) -> Almoco:
+    sessao: Session,
+    ator: Ator,
+    nome: str,
+    departamento_id: uuid.UUID,
+    termos_aceitos: bool,
+    cortesia: bool = False,
+) -> VisitanteRegistrado:
     """Cadastra e já libera o visitante — não existe conferência separada
     depois, então não faz sentido gerar código pra escanear em seguida.
+
+    O Pix (quando não é cortesia) é só informativo: não trava a liberação,
+    que continua acontecendo na hora. Confirmar o pagamento é uma ação
+    separada e manual (`confirmar_pix`), sem pressa.
 
     Quem chama precisa estar no totem autenticado como refeitório/admin; é a
     tela quem garante que o visitante leu o termo antes de digitar o nome, e
@@ -127,6 +145,7 @@ def registrar_visitante(
         raise DepartamentoNaoEncontrado()
 
     agora = _agora()
+    valor = Decimal("0.00") if cortesia else _preco_vigente(sessao, agora)
     almoco = Almoco(
         colaborador_id=None,
         empresa_id=None,
@@ -137,13 +156,23 @@ def registrar_visitante(
         codigo_barras=_codigo_barras(),
         status="confirmado",
         origem="visitante",
-        valor=_preco_vigente(sessao, agora),
+        valor=valor,
+        cortesia=cortesia,
         expira_em=agora + timedelta(minutes=_config.almoco_validade_minutos),
         confirmado_em=agora,
         confirmado_por=ator.id,
     )
     sessao.add(almoco)
     sessao.flush()
+
+    pix_gerado: pix_core.PixGerado | None = None
+    if not cortesia:
+        almoco.pix_txid = almoco.codigo_barras
+        try:
+            pix_gerado = pix_core.gerar(valor=valor, txid=almoco.pix_txid)
+        except pix_core.PixNaoConfigurado as erro:
+            raise PixNaoConfigurado() from erro
+
     auditoria.registrar(
         sessao,
         ator,
@@ -151,7 +180,32 @@ def registrar_visitante(
         entidade="almoco",
         entidade_id=almoco.id,
         descricao=f"Registrou e liberou o visitante {almoco.visitante_nome}.",
-        dados_novos={"visitante_nome": almoco.visitante_nome, "status": "confirmado"},
+        dados_novos={
+            "visitante_nome": almoco.visitante_nome,
+            "status": "confirmado",
+            "cortesia": cortesia,
+        },
+    )
+    return VisitanteRegistrado(almoco=almoco, pix=pix_gerado)
+
+
+def confirmar_pix(sessao: Session, ator: Ator, almoco_id: uuid.UUID) -> Almoco:
+    """Admin viu o Pix cair (fora do sistema) e confirma — só bookkeeping,
+    não libera nem bloqueia nada, o visitante já comeu."""
+    if ator.papel not in {"admin", "refeitorio"}:
+        raise SemPermissao()
+    almoco = sessao.get(Almoco, almoco_id)
+    if almoco is None:
+        raise AlmocoNaoEncontrado()
+    almoco.pix_confirmado_em = _agora()
+    auditoria.registrar(
+        sessao,
+        ator,
+        acao="almoco.pix_confirmado",
+        entidade="almoco",
+        entidade_id=almoco.id,
+        descricao=f"Confirmou o pagamento Pix do almoço de {almoco.visitante_nome}.",
+        dados_novos={"pix_confirmado_em": almoco.pix_confirmado_em.isoformat()},
     )
     return almoco
 
@@ -372,6 +426,7 @@ def registrar_manual(sessao: Session, ator: Ator, colaborador_id: uuid.UUID) -> 
         expira_em=agora + timedelta(minutes=_config.almoco_validade_minutos),
         confirmado_em=agora,
         confirmado_por=ator.id,
+        isento=colaborador.isento_almoco,
     )
     try:
         with sessao.begin_nested():

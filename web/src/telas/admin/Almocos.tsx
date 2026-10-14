@@ -76,6 +76,12 @@ export function Almocos() {
     onSuccess: recarregar,
   });
 
+  /** Só bookkeeping: o visitante já comeu, isso não libera nem bloqueia nada. */
+  const confirmarPix = useMutation({
+    mutationFn: (id: string) => api.post<AlmocoDoDia>(`/almocos/${id}/confirmar-pix`),
+    onSuccess: recarregar,
+  });
+
   const linhas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     return (almocos.data ?? []).filter(
@@ -102,6 +108,7 @@ export function Almocos() {
         "Código do colaborador": l.colaborador_codigo,
         Departamento: l.departamento ?? "—",
         Status: l.almoco.status,
+        "Paga almoço": l.almoco.cortesia || l.almoco.isento ? "Nao" : "Sim",
         Origem: l.almoco.origem,
         "Código de barras": l.almoco.codigo_barras,
         "Gerado em": hora(l.almoco.criado_em),
@@ -110,7 +117,7 @@ export function Almocos() {
     );
   }
 
-  const erro = confirmarManual.error ?? desfazer.error ?? almocos.error;
+  const erro = confirmarManual.error ?? desfazer.error ?? confirmarPix.error ?? almocos.error;
 
   return (
     <div>
@@ -194,8 +201,35 @@ export function Almocos() {
                             visitante
                           </Badge>
                         )}
+                        {almoco.cortesia && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            cortesia
+                          </Badge>
+                        )}
+                        {almoco.isento && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            empresa paga
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-[11px] text-suave">{colaborador_codigo}</p>
+                      {almoco.pix_txid && !almoco.cortesia && (
+                        <p className="text-[11px]">
+                          {almoco.pix_confirmado_em ? (
+                            <span className="text-sucesso">Pix confirmado</span>
+                          ) : (
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="h-auto p-0 text-[11px] text-suave"
+                              onClick={() => confirmarPix.mutate(almoco.id)}
+                              disabled={confirmarPix.isPending}
+                            >
+                              Confirmar Pix
+                            </Button>
+                          )}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-suave">{departamento ?? "—"}</TableCell>
                     <TableCell className="text-sm text-suave">{almoco.origem}</TableCell>
