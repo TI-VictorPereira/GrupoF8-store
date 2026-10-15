@@ -494,6 +494,7 @@ export function Colaboradores() {
                 <TableHeadOrdenavel coluna="codigo" estado={ordenacao} aoClicar={ordenacao.alternar}>
                   Código
                 </TableHeadOrdenavel>
+                <TableHead>Departamento</TableHead>
                 <TableHeadOrdenavel coluna="codparc" estado={ordenacao} aoClicar={ordenacao.alternar}>
                   Codparc
                 </TableHeadOrdenavel>
@@ -519,6 +520,9 @@ export function Colaboradores() {
                     )}
                   </TableCell>
                   <TableCell className="text-sm">{pessoa.codigo}</TableCell>
+                  <TableCell className="text-sm text-suave">
+                    {nomeDepartamento(pessoa.departamento_id)}
+                  </TableCell>
                   <TableCell className="text-sm">{pessoa.codparc}</TableCell>
                   <TableCell className="text-sm uppercase">{pessoa.vinculo}</TableCell>
                   <TableCell className="text-sm">{pessoa.matricula ?? "—"}</TableCell>
