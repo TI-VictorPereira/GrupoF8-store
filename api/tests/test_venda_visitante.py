@@ -128,7 +128,9 @@ def test_venda_com_cortesia_e_pago_cobra_so_o_pago(produtos_teste):
         brinde_item = next(i for i in itens if i.produto_id == produtos_teste["cortesia"])
         pago_item = next(i for i in itens if i.produto_id == produtos_teste["pago"])
         assert brinde_item.brinde is True
-        assert brinde_item.preco_unitario == Decimal("0.00")
+        # Preço real mesmo sendo cortesia — zerar aqui perderia o valor do
+        # produto; é a flag `brinde` que diz que não foi cobrado.
+        assert brinde_item.preco_unitario == Decimal("2.00")
         assert pago_item.brinde is False
         assert pago_item.preco_unitario == Decimal("5.00")
 

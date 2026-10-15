@@ -42,7 +42,8 @@ COLUNAS_DETALHADO = (
     "Categoria",
     "Quantidade",
     "Valor unitário",
-    "Valor total",
+    "Valor do produto",
+    "Valor pago",
     "Código do pedido",
     "Cortesia",
     "Pagamento",
@@ -55,7 +56,8 @@ COLUNAS_CONSOLIDADO = (
     "Empresa",
     "Compras",
     "Itens",
-    "Valor total",
+    "Valor dos produtos",
+    "Valor pago",
 )
 
 
@@ -71,10 +73,19 @@ class LinhaVenda:
     categoria: str | None
     quantidade: int
     preco_unitario: Decimal
-    valor_total: Decimal
     codigo_pedido: str
     brinde: bool
     forma_pagamento: str
+
+    @property
+    def valor_total(self) -> Decimal:
+        """Valor real do produto — não desconta cortesia. Ver `valor_pago`."""
+        return self.preco_unitario * self.quantidade
+
+    @property
+    def valor_pago(self) -> Decimal:
+        """O que de fato foi cobrado — zero quando é cortesia."""
+        return Decimal("0.00") if self.brinde else self.valor_total
 
 
 @dataclass
@@ -87,6 +98,7 @@ class LinhaConsolidada:
     compras: int
     itens: int
     valor_total: Decimal
+    valor_pago: Decimal
 
 
 def _intervalo(de: date, ate: date) -> tuple[datetime, datetime]:
@@ -131,7 +143,6 @@ def montar(sessao: Session, ator: Ator, de: date, ate: date) -> list[LinhaVenda]
                 categoria=item.categoria,
                 quantidade=item.quantidade,
                 preco_unitario=item.preco_unitario,
-                valor_total=item.preco_unitario * item.quantidade,
                 codigo_pedido=pedido.codigo_retirada,
                 brinde=item.brinde,
                 forma_pagamento="Cortesia" if item.brinde else "Folha",
@@ -164,7 +175,6 @@ def montar(sessao: Session, ator: Ator, de: date, ate: date) -> list[LinhaVenda]
                 categoria=item.categoria,
                 quantidade=item.quantidade,
                 preco_unitario=item.preco_unitario,
-                valor_total=item.preco_unitario * item.quantidade,
                 codigo_pedido=pedido.codigo_retirada,
                 brinde=item.brinde,
                 forma_pagamento="Cortesia" if item.brinde else "Pix",
@@ -199,9 +209,11 @@ def consolidar_por_pessoa(linhas: list[LinhaVenda]) -> list[LinhaConsolidada]:
                 "departamento": linha.departamento,
                 "itens": 0,
                 "valor_total": Decimal("0"),
+                "valor_pago": Decimal("0"),
             },
         )
         dados["valor_total"] += linha.valor_total
+        dados["valor_pago"] += linha.valor_pago
         dados["itens"] += linha.quantidade
         pedidos_por_pessoa.setdefault(chave, set()).add(linha.codigo_pedido)
 
@@ -215,6 +227,7 @@ def consolidar_por_pessoa(linhas: list[LinhaVenda]) -> list[LinhaConsolidada]:
             compras=len(pedidos_por_pessoa.get(chave, set())),
             itens=dados["itens"],
             valor_total=dados["valor_total"],
+            valor_pago=dados["valor_pago"],
         )
         for chave, dados in agregados.items()
     ]
@@ -247,20 +260,21 @@ def _escrever_detalhado(aba: Worksheet, linhas: list[LinhaVenda]) -> None:
                 linha.codparc or "—",
                 linha.colaborador_nome,
                 linha.departamento or "—",
-                f"{linha.codemp} — {linha.empresa_nome}" if linha.codemp else "—",
+                f"{linha.codemp} · {linha.empresa_nome}" if linha.codemp else "—",
                 linha.data.strftime("%d/%m/%Y %H:%M"),
                 linha.item,
                 linha.categoria or "—",
                 linha.quantidade,
                 float(linha.preco_unitario),
                 float(linha.valor_total),
+                float(linha.valor_pago),
                 linha.codigo_pedido,
                 "Sim" if linha.brinde else "—",
                 linha.forma_pagamento,
             ]
         )
 
-    larguras = (12, 28, 22, 28, 16, 28, 16, 10, 14, 14, 16, 12, 20)
+    larguras = (12, 28, 22, 28, 16, 28, 16, 10, 14, 14, 14, 16, 12, 20)
     for indice, largura in enumerate(larguras, start=1):
         aba.column_dimensions[aba.cell(row=1, column=indice).column_letter].width = largura
 
@@ -277,14 +291,15 @@ def _escrever_consolidado(aba: Worksheet, linhas: list[LinhaConsolidada]) -> Non
                 linha.codparc or "—",
                 linha.colaborador_nome,
                 linha.departamento or "—",
-                f"{linha.codemp} — {linha.empresa_nome}" if linha.codemp else "—",
+                f"{linha.codemp} · {linha.empresa_nome}" if linha.codemp else "—",
                 linha.compras,
                 linha.itens,
                 float(linha.valor_total),
+                float(linha.valor_pago),
             ]
         )
 
-    larguras = (12, 28, 22, 28, 10, 10, 14)
+    larguras = (12, 28, 22, 28, 10, 10, 14, 14)
     for indice, largura in enumerate(larguras, start=1):
         aba.column_dimensions[aba.cell(row=1, column=indice).column_letter].width = largura
 

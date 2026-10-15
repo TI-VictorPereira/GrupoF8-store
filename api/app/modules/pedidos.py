@@ -200,11 +200,9 @@ def finalizar(
             "custo_unitario": produto.custo,
         }
         if produto.id == brinde_produto_id:
-            # Duas linhas em vez de desconto no total: assim o item de
-            # graca aparece como tal no extrato e no relatorio, e
-            # `valor_total` continua sendo a soma pura das linhas.
+           
             sessao.add(
-                ItemPedido(**comum, quantidade=1, preco_unitario=Decimal("0.00"), brinde=True)
+                ItemPedido(**comum, quantidade=1, preco_unitario=produto.preco_venda, brinde=True)
             )
             if quantidade > 1:
                 sessao.add(
@@ -316,7 +314,9 @@ def vender_a_visitante(
                 nome_produto=produto.nome,
                 categoria=categoria,
                 quantidade=quantidade,
-                preco_unitario=Decimal("0.00") if eh_cortesia else produto.preco_venda,
+                # Preço real sempre — `brinde` já diz que não foi cobrado, e
+                # `total` (calculado acima) já exclui esta linha do Pix.
+                preco_unitario=produto.preco_venda,
                 custo_unitario=produto.custo,
                 brinde=eh_cortesia,
             )

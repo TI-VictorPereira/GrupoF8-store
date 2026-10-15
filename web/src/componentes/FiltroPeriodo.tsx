@@ -43,7 +43,7 @@ export function FiltroPeriodo({
           {opcao.valor === "ciclo" && (
             <Help>
               O ciclo vai do dia 21 ao dia 20 do mês seguinte, e leva o nome do mês em que
-              fecha — mesma regra da folha de pagamento. Quem comprou ou almoçou em 25 de
+              fecha, mesma regra da folha de pagamento. Quem comprou ou almoçou em 25 de
               agosto está no ciclo de setembro.
             </Help>
           )}

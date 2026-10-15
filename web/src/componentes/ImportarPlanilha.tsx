@@ -86,7 +86,7 @@ export function ImportarPlanilha<L, R extends ResultadoImportacao>({
       const faltando = colunasEsperadas.filter((c) => !colunasDoArquivo.has(c));
       if (faltando.length > colunasEsperadas.length / 2) {
         setProblemaNoArquivo(
-          "Este arquivo não parece ser o modelo certo — faltam colunas como " +
+          "Este arquivo não parece ser o modelo certo, faltam colunas como " +
             `${Object.keys(modelo).slice(0, 3).join(", ")}. Baixe o modelo de novo e confira o cabeçalho.`,
         );
         return;

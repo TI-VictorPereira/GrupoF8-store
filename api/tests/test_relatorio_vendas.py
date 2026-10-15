@@ -85,8 +85,8 @@ def _pedido_entregue(colaborador_id, empresa_id, *, brinde: bool = False) -> uui
                 pedido_id=pedido.id,
                 nome_produto="Refrigerante",
                 quantidade=2,
-                preco_unitario=Decimal("0.00") if brinde else Decimal("5.00"),
-                custo_unitario=Decimal("2.00"),
+                preco_unitario=Decimal("5.00"),
+                custo_unitario=Decimal("2b.00"),
                 brinde=brinde,
             )
         )
@@ -127,13 +127,23 @@ def test_item_de_brinde_aparece_marcado_na_planilha(dados):
         linhas = relatorio_vendas.montar(s, _admin(), de, de)
         assert linhas[0].brinde is True
         assert linhas[0].forma_pagamento == "Cortesia"
+        # Valor do produto é o real (10 = 2 × 5), mesmo sendo cortesia —
+        # só o que foi pago é que vem zerado.
+        assert linhas[0].valor_total == Decimal("10.00")
+        assert linhas[0].valor_pago == Decimal("0.00")
 
         livro = load_workbook(BytesIO(relatorio_vendas.planilha_detalhada(s, linhas)))
 
     cabecalho = [c.value for c in livro["Demais empresas"][1]]
     assert cabecalho[-2] == "Cortesia"
     assert cabecalho[-1] == "Pagamento"
+    assert "Valor do produto" in cabecalho
+    assert "Valor pago" in cabecalho
     linha_da_planilha = next(livro["Demais empresas"].iter_rows(min_row=2))
+    indice_valor_produto = cabecalho.index("Valor do produto")
+    indice_valor_pago = cabecalho.index("Valor pago")
+    assert linha_da_planilha[indice_valor_produto].value == 10.0
+    assert linha_da_planilha[indice_valor_pago].value == 0.0
     assert linha_da_planilha[-2].value == "Sim"
     assert linha_da_planilha[-1].value == "Cortesia"
 

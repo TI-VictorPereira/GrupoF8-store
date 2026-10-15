@@ -56,7 +56,7 @@ def main() -> int:
         sessao.commit()
 
     print()
-    print(f"  {colaborador.nome_completo} — código {codigo}")
+    print(f"  {colaborador.nome_completo} · código {codigo}")
     print(f"  senha provisória: {senha}")
     print()
     print("  Aparece uma vez só. No primeiro login o sistema exige a troca.")

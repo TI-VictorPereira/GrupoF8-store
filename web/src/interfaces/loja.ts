@@ -28,6 +28,7 @@ export interface ItemPedido {
   quantidade: number;
   preco_unitario: string;
   custo_unitario: string;
+  brinde: boolean;
 }
 
 export interface Pedido {

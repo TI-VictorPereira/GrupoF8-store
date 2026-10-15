@@ -133,7 +133,9 @@ export function Vendas() {
       validos.reduce(
         (acumulado, linha) => {
           for (const item of linha.pedido.itens) {
-            acumulado.receita += Number(item.preco_unitario) * item.quantidade;
+            // Brinde não é receita (ninguém pagou), mas o custo é real: a
+            // empresa comprou a mercadoria do mesmo jeito.
+            if (!item.brinde) acumulado.receita += Number(item.preco_unitario) * item.quantidade;
             acumulado.custo += Number(item.custo_unitario) * item.quantidade;
             acumulado.unidades += item.quantidade;
           }
@@ -149,7 +151,7 @@ export function Vendas() {
     for (const linha of validos) {
       for (const item of linha.pedido.itens) {
         const atual = mapa.get(item.nome_produto) ?? { receita: 0, custo: 0, unidades: 0 };
-        atual.receita += Number(item.preco_unitario) * item.quantidade;
+        if (!item.brinde) atual.receita += Number(item.preco_unitario) * item.quantidade;
         atual.custo += Number(item.custo_unitario) * item.quantidade;
         atual.unidades += item.quantidade;
         mapa.set(item.nome_produto, atual);
@@ -187,7 +189,7 @@ export function Vendas() {
     () =>
       (vendasVisitante.data ?? [])
         .flatMap((p) => p.itens)
-        .filter((item) => Number(item.preco_unitario) === 0)
+        .filter((item) => item.brinde)
         .reduce((soma, item) => soma + item.quantidade, 0),
     [vendasVisitante.data],
   );
@@ -543,7 +545,7 @@ export function Vendas() {
                       >
                         <span className="min-w-0 truncate text-suave">
                           {item.quantidade}× {item.nome_produto}
-                          {Number(item.preco_unitario) === 0 && " · cortesia"}
+                          {item.brinde && " · cortesia"}
                         </span>
                         <span className="shrink-0 font-semibold">
                           {dinheiro(Number(item.preco_unitario) * item.quantidade)}
@@ -591,7 +593,7 @@ export function Vendas() {
               {vendaGerada
                 ? "Pague pelo Pix abaixo e confirme quando o pagamento cair."
                 : confirmarCortesiaAberto
-                  ? "Confirme antes de liberar — essa venda não cobra nada do visitante."
+                  ? "Confirme antes de liberar: essa venda não cobra nada do visitante."
                   : "Monte o carrinho e marque os itens de cortesia, se houver."}
             </DialogDescription>
           </DialogHeader>
@@ -604,7 +606,7 @@ export function Vendas() {
               </p>
               <p className="mt-2 text-suave">
                 Ao confirmar, o estoque já sai baixado e a venda é registrada como concluída na
-                hora — não dá pra desfazer por aqui depois.
+                hora. Não dá pra desfazer por aqui depois.
               </p>
             </div>
           )}
@@ -740,7 +742,7 @@ export function Vendas() {
                   </Button>
                 </>
               ) : (
-                <p className="text-sm text-sucesso">Venda 100% cortesia — já confirmada.</p>
+                <p className="text-sm text-sucesso">Venda 100% cortesia, já confirmada.</p>
               )}
             </div>
           )}

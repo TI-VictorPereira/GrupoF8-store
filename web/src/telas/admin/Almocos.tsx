@@ -107,6 +107,11 @@ export function Almocos() {
     return l.almoco.isento ? "Isento (empresa paga)" : "Folha";
   }
 
+  /** O que de fato saiu do bolso de quem consumiu — zero em cortesia e isento. */
+  function valorPago(l: LinhaPainel): number {
+    return l.almoco.cortesia || l.almoco.isento ? 0 : Number(l.almoco.valor);
+  }
+
   function exportar() {
     baixarCsv(
       `almocos-f8-${de}_a_${ate}`,
@@ -117,7 +122,8 @@ export function Almocos() {
         Departamento: l.departamento ?? "—",
         Status: l.almoco.status,
         Pagamento: formaPagamento(l),
-        Valor: l.almoco.valor,
+        "Valor do almoço": l.almoco.valor,
+        "Valor pago": valorPago(l),
         Origem: l.almoco.origem,
         "Código de barras": l.almoco.codigo_barras,
         "Gerado em": hora(l.almoco.criado_em),

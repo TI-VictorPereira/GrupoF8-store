@@ -331,7 +331,7 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
                     <li key={linha}>{linha}</li>
                   ))}
                   {cortesia ? (
-                    <li>Esta refeição é cortesia — não será cobrada.</li>
+                    <li>Esta refeição é cortesia: não será cobrada.</li>
                   ) : (
                     <li>
                       Esta refeição custa{" "}

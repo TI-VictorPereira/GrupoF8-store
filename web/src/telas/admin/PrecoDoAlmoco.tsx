@@ -101,7 +101,7 @@ export function PrecoDoAlmoco() {
         {zerado && !editando && (
           <div className="mt-3">
             <Aviso>
-              Sem preço definido, todo almoço liberado é gravado valendo R$ 0,00 — e definir o
+              Sem preço definido, todo almoço liberado é gravado valendo R$ 0,00, e definir o
               valor depois não corrige os que já passaram.
             </Aviso>
           </div>

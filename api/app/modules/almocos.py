@@ -145,7 +145,8 @@ def registrar_visitante(
         raise DepartamentoNaoEncontrado()
 
     agora = _agora()
-    valor = Decimal("0.00") if cortesia else _preco_vigente(sessao, agora)
+   
+    valor = _preco_vigente(sessao, agora)
     almoco = Almoco(
         colaborador_id=None,
         empresa_id=None,

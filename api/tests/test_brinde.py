@@ -93,7 +93,7 @@ def test_um_item_sai_zerado_no_mes_do_aniversario(dados, produto):
         itens = _itens(s, pedido.id)
         assert len(itens) == 1
         assert itens[0].brinde is True
-        assert itens[0].preco_unitario == Decimal("0.00")
+        assert itens[0].preco_unitario == Decimal("4.00")
         # O custo continua real: para a margem, isto é custo sem receita, e não
         # um item que nunca saiu da prateleira.
         assert itens[0].custo_unitario == Decimal("1.80")
@@ -113,7 +113,7 @@ def test_tres_unidades_pagam_duas(dados, produto):
         gratis, pago = _itens(s, pedido.id)
         assert (gratis.quantidade, gratis.preco_unitario, gratis.brinde) == (
             1,
-            Decimal("0.00"),
+            Decimal("4.00"),
             True,
         )
         assert (pago.quantidade, pago.preco_unitario, pago.brinde) == (2, Decimal("4.00"), False)

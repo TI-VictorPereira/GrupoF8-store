@@ -47,9 +47,10 @@ export function PedidoConfirmado({ pedidoId }: { pedidoId: string }) {
               >
                 <span className="min-w-0 truncate text-suave">
                   {item.quantidade}× {item.nome_produto}
+                  {item.brinde && " · brinde de aniversário"}
                 </span>
                 <span className="shrink-0 font-semibold">
-                  {dinheiro(Number(item.preco_unitario) * item.quantidade)}
+                  {item.brinde ? "Grátis" : dinheiro(Number(item.preco_unitario) * item.quantidade)}
                 </span>
               </div>
             ))}

@@ -459,7 +459,7 @@ export function Estoque() {
           <DialogHeader>
             <DialogTitle>{emEdicao ? "Editar produto" : "Novo produto"}</DialogTitle>
             <DialogDescription>
-              O estoque não se muda aqui — ele só anda por ajuste, que fica registrado com
+              O estoque não se muda aqui, ele só anda por ajuste, que fica registrado com
               motivo.
             </DialogDescription>
           </DialogHeader>
@@ -836,7 +836,7 @@ export function Estoque() {
           <DialogHeader>
             <DialogTitle>Ajustar estoque</DialogTitle>
             <DialogDescription>
-              {aAjustar?.nome} — hoje com {aAjustar?.estoque} em estoque. O motivo fica no
+              {aAjustar?.nome} · hoje com {aAjustar?.estoque} em estoque. O motivo fica no
               histórico.
             </DialogDescription>
           </DialogHeader>
@@ -881,7 +881,7 @@ export function Estoque() {
               <Label>Responsável / solicitante (opcional)</Label>
               <SelecionarColaborador selecionado={responsavel} aoSelecionar={setResponsavel} />
               <p className="text-[11px] text-suave">
-                Só documenta quem pediu — não gera cobrança nem consumo pra essa pessoa.
+                Só documenta quem pediu, não gera cobrança nem consumo pra essa pessoa.
               </p>
             </div>
 

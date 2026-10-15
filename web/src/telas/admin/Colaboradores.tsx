@@ -62,7 +62,7 @@ const AVISOS: Record<string, string> = {
   codparc_duplicado: "Este código de parceiro já está em uso.",
   matricula_duplicada: "Já existe esta matrícula nesta empresa.",
   matricula_obrigatoria: "CLT precisa de matrícula.",
-  matricula_nao_permitida: "PJ não tem matrícula — deixe o campo vazio.",
+  matricula_nao_permitida: "PJ não tem matrícula, deixe o campo vazio.",
   auto_inativacao: "Você não pode desativar o próprio acesso.",
   departamento_duplicado: "Já existe um departamento com este nome.",
 };
@@ -373,7 +373,7 @@ export function Colaboradores() {
                       a saída é redefinir uma a uma. Baixar é o único jeito
                       prático de entregar 100 senhas. */}
                   <p className="mt-0.5 mb-2 text-[11px] text-suave">
-                    Baixe agora — elas não aparecem de novo.
+                    Baixe agora, elas não aparecem de novo.
                   </p>
                   <Button
                     size="sm"
@@ -541,7 +541,7 @@ export function Colaboradores() {
             <DialogTitle>{emEdicao ? "Editar colaborador" : "Novo colaborador"}</DialogTitle>
             <DialogDescription>
               O codparc é o que identifica a pessoa no Sankhya. A matrícula só existe para CLT
-              e se repete entre empresas — é o par com a empresa que é único.
+              e se repete entre empresas: é o par com a empresa que é único.
             </DialogDescription>
           </DialogHeader>
 
@@ -644,7 +644,7 @@ export function Colaboradores() {
                 <SelectContent>
                   {(empresas.data ?? []).map((empresa) => (
                     <SelectItem key={empresa.id} value={empresa.id}>
-                      {empresa.codemp} — {empresa.nome}
+                      {empresa.codemp} · {empresa.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
