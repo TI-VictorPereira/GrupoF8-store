@@ -86,7 +86,7 @@ def _pedido_entregue(colaborador_id, empresa_id, *, brinde: bool = False) -> uui
                 nome_produto="Refrigerante",
                 quantidade=2,
                 preco_unitario=Decimal("5.00"),
-                custo_unitario=Decimal("2b.00"),
+                custo_unitario=Decimal("2.00"),
                 brinde=brinde,
             )
         )

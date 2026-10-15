@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 
-import { api } from "@/api/cliente";
+import { api, buscarTudoPaginado } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { CampoDinheiro } from "@/componentes/CampoDinheiro";
 import { CampoInteiro } from "@/componentes/CampoInteiro";
 import { ImportarPlanilha } from "@/componentes/ImportarPlanilha";
 import { Carregando } from "@/componentes/Carregando";
+import { PaginacaoControles } from "@/componentes/PaginacaoControles";
 import { SelecionarColaborador } from "@/componentes/SelecionarColaborador";
 import { Vazio } from "@/componentes/Vazio";
 import { Badge } from "@/componentes/ui/badge";
@@ -41,11 +42,13 @@ import { mensagemDeErro } from "@/comum/erros";
 import { dinheiro } from "@/comum/formato";
 import { baixarCsv, coluna, numeroDaPlanilha, simOuNao } from "@/comum/planilha";
 import type { ProdutoCompleto, ResultadoImportacaoProdutos } from "@/interfaces/admin";
+import type { Pagina } from "@/interfaces/comum";
 import type { Categoria, Marca } from "@/interfaces/loja";
 import type { ColaboradorParaAlmoco } from "@/interfaces/refeitorio";
 
 const CHAVE = ["produtos-admin"] as const;
 
+const POR_PAGINA = 20;
 const ESTOQUE_BAIXO = 5;
 
 const AVISOS: Record<string, string> = {
@@ -73,8 +76,9 @@ const FORMULARIO_VAZIO = {
 export function Estoque() {
   const clienteConsulta = useQueryClient();
   const inputFoto = useRef<HTMLInputElement>(null);
-  const [busca, setBusca] = useState("");
-  const [filtroCategoria, setFiltroCategoria] = useState("todas");
+  const [busca, setBuscaBruta] = useState("");
+  const [filtroCategoria, setFiltroCategoriaBruto] = useState("todas");
+  const [pagina, setPagina] = useState(1);
   const [emEdicao, setEmEdicao] = useState<ProdutoCompleto | null>(null);
   const [formularioAberto, setFormularioAberto] = useState(false);
   const [formulario, setFormulario] = useState(FORMULARIO_VAZIO);
@@ -89,9 +93,25 @@ export function Estoque() {
   const [nomeNovaMarca, setNomeNovaMarca] = useState("");
   const [marcasAbertas, setMarcasAbertas] = useState(false);
 
+  function setBusca(valor: string) {
+    setBuscaBruta(valor);
+    setPagina(1);
+  }
+
+  function setFiltroCategoria(valor: string) {
+    setFiltroCategoriaBruto(valor);
+    setPagina(1);
+  }
+
+  const caminhoLista =
+    "/produtos" +
+    `?pagina=${pagina}&por_pagina=${POR_PAGINA}` +
+    (busca.trim() ? `&busca=${encodeURIComponent(busca.trim())}` : "") +
+    (filtroCategoria !== "todas" ? `&categoria_id=${filtroCategoria}` : "");
+
   const produtos = useQuery({
-    queryKey: CHAVE,
-    queryFn: () => api.get<ProdutoCompleto[]>("/produtos"),
+    queryKey: [...CHAVE, caminhoLista],
+    queryFn: () => api.get<Pagina<ProdutoCompleto>>(caminhoLista),
     refetchInterval: 30_000,
   });
   const categorias = useQuery({
@@ -246,34 +266,36 @@ export function Estoque() {
     setAAjustar(produto);
   }
 
-  const visiveis = (produtos.data ?? []).filter((p) => {
-    const termo = busca.trim().toLowerCase();
-    const combinaBusca =
-      !termo ||
-      p.nome.toLowerCase().includes(termo) ||
-      p.codigo.toLowerCase().includes(termo);
-    const combinaCategoria =
-      filtroCategoria === "todas" || p.categoria_id === filtroCategoria;
-    return combinaBusca && combinaCategoria;
+  const visiveis = produtos.data?.itens ?? [];
+  const total = produtos.data?.total ?? 0;
+
+  const exportar = useMutation({
+    mutationFn: () =>
+      buscarTudoPaginado<ProdutoCompleto>(
+        "/produtos" +
+          (busca.trim() ? `?busca=${encodeURIComponent(busca.trim())}` : "") +
+          (filtroCategoria !== "todas"
+            ? `${busca.trim() ? "&" : "?"}categoria_id=${filtroCategoria}`
+            : ""),
+      ),
+    onSuccess: (todos) => {
+      baixarCsv(
+        "produtos-f8",
+        todos.map((p) => ({
+          Codigo: p.codigo,
+          Nome: p.nome,
+          Marca: nomeMarca(p.marca_id),
+          Categoria: nomeCategoria(p.categoria_id),
+          Custo: p.custo,
+          "Preco de venda": p.preco_venda,
+          Estoque: p.estoque,
+          Ativo: p.ativo ? "Sim" : "Nao",
+        })),
+      );
+    },
   });
 
-  const erroLista = alternarAtivo.error;
-
-  function exportar() {
-    baixarCsv(
-      "produtos-f8",
-      visiveis.map((p) => ({
-        Codigo: p.codigo,
-        Nome: p.nome,
-        Marca: nomeMarca(p.marca_id),
-        Categoria: nomeCategoria(p.categoria_id),
-        Custo: p.custo,
-        "Preco de venda": p.preco_venda,
-        Estoque: p.estoque,
-        Ativo: p.ativo ? "Sim" : "Nao",
-      })),
-    );
-  }
+  const erroLista = alternarAtivo.error ?? exportar.error;
 
  
   function converterLinha(linha: Record<string, string>) {
@@ -306,8 +328,12 @@ export function Estoque() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-bold">Estoque</h1>
         <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={exportar} disabled={visiveis.length === 0}>
-            Exportar
+          <Button
+            variant="ghost"
+            onClick={() => exportar.mutate()}
+            disabled={total === 0 || exportar.isPending}
+          >
+            {exportar.isPending ? "Exportando…" : "Exportar"}
           </Button>
           <ImportarPlanilha
             titulo="Importar produtos"
@@ -450,6 +476,12 @@ export function Estoque() {
               })}
             </TableBody>
           </Table>
+          <PaginacaoControles
+            pagina={pagina}
+            porPagina={POR_PAGINA}
+            total={total}
+            aoMudar={setPagina}
+          />
         </Card>
       )}
 

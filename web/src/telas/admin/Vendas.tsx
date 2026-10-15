@@ -34,6 +34,7 @@ import { dataHora, dinheiro } from "@/comum/formato";
 import { ordenar, useOrdenacao } from "@/comum/ordenacao";
 import { intervaloDoFiltro, periodoInicial } from "@/comum/periodo";
 import type { PedidoCompleto, LinhaPedido, PixGerado } from "@/interfaces/admin";
+import type { Pagina } from "@/interfaces/comum";
 import type { LinhaPainel } from "@/interfaces/refeitorio";
 import type { ProdutoVitrine } from "@/interfaces/loja";
 
@@ -104,9 +105,11 @@ export function Vendas() {
     queryKey: ["vendas", de, ate],
     queryFn: () => api.get<LinhaPedido[]>(`/pedidos?de=${de}&ate=${ate}`),
   });
-  const almocos = useQuery({
-    queryKey: ["almocos-historico", de, ate],
-    queryFn: () => api.get<LinhaPainel[]>(`/almocos?de=${de}&ate=${ate}`),
+  // Só a contagem interessa aqui — pede 1 item e lê o total, sem trazer a lista inteira.
+  const almocosConfirmados = useQuery({
+    queryKey: ["almocos-confirmados", de, ate],
+    queryFn: () =>
+      api.get<Pagina<LinhaPainel>>(`/almocos?de=${de}&ate=${ate}&status=confirmado&por_pagina=1`),
   });
   const produtosVisitante = useQuery({
     queryKey: ["produtos-vitrine-visitante"],
@@ -171,9 +174,6 @@ export function Vendas() {
 
   const lucro = totais.receita - totais.custo;
   const margem = totais.receita ? (lucro / totais.receita) * 100 : 0;
-  const almocosConfirmados = (almocos.data ?? []).filter(
-    (l) => l.almoco.status === "confirmado",
-  );
 
   const visitantePix = useMemo(() => {
     const pagos = (vendasVisitante.data ?? []).filter(
@@ -342,7 +342,7 @@ export function Vendas() {
 
   const erro =
     vendas.error ??
-    almocos.error ??
+    almocosConfirmados.error ??
     baixarDetalhado.error ??
     baixarConsolidado.error ??
     vendasVisitante.error;
@@ -408,7 +408,7 @@ export function Vendas() {
         <Card>
           <CardContent className="p-4">
             <p className="text-[11px] text-suave">Almoços</p>
-            <p className="mt-1 text-xl font-bold">{almocosConfirmados.length}</p>
+            <p className="mt-1 text-xl font-bold">{almocosConfirmados.data?.total ?? 0}</p>
             <p className="text-[11px] text-muito-suave">confirmados</p>
           </CardContent>
         </Card>
@@ -435,7 +435,7 @@ export function Vendas() {
         </TabsList>
 
         <TabsContent value="produtos">
-          {(vendas.isLoading || almocos.isLoading) && <Carregando />}
+          {(vendas.isLoading || almocosConfirmados.isLoading) && <Carregando />}
           {vendas.data && porProduto.length === 0 && <Vazio>Nenhuma venda neste período.</Vazio>}
 
           {porProduto.length > 0 && (

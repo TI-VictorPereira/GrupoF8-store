@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, aliased
 
 from app.core import pix as pix_core
 from app.core.config import obter_config
+from app.core.paginacao import contar
 from app.excecoes import (
     AlmocoExpirado,
     AlmocoJaConfirmado,
@@ -255,7 +256,7 @@ def meu_de_hoje(sessao: Session, ator: Ator) -> Almoco | None:
 _DepartamentoDoVisitante = aliased(Departamento)
 
 
-def _entre(inicio: datetime, fim: datetime, status: str | None):
+def _entre(inicio: datetime, fim: datetime, status: str | None, busca: str | None = None):
     consulta = (
         select(
             Almoco,
@@ -273,7 +274,16 @@ def _entre(inicio: datetime, fim: datetime, status: str | None):
         .where(Almoco.criado_em >= inicio, Almoco.criado_em < fim)
         .order_by(Almoco.criado_em.desc())
     )
-    return consulta.where(Almoco.status == status) if status else consulta
+    if status:
+        consulta = consulta.where(Almoco.status == status)
+    if busca:
+        termo = f"%{busca.strip()}%"
+        consulta = consulta.where(
+            Colaborador.nome_completo.ilike(termo)
+            | Colaborador.codigo.ilike(termo)
+            | Almoco.visitante_nome.ilike(termo)
+        )
+    return consulta
 
 
 def _linha_painel(
@@ -330,8 +340,16 @@ def listar_do_dia(sessao: Session, ator: Ator, status: str | None = None) -> lis
 
 
 def listar_periodo(
-    sessao: Session, ator: Ator, de: date, ate: date, status: str | None = None
-) -> list[LinhaPainel]:
+    sessao: Session,
+    ator: Ator,
+    de: date,
+    ate: date,
+    status: str | None = None,
+    *,
+    busca: str | None = None,
+    pagina: int = 1,
+    por_pagina: int = 20,
+) -> tuple[list[LinhaPainel], int]:
     """Histórico do admin. As datas são locais e o intervalo inclui os dois dias.
 
     Converter aqui, e não no router, evita a armadilha de comparar uma data
@@ -347,10 +365,14 @@ def listar_periodo(
     inicio = datetime(de.year, de.month, de.day, tzinfo=fuso).astimezone(UTC)
     fim = (datetime(ate.year, ate.month, ate.day, tzinfo=fuso) + timedelta(days=1)).astimezone(UTC)
 
-    return [
+    consulta = _entre(inicio, fim, status, busca)
+    total = contar(sessao, consulta)
+    pagina_consulta = consulta.limit(por_pagina).offset((pagina - 1) * por_pagina)
+    linhas = [
         _linha_painel(a, nome, codigo, dep, dep_visitante)
-        for a, nome, codigo, dep, dep_visitante in sessao.execute(_entre(inicio, fim, status)).all()
+        for a, nome, codigo, dep, dep_visitante in sessao.execute(pagina_consulta).all()
     ]
+    return linhas, total
 
 
 def desfazer_confirmacao(sessao: Session, ator: Ator, almoco_id: uuid.UUID) -> Almoco:

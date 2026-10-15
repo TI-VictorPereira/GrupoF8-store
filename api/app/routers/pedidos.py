@@ -3,12 +3,13 @@
 import uuid
 from datetime import date
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from sqlalchemy import select
 
 from app.core.deps import AdminLiberado, ConsumidorLiberado, Sessao
 from app.models.operacao import ItemPedido, Pedido
 from app.modules import pedidos
+from app.schemas.comum import Pagina
 from app.schemas.pedido import (
     BrindeSaida,
     EntradaCancelamento,
@@ -88,16 +89,32 @@ def confirmar_pix(pedido_id: uuid.UUID, ator: AdminLiberado, sessao: Sessao) -> 
     return pedidos.confirmar_pix(sessao, ator, pedido_id)
 
 
-@rotas.get("/pendentes", response_model=list[LinhaPedidoSaida])
-def pendentes(ator: AdminLiberado, sessao: Sessao) -> list[LinhaPedidoSaida]:
+@rotas.get("/pendentes", response_model=Pagina[LinhaPedidoSaida])
+def pendentes(
+    ator: AdminLiberado,
+    sessao: Sessao,
+    pagina: int = Query(1, ge=1),
+    por_pagina: int = Query(20, ge=1, le=200),
+) -> Pagina[LinhaPedidoSaida]:
     """A fila do balcão: o que falta entregar e para quem."""
-    return [_linha_saida(linha) for linha in pedidos.listar_pendentes_detalhado(sessao, ator)]
+    linhas, total = pedidos.listar_pendentes_detalhado(
+        sessao, ator, pagina=pagina, por_pagina=por_pagina
+    )
+    return Pagina(itens=[_linha_saida(linha) for linha in linhas], total=total)
 
 
-@rotas.get("/cancelados", response_model=list[LinhaPedidoSaida])
-def cancelados(ator: AdminLiberado, sessao: Sessao) -> list[LinhaPedidoSaida]:
+@rotas.get("/cancelados", response_model=Pagina[LinhaPedidoSaida])
+def cancelados(
+    ator: AdminLiberado,
+    sessao: Sessao,
+    pagina: int = Query(1, ge=1),
+    por_pagina: int = Query(20, ge=1, le=200),
+) -> Pagina[LinhaPedidoSaida]:
     """Os últimos pedidos cancelados manualmente pelo admin (não os expirados)."""
-    return [_linha_saida(linha) for linha in pedidos.listar_cancelados_detalhado(sessao, ator)]
+    linhas, total = pedidos.listar_cancelados_detalhado(
+        sessao, ator, pagina=pagina, por_pagina=por_pagina
+    )
+    return Pagina(itens=[_linha_saida(linha) for linha in linhas], total=total)
 
 
 @rotas.post("/{pedido_id}/entregar", response_model=PedidoSaida)

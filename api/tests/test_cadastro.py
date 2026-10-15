@@ -103,6 +103,23 @@ def test_criar_devolve_senha_provisoria_que_permite_entrar(cliente, admin, dados
     assert cliente.get("/produtos/vitrine").status_code == 403
 
 
+def test_listar_pagina_sem_trazer_tudo_de_uma_vez(admin, dados, faxina):
+    with FabricaDeSessao() as s:
+        for sufixo in ("10", "11", "12"):
+            colaboradores.criar(s, admin, _novo(dados, dados["empresa"], sufixo))
+        s.commit()
+
+    with FabricaDeSessao() as s:
+        pagina1, total1 = colaboradores.listar(s, admin, busca=PREFIXO, pagina=1, por_pagina=2)
+        pagina2, total2 = colaboradores.listar(s, admin, busca=PREFIXO, pagina=2, por_pagina=2)
+
+    assert total1 == total2 == 3
+    assert len(pagina1) == 2
+    assert len(pagina2) == 1
+    codigos = {p.codigo for p in pagina1} | {p.codigo for p in pagina2}
+    assert codigos == {f"{PREFIXO}10", f"{PREFIXO}11", f"{PREFIXO}12"}
+
+
 def test_senha_provisoria_nunca_aparece_na_auditoria(admin, dados, faxina):
     with FabricaDeSessao() as s:
         criado, senha = colaboradores.criar(s, admin, _novo(dados, dados["empresa"], "02"))
@@ -340,7 +357,7 @@ def test_vitrine_esconde_produto_sem_estoque_mas_admin_continua_vendo(
     corpo_vitrine = cliente.get("/produtos/vitrine").json()
     assert all(p["nome"] != "Sem Estoque" for p in corpo_vitrine)
 
-    corpo_admin = cliente.get("/produtos").json()
+    corpo_admin = cliente.get("/produtos?por_pagina=200").json()["itens"]
     assert any(p["id"] == str(sem_estoque_id) for p in corpo_admin)
 
 

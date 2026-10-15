@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core import blob
+from app.core.paginacao import contar
 from app.excecoes import (
     ArquivoGrandeDemais,
     CategoriaDuplicada,
@@ -168,10 +169,26 @@ def listar_vitrine(sessao: Session) -> list[Produto]:
     )
 
 
-def listar(sessao: Session, ator: Ator) -> list[Produto]:
+def listar(
+    sessao: Session,
+    ator: Ator,
+    *,
+    busca: str | None = None,
+    categoria_id: uuid.UUID | None = None,
+    pagina: int = 1,
+    por_pagina: int = 20,
+) -> tuple[list[Produto], int]:
     """Visão do administrador: inclui os inativos."""
     _exigir_admin(ator)
-    return list(sessao.scalars(select(Produto).order_by(Produto.nome)))
+    consulta = select(Produto).order_by(Produto.nome)
+    if categoria_id:
+        consulta = consulta.where(Produto.categoria_id == categoria_id)
+    if busca:
+        termo = f"%{busca.strip()}%"
+        consulta = consulta.where(Produto.nome.ilike(termo) | Produto.codigo.ilike(termo))
+    total = contar(sessao, consulta)
+    pagina_consulta = consulta.limit(por_pagina).offset((pagina - 1) * por_pagina)
+    return list(sessao.scalars(pagina_consulta)), total
 
 
 def criar(sessao: Session, ator: Ator, dados: DadosProduto) -> Produto:

@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ScanBarcode } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
-import { api } from "@/api/cliente";
+import { api, buscarTudoPaginado } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { BuscarColaborador } from "@/componentes/BuscarColaborador";
 import { FiltroPeriodo } from "@/componentes/FiltroPeriodo";
 import { Carregando } from "@/componentes/Carregando";
+import { PaginacaoControles } from "@/componentes/PaginacaoControles";
 import { Vazio } from "@/componentes/Vazio";
 import { Badge } from "@/componentes/ui/badge";
 import { Button } from "@/componentes/ui/button";
@@ -33,7 +34,10 @@ import { diaIso, hojeIso, intervaloDoFiltro, periodoInicial } from "@/comum/peri
 import { baixarCsv } from "@/comum/planilha";
 import { PrecoDoAlmoco } from "@/telas/admin/PrecoDoAlmoco";
 import type { AlmocoDoDia } from "@/interfaces/almoco";
+import type { Pagina } from "@/interfaces/comum";
 import type { LinhaPainel } from "@/interfaces/refeitorio";
+
+const POR_PAGINA = 20;
 
 const AVISOS: Record<string, string> = {
   periodo_invalido: "A data final não pode ser anterior à inicial.",
@@ -44,18 +48,44 @@ const AVISOS: Record<string, string> = {
 
 export function Almocos() {
   const clienteConsulta = useQueryClient();
-  const [filtro, setFiltro] = useState(() => periodoInicial("hoje"));
+  const [filtro, setFiltroBruto] = useState(() => periodoInicial("hoje"));
   const { de, ate } = intervaloDoFiltro(filtro);
-  const [busca, setBusca] = useState("");
+  const [busca, setBuscaBruta] = useState("");
+  const [pagina, setPagina] = useState(1);
   const [manualAberto, setManualAberto] = useState(false);
 
+  function setFiltro(novo: typeof filtro) {
+    setFiltroBruto(novo);
+    setPagina(1);
+  }
+
+  function setBusca(novo: string) {
+    setBuscaBruta(novo);
+    setPagina(1);
+  }
+
+  const caminhoLista =
+    `/almocos?de=${de}&ate=${ate}` + (busca.trim() ? `&busca=${encodeURIComponent(busca.trim())}` : "");
+
   const almocos = useQuery({
-    queryKey: ["almocos-historico", de, ate],
-    queryFn: () => api.get<LinhaPainel[]>(`/almocos?de=${de}&ate=${ate}`),
+    queryKey: ["almocos-historico", caminhoLista, pagina],
+    queryFn: () =>
+      api.get<Pagina<LinhaPainel>>(`${caminhoLista}&pagina=${pagina}&por_pagina=${POR_PAGINA}`),
+  });
+
+  // Só a contagem interessa pros cartões — 1 item por chamada, total vem no envelope.
+  const confirmadosCount = useQuery({
+    queryKey: ["almocos-contagem", de, ate, "confirmado"],
+    queryFn: () => api.get<Pagina<LinhaPainel>>(`/almocos?de=${de}&ate=${ate}&status=confirmado&por_pagina=1`),
+  });
+  const pendentesCount = useQuery({
+    queryKey: ["almocos-contagem", de, ate, "pendente"],
+    queryFn: () => api.get<Pagina<LinhaPainel>>(`/almocos?de=${de}&ate=${ate}&status=pendente&por_pagina=1`),
   });
 
   function recarregar() {
     void clienteConsulta.invalidateQueries({ queryKey: ["almocos-historico"] });
+    void clienteConsulta.invalidateQueries({ queryKey: ["almocos-contagem"] });
     void clienteConsulta.invalidateQueries({ queryKey: ["painel-almocos"] });
     void clienteConsulta.invalidateQueries({ queryKey: ["admin-pendencias"] });
   }
@@ -82,20 +112,11 @@ export function Almocos() {
     onSuccess: recarregar,
   });
 
-  const linhas = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    return (almocos.data ?? []).filter(
-      (l) =>
-        !termo ||
-        l.colaborador_nome.toLowerCase().includes(termo) ||
-        l.colaborador_codigo.toLowerCase().includes(termo),
-    );
-  }, [almocos.data, busca]);
+  const linhas = almocos.data?.itens ?? [];
+  const total = almocos.data?.total ?? 0;
+  const confirmados = confirmadosCount.data?.total ?? 0;
+  const pendentes = pendentesCount.data?.total ?? 0;
 
-  const confirmados = linhas.filter((l) => l.almoco.status === "confirmado").length;
-  const pendentes = linhas.filter((l) => l.almoco.status === "pendente").length;
-
-  
   const hoje = hojeIso();
   const ocupado = confirmarManual.isPending || desfazer.isPending;
 
@@ -112,27 +133,31 @@ export function Almocos() {
     return l.almoco.cortesia || l.almoco.isento ? 0 : Number(l.almoco.valor);
   }
 
-  function exportar() {
-    baixarCsv(
-      `almocos-f8-${de}_a_${ate}`,
-      linhas.map((l) => ({
-        Data: diaIso(l.almoco.criado_em),
-        Colaborador: l.colaborador_nome,
-        "Código do colaborador": l.colaborador_codigo,
-        Departamento: l.departamento ?? "—",
-        Status: l.almoco.status,
-        Pagamento: formaPagamento(l),
-        "Valor do almoço": l.almoco.valor,
-        "Valor pago": valorPago(l),
-        Origem: l.almoco.origem,
-        "Código de barras": l.almoco.codigo_barras,
-        "Gerado em": hora(l.almoco.criado_em),
-        "Confirmado em": l.almoco.confirmado_em ? hora(l.almoco.confirmado_em) : "—",
-      })),
-    );
-  }
+  const exportar = useMutation({
+    mutationFn: () => buscarTudoPaginado<LinhaPainel>(caminhoLista),
+    onSuccess: (todos) => {
+      baixarCsv(
+        `almocos-f8-${de}_a_${ate}`,
+        todos.map((l) => ({
+          Data: diaIso(l.almoco.criado_em),
+          Colaborador: l.colaborador_nome,
+          "Código do colaborador": l.colaborador_codigo,
+          Departamento: l.departamento ?? "—",
+          Status: l.almoco.status,
+          Pagamento: formaPagamento(l),
+          "Valor do almoço": l.almoco.valor,
+          "Valor pago": valorPago(l),
+          Origem: l.almoco.origem,
+          "Código de barras": l.almoco.codigo_barras,
+          "Gerado em": hora(l.almoco.criado_em),
+          "Confirmado em": l.almoco.confirmado_em ? hora(l.almoco.confirmado_em) : "—",
+        })),
+      );
+    },
+  });
 
-  const erro = confirmarManual.error ?? desfazer.error ?? confirmarPix.error ?? almocos.error;
+  const erro =
+    confirmarManual.error ?? desfazer.error ?? confirmarPix.error ?? almocos.error ?? exportar.error;
 
   return (
     <div>
@@ -143,8 +168,12 @@ export function Almocos() {
             <ScanBarcode />
             Confirmar sem leitor
           </Button>
-          <Button variant="outline" onClick={exportar} disabled={linhas.length === 0}>
-            Exportar
+          <Button
+            variant="outline"
+            onClick={() => exportar.mutate()}
+            disabled={total === 0 || exportar.isPending}
+          >
+            {exportar.isPending ? "Exportando…" : "Exportar"}
           </Button>
         </div>
       </div>
@@ -296,6 +325,12 @@ export function Almocos() {
               })}
             </TableBody>
           </Table>
+          <PaginacaoControles
+            pagina={pagina}
+            porPagina={POR_PAGINA}
+            total={total}
+            aoMudar={setPagina}
+          />
         </Card>
       )}
 

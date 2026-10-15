@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core import seguranca
 from app.core.config import obter_config
+from app.core.paginacao import contar
 from app.excecoes import (
     AutoInativacao,
     CadastroDuplicado,
@@ -130,8 +131,14 @@ def _aplicar_senha_provisoria(colaborador: Colaborador) -> str:
 
 
 def listar(
-    sessao: Session, ator: Ator, *, busca: str | None = None, apenas_ativos: bool = False
-) -> list[Colaborador]:
+    sessao: Session,
+    ator: Ator,
+    *,
+    busca: str | None = None,
+    apenas_ativos: bool = False,
+    pagina: int = 1,
+    por_pagina: int = 20,
+) -> tuple[list[Colaborador], int]:
     _exigir_admin(ator)
     consulta = select(Colaborador).order_by(Colaborador.nome_completo)
     if apenas_ativos:
@@ -141,7 +148,9 @@ def listar(
         consulta = consulta.where(
             Colaborador.nome_completo.ilike(termo) | Colaborador.codigo.ilike(termo)
         )
-    return list(sessao.scalars(consulta))
+    total = contar(sessao, consulta)
+    pagina_consulta = consulta.limit(por_pagina).offset((pagina - 1) * por_pagina)
+    return list(sessao.scalars(pagina_consulta)), total
 
 
 def obter(sessao: Session, ator: Ator, colaborador_id: uuid.UUID) -> Colaborador:

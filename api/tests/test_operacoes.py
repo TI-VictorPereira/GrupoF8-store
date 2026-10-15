@@ -3,7 +3,9 @@
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import delete, select
@@ -16,6 +18,8 @@ from app.models.operacao import Almoco, ItemPedido, Pedido
 from app.modules import almocos, pedidos
 from app.modules.auditoria import Ator
 from tests.conftest import CODIGO, SENHA
+
+SP = ZoneInfo("America/Sao_Paulo")
 
 
 @pytest.fixture
@@ -227,7 +231,7 @@ def test_listagem_de_cancelados_ignora_expirados(dados, produto):
         s.commit()
 
     with FabricaDeSessao() as s:
-        listados = pedidos.listar_cancelados_detalhado(s, ator)
+        listados, _total = pedidos.listar_cancelados_detalhado(s, ator)
         ids = {linha.pedido.id for linha in listados}
         assert id_manual in ids
         assert id_expirado not in ids
@@ -269,6 +273,50 @@ def test_busca_do_painel_ignora_termo_curto_e_inativo(cliente, dados):
     assert cliente.get("/almocos/colaboradores", params={"busca": "Beltrano"}).json() == []
 
 
+def test_historico_de_almocos_pagina_e_filtra_por_busca(dados):
+    """Confirma os dois reforços feitos na tela de Almoços: `por_pagina` corta
+    no banco (não traz o período inteiro) e `busca` filtra por trás, não só
+    no navegador."""
+    admin = _ator(dados, papel="admin")
+    # Um por dia só: "almocos_um_por_dia" barra duas linhas no mesmo dia para
+    # a mesma pessoa, então os 3 almoços de teste vão em dias seguidos.
+    inicio = datetime(2031, 3, 3, 12, 0, tzinfo=SP)
+
+    with FabricaDeSessao() as s:
+        for i in range(3):
+            quando = inicio + timedelta(days=i)
+            s.add(
+                Almoco(
+                    colaborador_id=dados["ativo"],
+                    empresa_id=dados["empresa"],
+                    vinculo="clt",
+                    matricula=1,
+                    codigo_barras=f"T-PAG-ALMOCO-{i}",
+                    status="confirmado",
+                    origem="totem",
+                    valor=Decimal("15.00"),
+                    criado_em=quando,
+                    expira_em=quando + timedelta(hours=12),
+                    confirmado_em=quando,
+                )
+            )
+        s.commit()
+
+    de, ate = inicio.date(), (inicio + timedelta(days=2)).date()
+    with FabricaDeSessao() as s:
+        pagina1, total1 = almocos.listar_periodo(s, admin, de, ate, pagina=1, por_pagina=2)
+        pagina2, total2 = almocos.listar_periodo(s, admin, de, ate, pagina=2, por_pagina=2)
+        achados, total_busca = almocos.listar_periodo(
+            s, admin, de, ate, busca="Fulano de Teste", pagina=1, por_pagina=10
+        )
+
+    assert total1 == total2 == 3
+    assert len(pagina1) == 2
+    assert len(pagina2) == 1
+    assert total_busca == 3
+    assert len(achados) == 3
+
+
 def test_desfazer_confirmacao_permite_confirmar_de_novo(cliente, dados):
     """Leitura por engano volta para pendente — a pessoa não fica sem almoço."""
     _liberar_colaborador(dados, papel="admin")
@@ -300,7 +348,7 @@ def test_admin_entrega_direto_da_lista(cliente, dados, produto):
     # A fila de entregas é de todo mundo. Pegar o [0] às cegas entrega o pedido
     # de outro teste, e o "sobrou nada" nunca fecha num banco com sobras.
     def meus() -> list[dict]:
-        linhas = cliente.get("/pedidos/pendentes").json()
+        linhas = cliente.get("/pedidos/pendentes?por_pagina=200").json()["itens"]
         return [linha for linha in linhas if linha["colaborador_codigo"] == CODIGO]
 
     pedido_id = meus()[0]["pedido"]["id"]
@@ -312,6 +360,25 @@ def test_admin_entrega_direto_da_lista(cliente, dados, produto):
     # não pode virar uma segunda baixa.
     repetido = cliente.post(f"/pedidos/{pedido_id}/entregar")
     assert repetido.json()["codigo"] == "pedido_nao_pendente"
+
+
+def test_lista_de_pendentes_respeita_por_pagina(cliente, dados, produto):
+    """A fila é de todo mundo, então o teste não conta o total — só confirma
+    que `por_pagina` corta de verdade e que a página 2 não repete a 1."""
+    _liberar_colaborador(dados, papel="admin")
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+    for _ in range(3):
+        cliente.post(
+            "/pedidos", json={"itens": [{"produto_id": str(produto["produto"]), "quantidade": 1}]}
+        )
+
+    pagina1 = cliente.get("/pedidos/pendentes?por_pagina=1").json()
+    assert len(pagina1["itens"]) == 1
+    assert pagina1["total"] >= 3
+
+    pagina2 = cliente.get("/pedidos/pendentes?pagina=2&por_pagina=1").json()
+    assert pagina2["itens"][0]["pedido"]["id"] != pagina1["itens"][0]["pedido"]["id"]
 
 
 def test_rota_de_cancelados_traz_nome_de_quem_cancelou(cliente, dados, produto):
@@ -327,7 +394,7 @@ def test_rota_de_cancelados_traz_nome_de_quem_cancelou(cliente, dados, produto):
     cancelado = cliente.post(f"/pedidos/{pedido_id}/cancelar", json={"motivo": "Teste de rota"})
     assert cancelado.status_code == 200
 
-    linhas = cliente.get("/pedidos/cancelados").json()
+    linhas = cliente.get("/pedidos/cancelados?por_pagina=200").json()["itens"]
     minha = next(linha for linha in linhas if linha["pedido"]["id"] == pedido_id)
     # Mesmo colaborador que virou admin em _liberar_colaborador — o nome vem
     # do cadastro, não do ator da requisição.

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { Carregando } from "@/componentes/Carregando";
+import { PaginacaoControles } from "@/componentes/PaginacaoControles";
 import { Vazio } from "@/componentes/Vazio";
 import { Button } from "@/componentes/ui/button";
 import { Card, CardContent } from "@/componentes/ui/card";
@@ -22,6 +23,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/componentes/ui/tabs"
 import { mensagemDeErro } from "@/comum/erros";
 import { dataHora, dinheiro } from "@/comum/formato";
 import type { LinhaEntrega } from "@/interfaces/admin";
+import type { Pagina } from "@/interfaces/comum";
+
+const POR_PAGINA = 20;
 
 const CHAVE = ["pedidos-pendentes"] as const;
 
@@ -36,18 +40,31 @@ export function Entregas() {
   const [aba, setAba] = useState<"pendentes" | "cancelados">("pendentes");
   const [aCancelar, setACancelar] = useState<LinhaEntrega | null>(null);
   const [motivo, setMotivo] = useState("");
-  const [busca, setBusca] = useState("");
+  const [busca, setBuscaBruta] = useState("");
+  const [paginaPendentes, setPaginaPendentes] = useState(1);
+  const [paginaCancelados, setPaginaCancelados] = useState(1);
   const [confirmado, setConfirmado] = useState<string | null>(null);
 
+  function setBusca(valor: string) {
+    setBuscaBruta(valor);
+    setPaginaPendentes(1);
+  }
+
   const pendentes = useQuery({
-    queryKey: CHAVE,
-    queryFn: () => api.get<LinhaEntrega[]>("/pedidos/pendentes"),
+    queryKey: [...CHAVE, paginaPendentes],
+    queryFn: () =>
+      api.get<Pagina<LinhaEntrega>>(
+        `/pedidos/pendentes?pagina=${paginaPendentes}&por_pagina=${POR_PAGINA}`,
+      ),
     refetchInterval: 15_000,
   });
 
   const cancelados = useQuery({
-    queryKey: CHAVE_CANCELADOS,
-    queryFn: () => api.get<LinhaEntrega[]>("/pedidos/cancelados"),
+    queryKey: [...CHAVE_CANCELADOS, paginaCancelados],
+    queryFn: () =>
+      api.get<Pagina<LinhaEntrega>>(
+        `/pedidos/cancelados?pagina=${paginaCancelados}&por_pagina=${POR_PAGINA}`,
+      ),
     enabled: aba === "cancelados",
   });
 
@@ -85,7 +102,7 @@ export function Entregas() {
   
   const linhas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    const todas = pendentes.data ?? [];
+    const todas = pendentes.data?.itens ?? [];
     if (!termo) return todas;
     return todas.filter(
       (l) =>
@@ -93,7 +110,8 @@ export function Entregas() {
         l.colaborador_codigo.toLowerCase().includes(termo),
     );
   }, [pendentes.data, busca]);
-  const total = pendentes.data?.length ?? 0;
+  const total = pendentes.data?.total ?? 0;
+  const totalCancelados = cancelados.data?.total ?? 0;
   const erro = entregar.error ?? cancelar.error;
 
   
@@ -218,16 +236,23 @@ export function Entregas() {
               </Card>
             ))}
           </div>
+
+          <PaginacaoControles
+            pagina={paginaPendentes}
+            porPagina={POR_PAGINA}
+            total={total}
+            aoMudar={setPaginaPendentes}
+          />
         </TabsContent>
 
         <TabsContent value="cancelados">
           {cancelados.isLoading && <Carregando />}
-          {cancelados.data && cancelados.data.length === 0 && (
+          {cancelados.data && totalCancelados === 0 && (
             <Vazio>Nenhum pedido cancelado por aqui.</Vazio>
           )}
 
           <div className="grid gap-3 md:grid-cols-2">
-            {(cancelados.data ?? []).map((linha) => (
+            {(cancelados.data?.itens ?? []).map((linha) => (
               <Card key={linha.pedido.id} className="opacity-80">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -278,6 +303,13 @@ export function Entregas() {
               </Card>
             ))}
           </div>
+
+          <PaginacaoControles
+            pagina={paginaCancelados}
+            porPagina={POR_PAGINA}
+            total={totalCancelados}
+            aoMudar={setPaginaCancelados}
+          />
         </TabsContent>
       </Tabs>
 

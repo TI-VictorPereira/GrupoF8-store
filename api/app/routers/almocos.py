@@ -3,7 +3,7 @@
 import uuid
 from datetime import date
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.core.deps import (
     AdminLiberado,
@@ -26,6 +26,7 @@ from app.schemas.almoco import (
     VisitanteAlmocoSaida,
 )
 from app.schemas.colaborador import ColaboradorResumo
+from app.schemas.comum import Pagina
 from app.schemas.departamento import DepartamentoSaida
 from app.schemas.pedido import PixSaida
 
@@ -143,16 +144,22 @@ def colaboradores_para_lancamento(
     return almocos.buscar_colaboradores(sessao, ator, busca)
 
 
-@rotas.get("", response_model=list[LinhaPainelSaida])
+@rotas.get("", response_model=Pagina[LinhaPainelSaida])
 def historico(
     de: date,
     ate: date,
     ator: AdminLiberado,
     sessao: Sessao,
     status: str | None = None,
-) -> list[LinhaPainelSaida]:
+    busca: str | None = None,
+    pagina: int = Query(1, ge=1),
+    por_pagina: int = Query(20, ge=1, le=200),
+) -> Pagina[LinhaPainelSaida]:
     """Histórico por intervalo de datas locais, com os dois extremos incluídos."""
-    return [
+    linhas, total = almocos.listar_periodo(
+        sessao, ator, de, ate, status, busca=busca, pagina=pagina, por_pagina=por_pagina
+    )
+    itens = [
         LinhaPainelSaida(
             almoco=AlmocoSaida.model_validate(linha.almoco),
             colaborador_nome=linha.colaborador_nome,
@@ -160,5 +167,6 @@ def historico(
             departamento=linha.departamento,
             eh_visitante=linha.eh_visitante,
         )
-        for linha in almocos.listar_periodo(sessao, ator, de, ate, status)
+        for linha in linhas
     ]
+    return Pagina(itens=itens, total=total)

@@ -3,13 +3,13 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, Query, UploadFile
 
 from app.core.deps import AdminLiberado, ConsumidorLiberado, Sessao
 from app.models.cadastro import CategoriaProduto, Marca, Produto
 from app.modules import produtos
 from app.modules.produtos import DadosProduto
-from app.schemas.comum import EntradaAtivo
+from app.schemas.comum import EntradaAtivo, Pagina
 from app.schemas.produto import (
     CategoriaSaida,
     EntradaCategoria,
@@ -77,9 +77,19 @@ async def enviar_foto(ator: AdminLiberado, arquivo: Annotated[UploadFile, File()
     return FotoSaida(url=url)
 
 
-@rotas.get("", response_model=list[ProdutoCompleto])
-def listar(ator: AdminLiberado, sessao: Sessao) -> list[Produto]:
-    return produtos.listar(sessao, ator)
+@rotas.get("", response_model=Pagina[ProdutoCompleto])
+def listar(
+    ator: AdminLiberado,
+    sessao: Sessao,
+    busca: str | None = None,
+    categoria_id: uuid.UUID | None = None,
+    pagina: int = Query(1, ge=1),
+    por_pagina: int = Query(20, ge=1, le=200),
+) -> Pagina[ProdutoCompleto]:
+    itens, total = produtos.listar(
+        sessao, ator, busca=busca, categoria_id=categoria_id, pagina=pagina, por_pagina=por_pagina
+    )
+    return Pagina(itens=itens, total=total)
 
 
 @rotas.post("", response_model=ProdutoCompleto, status_code=201)

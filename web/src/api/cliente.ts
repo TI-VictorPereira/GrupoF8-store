@@ -5,6 +5,7 @@
  */
 
 import { BASE, enviar } from "@/api/config";
+import type { Pagina } from "@/interfaces/comum";
 
 export class ErroApi extends Error {
   constructor(
@@ -102,3 +103,21 @@ export const api = {
   patch: <T>(caminho: string, corpo?: Corpo) => pedir<T>("PATCH", caminho, corpo),
   remover: <T>(caminho: string) => pedir<T>("DELETE", caminho),
 };
+
+/**
+ * Percorre todas as páginas de um endpoint paginado e junta tudo.
+ * Uso pontual: exportação precisa do conjunto inteiro, a tela não.
+ */
+export async function buscarTudoPaginado<T>(caminhoBase: string, porPagina = 200): Promise<T[]> {
+  const separador = caminhoBase.includes("?") ? "&" : "?";
+  const todos: T[] = [];
+  for (let pagina = 1; ; pagina += 1) {
+    const resposta = await pedir<Pagina<T>>(
+      "GET",
+      `${caminhoBase}${separador}pagina=${pagina}&por_pagina=${porPagina}`,
+    );
+    todos.push(...resposta.itens);
+    if (todos.length >= resposta.total || resposta.itens.length === 0) break;
+  }
+  return todos;
+}

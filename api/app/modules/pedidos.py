@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, aliased
 
 from app.core import pix as pix_core
 from app.core.config import obter_config
+from app.core.paginacao import contar
 from app.excecoes import (
     BrindeForaDoCarrinho,
     BrindeForaDoMes,
@@ -612,7 +613,9 @@ def _com_pessoa():
     )
 
 
-def listar_pendentes_detalhado(sessao: Session, ator: Ator) -> list[LinhaPedido]:
+def listar_pendentes_detalhado(
+    sessao: Session, ator: Ator, *, pagina: int = 1, por_pagina: int = 20
+) -> tuple[list[LinhaPedido], int]:
     """O que o balcão de entrega precisa ver: o pedido e o nome de quem retira.
 
     Expira os vencidos antes de listar. Escrever numa leitura não é bonito,
@@ -624,13 +627,15 @@ def listar_pendentes_detalhado(sessao: Session, ator: Ator) -> list[LinhaPedido]
     if not ator.eh_admin:
         raise SemPermissao()
     expirar_vencidos(sessao)
-    return _montar(
-        sessao,
-        _com_pessoa().where(Pedido.status == "pendente").order_by(Pedido.criado_em),
-    )
+    consulta = _com_pessoa().where(Pedido.status == "pendente").order_by(Pedido.criado_em)
+    total = contar(sessao, consulta)
+    pagina_consulta = consulta.limit(por_pagina).offset((pagina - 1) * por_pagina)
+    return _montar(sessao, pagina_consulta), total
 
 
-def listar_cancelados_detalhado(sessao: Session, ator: Ator) -> list[LinhaPedido]:
+def listar_cancelados_detalhado(
+    sessao: Session, ator: Ator, *, pagina: int = 1, por_pagina: int = 20
+) -> tuple[list[LinhaPedido], int]:
     """Os últimos pedidos que o admin cancelou manualmente, para a aba
     "Cancelados" da tela de Entregas.
 
@@ -640,13 +645,14 @@ def listar_cancelados_detalhado(sessao: Session, ator: Ator) -> list[LinhaPedido
     """
     if not ator.eh_admin:
         raise SemPermissao()
-    return _montar(
-        sessao,
+    consulta = (
         _com_pessoa()
         .where(Pedido.status == "cancelado", Pedido.cancelado_por.isnot(None))
         .order_by(Pedido.cancelado_em.desc())
-        .limit(100),
     )
+    total = contar(sessao, consulta)
+    pagina_consulta = consulta.limit(por_pagina).offset((pagina - 1) * por_pagina)
+    return _montar(sessao, pagina_consulta), total
 
 
 def listar_periodo(

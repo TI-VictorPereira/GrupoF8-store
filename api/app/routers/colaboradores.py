@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.core.deps import AdminLiberado, Sessao
 from app.models.cadastro import Colaborador
@@ -17,7 +17,7 @@ from app.schemas.colaborador import (
     SenhaRedefinida,
     SolicitacaoSaida,
 )
-from app.schemas.comum import EntradaAtivo
+from app.schemas.comum import EntradaAtivo, Pagina
 
 rotas = APIRouter(prefix="/colaboradores", tags=["colaboradores"])
 
@@ -37,14 +37,19 @@ def _dados(entrada: EntradaColaborador) -> DadosColaborador:
     )
 
 
-@rotas.get("", response_model=list[ColaboradorSaida])
+@rotas.get("", response_model=Pagina[ColaboradorSaida])
 def listar(
     ator: AdminLiberado,
     sessao: Sessao,
     busca: str | None = None,
     apenas_ativos: bool = False,
-) -> list[Colaborador]:
-    return colaboradores.listar(sessao, ator, busca=busca, apenas_ativos=apenas_ativos)
+    pagina: int = Query(1, ge=1),
+    por_pagina: int = Query(20, ge=1, le=200),
+) -> Pagina[ColaboradorSaida]:
+    itens, total = colaboradores.listar(
+        sessao, ator, busca=busca, apenas_ativos=apenas_ativos, pagina=pagina, por_pagina=por_pagina
+    )
+    return Pagina(itens=itens, total=total)
 
 
 @rotas.post("", response_model=ColaboradorComSenha, status_code=201)

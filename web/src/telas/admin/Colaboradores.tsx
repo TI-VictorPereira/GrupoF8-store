@@ -2,11 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { api } from "@/api/cliente";
+import { api, buscarTudoPaginado } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { CampoInteiro } from "@/componentes/CampoInteiro";
 import { ImportarPlanilha } from "@/componentes/ImportarPlanilha";
 import { Carregando } from "@/componentes/Carregando";
+import { PaginacaoControles } from "@/componentes/PaginacaoControles";
 import { TableHeadOrdenavel } from "@/componentes/TableHeadOrdenavel";
 import { Vazio } from "@/componentes/Vazio";
 import { Badge } from "@/componentes/ui/badge";
@@ -52,10 +53,12 @@ import type {
   SolicitacaoSenha,
   Vinculo,
 } from "@/interfaces/admin";
+import type { Pagina } from "@/interfaces/comum";
 import type { Papel } from "@/interfaces/sessao";
 
 const CHAVE = ["colaboradores"] as const;
 const CHAVE_SOLICITACOES = ["solicitacoes-senha"] as const;
+const POR_PAGINA = 20;
 
 const AVISOS: Record<string, string> = {
   codigo_duplicado: "Já existe alguém com este código.",
@@ -109,6 +112,7 @@ function valorOrdenavel(pessoa: ColaboradorCompleto, coluna: ColunaColaborador):
 export function Colaboradores() {
   const clienteConsulta = useQueryClient();
   const [busca, setBusca] = useState("");
+  const [pagina, setPagina] = useState(1);
   const [emEdicao, setEmEdicao] = useState<ColaboradorCompleto | null>(null);
   const [formularioAberto, setFormularioAberto] = useState(false);
   const [formulario, setFormulario] = useState(FORMULARIO_VAZIO);
@@ -117,10 +121,11 @@ export function Colaboradores() {
   const [nomeNovoDepartamento, setNomeNovoDepartamento] = useState("");
 
   const colaboradores = useQuery({
-    queryKey: [...CHAVE, busca],
+    queryKey: [...CHAVE, busca, pagina],
     queryFn: () =>
-      api.get<ColaboradorCompleto[]>(
-        `/colaboradores${busca.trim() ? `?busca=${encodeURIComponent(busca.trim())}` : ""}`,
+      api.get<Pagina<ColaboradorCompleto>>(
+        `/colaboradores?pagina=${pagina}&por_pagina=${POR_PAGINA}` +
+          (busca.trim() ? `&busca=${encodeURIComponent(busca.trim())}` : ""),
       ),
   });
   const empresas = useQuery({
@@ -259,9 +264,10 @@ export function Colaboradores() {
 
   const ordenacao = useOrdenacao<ColunaColaborador>("nome");
   const lista = useMemo(
-    () => ordenar(colaboradores.data ?? [], ordenacao, valorOrdenavel),
+    () => ordenar(colaboradores.data?.itens ?? [], ordenacao, valorOrdenavel),
     [colaboradores.data, ordenacao],
   );
+  const total = colaboradores.data?.total ?? 0;
   const abertas = solicitacoes.data ?? [];
 
   const nomeEmpresa = (id: string) =>
@@ -269,24 +275,37 @@ export function Colaboradores() {
   const nomeDepartamento = (id: string | null) =>
     id ? (departamentos.data?.find((d) => d.id === id)?.nome ?? "—") : "—";
 
-  function exportar() {
-    baixarCsv(
-      "colaboradores-f8",
-      lista.map((p) => ({
-        Nome: p.nome_completo,
-        Codigo: p.codigo,
-        Codparc: p.codparc,
-        Matricula: p.matricula ?? "",
-        "Mes de aniversario": p.mes_aniversario ?? "",
-        "Isento almoco": p.isento_almoco ? "Sim" : "Nao",
-        Vinculo: p.vinculo,
-        Empresa: nomeEmpresa(p.empresa_id),
-        Departamento: nomeDepartamento(p.departamento_id),
-        Papel: p.papel,
-        Ativo: p.ativo ? "Sim" : "Nao",
-      })),
-    );
+  function mudarBusca(valor: string) {
+    setBusca(valor);
+    setPagina(1);
   }
+
+  const exportar = useMutation({
+    mutationFn: async () => {
+      const todos = await buscarTudoPaginado<ColaboradorCompleto>(
+        `/colaboradores${busca.trim() ? `?busca=${encodeURIComponent(busca.trim())}` : ""}`,
+      );
+      return ordenar(todos, ordenacao, valorOrdenavel);
+    },
+    onSuccess: (todos) => {
+      baixarCsv(
+        "colaboradores-f8",
+        todos.map((p) => ({
+          Nome: p.nome_completo,
+          Codigo: p.codigo,
+          Codparc: p.codparc,
+          Matricula: p.matricula ?? "",
+          "Mes de aniversario": p.mes_aniversario ?? "",
+          "Isento almoco": p.isento_almoco ? "Sim" : "Nao",
+          Vinculo: p.vinculo,
+          Empresa: nomeEmpresa(p.empresa_id),
+          Departamento: nomeDepartamento(p.departamento_id),
+          Papel: p.papel,
+          Ativo: p.ativo ? "Sim" : "Nao",
+        })),
+      );
+    },
+  });
 
   function converterLinha(linha: Record<string, string>): EntradaColaborador | string {
     const codigo = coluna(linha, "codigo", "codigo de acesso");
@@ -322,7 +341,7 @@ export function Colaboradores() {
         )?.id ?? null,
     };
   }
-  const erroLista = alternarAtivo.error ?? redefinirSenha.error;
+  const erroLista = alternarAtivo.error ?? redefinirSenha.error ?? exportar.error;
 
   const podeSalvar =
     formulario.nome_completo.trim() &&
@@ -336,8 +355,12 @@ export function Colaboradores() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-bold">Colaboradores</h1>
         <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={exportar} disabled={lista.length === 0}>
-            Exportar
+          <Button
+            variant="ghost"
+            onClick={() => exportar.mutate()}
+            disabled={total === 0 || exportar.isPending}
+          >
+            {exportar.isPending ? "Exportando…" : "Exportar"}
           </Button>
           <ImportarPlanilha
             titulo="Importar colaboradores"
@@ -445,7 +468,7 @@ export function Colaboradores() {
 
       <Input
         value={busca}
-        onChange={(e) => setBusca(e.target.value)}
+        onChange={(e) => mudarBusca(e.target.value)}
         placeholder="Buscar por nome ou código"
         className="mb-3 w-full sm:w-72"
       />
@@ -531,6 +554,12 @@ export function Colaboradores() {
               ))}
             </TableBody>
           </Table>
+          <PaginacaoControles
+            pagina={pagina}
+            porPagina={POR_PAGINA}
+            total={total}
+            aoMudar={setPagina}
+          />
         </Card>
       )}
 
