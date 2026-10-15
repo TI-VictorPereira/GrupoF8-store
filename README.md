@@ -5,7 +5,7 @@ itens da loja e liberam o próprio almoço por código de barras; o consumo do
 ciclo é fechado e exportado para importação de eventos no **Sankhya**.
 
 **O produto final não é a loja — é o arquivo.** Todo o resto (autenticação,
-papéis, o corte de ciclo no dia 20) existe para que esse arquivo saia
+papéis, o corte de ciclo no dia 15) existe para que esse arquivo saia
 confiável e reproduzível.
 
 ## Papéis

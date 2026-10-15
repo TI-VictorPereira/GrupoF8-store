@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-query";
 
 import { ErroApi, api } from "@/api/cliente";
+import { definirCortes } from "@/comum/periodo";
 import type { Eu } from "@/interfaces/sessao";
 
 export const CHAVE_EU = ["eu"] as const;
@@ -22,7 +23,11 @@ export function encerrarSessaoLocal(cliente: QueryClient): void {
 export function useSessao() {
   const consulta = useQuery<Eu | null>({
     queryKey: CHAVE_EU,
-    queryFn: () => api.get<Eu>("/auth/eu"),
+    queryFn: async () => {
+      const eu = await api.get<Eu>("/auth/eu");
+      definirCortes(eu.cortes_ciclo);
+      return eu;
+    },
     retry: false,
     staleTime: 30_000,
   });
@@ -42,7 +47,10 @@ export function useEntrar() {
   return useMutation({
     mutationFn: (dados: { codigo: string; senha: string }) =>
       api.post<Eu>("/auth/login", dados),
-    onSuccess: (eu) => clienteConsulta.setQueryData(CHAVE_EU, eu),
+    onSuccess: (eu) => {
+      definirCortes(eu.cortes_ciclo);
+      clienteConsulta.setQueryData(CHAVE_EU, eu);
+    },
   });
 }
 

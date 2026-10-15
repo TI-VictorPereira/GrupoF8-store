@@ -5,7 +5,29 @@ export type Periodo = "hoje" | "7dias" | "ciclo" | "geral" | "personalizado";
 const INICIO_DOS_TEMPOS = "2000-01-01";
 
 
-export const DIA_CORTE = 20;
+export interface CorteCiclo {
+  dia: number;
+  primeira_competencia: string;
+  vigente_desde: string;
+}
+
+// Mesma regra do backend (app/modules/ciclo.py). Chega junto com a sessão e
+// fica aqui para as funções puras de período não dependerem de hook.
+let cortes: CorteCiclo[] = [
+  { dia: 15, primeira_competencia: "2000-01", vigente_desde: "2000-01-01T03:00:00Z" },
+];
+
+export function definirCortes(novos: CorteCiclo[]): void {
+  if (novos.length) cortes = novos;
+}
+
+export function corteVigente(): CorteCiclo {
+  return cortes.filter((c) => new Date(c.vigente_desde) <= new Date()).at(-1) ?? cortes[0]!;
+}
+
+export function proximoCorte(): CorteCiclo | undefined {
+  return cortes.find((c) => new Date(c.vigente_desde) > new Date());
+}
 
 function iso(data: Date): string {
   const mes = String(data.getMonth() + 1).padStart(2, "0");
@@ -27,17 +49,21 @@ export function diaIso(instante: string): string {
 }
 
 export function competenciaDe(data: Date): string {
-  const deslocamento = data.getDate() > DIA_CORTE ? 1 : 0;
-  return rotulo(new Date(data.getFullYear(), data.getMonth() + deslocamento, 1));
+  const corte = cortes.filter((c) => new Date(c.vigente_desde) <= data).at(-1) ?? cortes[0]!;
+  const deslocamento = data.getDate() > corte.dia ? 1 : 0;
+  const calculada = rotulo(new Date(data.getFullYear(), data.getMonth() + deslocamento, 1));
+  return calculada > corte.primeira_competencia ? calculada : corte.primeira_competencia;
 }
 
-
+/** Varre os dias em volta do mês: na troca de dia, um ciclo pode ser mais curto ou mais longo. */
 export function cicloDe(competencia: string): { de: string; ate: string } {
   const [ano, mes] = competencia.split("-").map(Number);
-  return {
-    de: iso(new Date(ano!, mes! - 2, DIA_CORTE + 1)),
-    ate: iso(new Date(ano!, mes! - 1, DIA_CORTE)),
-  };
+  const dias: Date[] = [];
+  for (const dia = new Date(ano!, mes! - 3, 1); dia <= new Date(ano!, mes! + 1, 0); dia.setDate(dia.getDate() + 1)) {
+    if (competenciaDe(dia) === competencia) dias.push(new Date(dia));
+  }
+  if (!dias.length) return { de: `${competencia}-01`, ate: `${competencia}-01` };
+  return { de: iso(dias[0]!), ate: iso(dias.at(-1)!) };
 }
 
 export function intervaloDe(periodo: Periodo): { de: string; ate: string } {

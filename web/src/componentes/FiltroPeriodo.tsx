@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/componentes/ui/select";
 import { diaMes, mesPorExtenso } from "@/comum/formato";
-import { ROTULOS_PERIODO, cicloDe, type EstadoPeriodo } from "@/comum/periodo";
+import { ROTULOS_PERIODO, cicloDe, corteVigente, type EstadoPeriodo } from "@/comum/periodo";
 
 
 export function FiltroPeriodo({
@@ -42,7 +42,7 @@ export function FiltroPeriodo({
           </Button>
           {opcao.valor === "ciclo" && (
             <Help>
-              O ciclo vai do dia 21 ao dia 20 do mês seguinte, e leva o nome do mês em que
+              O ciclo vai do dia {corteVigente().dia + 1} ao dia {corteVigente().dia} do mês seguinte, e leva o nome do mês em que
               fecha, mesma regra da folha de pagamento. Quem comprou ou almoçou em 25 de
               agosto está no ciclo de setembro.
             </Help>

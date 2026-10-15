@@ -190,10 +190,10 @@ class BrindeSemMesCadastrado(Conflito):
 class CicloAindaAberto(Conflito):
     """Fechar antes do ciclo terminar perde o rabo do último dia.
 
-    O ciclo vira às 00h do dia 21. Fechar às 14h do dia 20 deixa de fora tudo
+    O ciclo vira às 00h do dia 16. Fechar às 14h do dia 15 deixa de fora tudo
     que for consumido depois disso — e como a competência não pode ser fechada
     duas vezes, esse consumo não seria descontado nunca.
     """
 
     codigo = "ciclo_ainda_aberto"
-    mensagem = "Este ciclo ainda não terminou. Espere o fim do dia 20 para fechar."
+    mensagem = "Este ciclo ainda não terminou. Espere o ciclo terminar para fechar."

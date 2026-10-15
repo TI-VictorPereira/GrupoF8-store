@@ -7,8 +7,9 @@ from decimal import Decimal
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.core.deps import ConsumidorLiberado, DpOuAdminLiberado, Sessao
-from app.modules import consumo
+from app.core.deps import AdminLiberado, ConsumidorLiberado, DpOuAdminLiberado, Sessao
+from app.modules import ciclo, consumo
+from app.schemas.auth import CorteCicloSaida
 
 rotas = APIRouter(prefix="/consumo", tags=["consumo"])
 
@@ -53,3 +54,15 @@ def competencias(ator: ConsumidorLiberado, sessao: Sessao) -> list[str]:
 def competencias_da_empresa(ator: DpOuAdminLiberado, sessao: Sessao) -> list[str]:
     """Ciclos com movimento de qualquer pessoa. Alimenta o seletor da exportação."""
     return consumo.competencias_da_empresa(sessao, ator)
+
+
+class EntradaCorteCiclo(BaseModel):
+    dia: int
+
+
+@rotas.put("/ciclo", response_model=list[CorteCicloSaida])
+def alterar_corte(
+    dados: EntradaCorteCiclo, ator: AdminLiberado, sessao: Sessao
+) -> list[CorteCicloSaida]:
+    """Troca o dia de fechamento. Vale a partir do próximo ciclo."""
+    return [CorteCicloSaida(**vars(regra)) for regra in ciclo.alterar(sessao, ator, dados.dia)]

@@ -1,9 +1,9 @@
 # Fechamento da competência
 
-O mês de consumo **fecha no dia 20**; o seguinte abre no dia 21. Não é mês
+O mês de consumo **fecha no dia 15**; o seguinte abre no dia 16. Não é mês
 civil.
 
-A competência `AAAA-MM` vai do dia 21 de `MM-1` até o fim do dia 20 de `MM`, e
+A competência `AAAA-MM` vai do dia 16 de `MM-1` até o fim do dia 15 de `MM`, e
 leva o nome do mês em que **fecha** — o mesmo padrão da folha, em que o ciclo
 encerrado em 20/09 é descontado no pagamento de setembro.
 
@@ -30,7 +30,7 @@ alternativa era um endpoint só para o front perguntar onde o mês começa.
 
 ## A armadilha
 
-`criado_em` é gravado em UTC. Uma compra às 21h do dia 20 em São Paulo é
+`criado_em` é gravado em UTC. Uma compra às 21h do dia 15 em São Paulo é
 `21/09 00:00` em UTC — comparar sem converter o fuso joga a compra no ciclo
 seguinte e cobra a pessoa no mês errado, sem erro nenhum aparecer.
 
@@ -39,8 +39,8 @@ seguinte e cobra a pessoa no mês errado, sem erro nenhum aparecer.
 
 ## Na interface
 
-Os colaboradores já convivem com o corte do dia 20, então não há aviso nem
-explicação: o extrato simplesmente conta certo, e zerar no dia 21 é o
+Os colaboradores já convivem com o corte do dia 15, então não há aviso nem
+explicação: o extrato simplesmente conta certo, e zerar no dia 16 é o
 esperado. O intervalo aparece onde se escolhe o ciclo, e só ali.
 
 **Colaborador** — o seletor do "Meu consumo" mostra *outubro de 2026 · 21/09 a
@@ -66,7 +66,7 @@ existe.
 Os dois seletores mostram **apenas ciclos com movimento**, consultados no
 banco: `GET /consumo/competencias` para os da própria pessoa e
 `/consumo/competencias/empresa` para os de todo mundo. O ciclo aberto entra
-sempre, mesmo vazio — no dia 21 o seletor ficaria sem opção nenhuma até a
+sempre, mesmo vazio — no dia 16 o seletor ficaria sem opção nenhuma até a
 primeira compra.
 
 ### A regra existe duas vezes no servidor

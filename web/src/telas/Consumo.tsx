@@ -19,7 +19,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/componentes/ui/tabs";
 import { dataHora, diaMes, dinheiro, mesPorExtenso } from "@/comum/formato";
 import { PAGINA_APP } from "@/comum/layout";
-import { cicloDe } from "@/comum/periodo";
+import { cicloDe, corteVigente } from "@/comum/periodo";
 import { cn } from "@/comum/utilitarios";
 import type { Extrato } from "@/interfaces/consumo";
 import type { Pedido } from "@/interfaces/loja";
@@ -93,7 +93,7 @@ export function Consumo() {
             <CardContent className="p-3">
               <p className="text-sm">
                 <span className="font-bold">Seu consumo é organizado por ciclo,</span> não pelo
-                mês do calendário: cada ciclo vai do dia 21 ao dia 20 do mês seguinte, e leva o
+                mês do calendário: cada ciclo vai do dia {corteVigente().dia + 1} ao dia {corteVigente().dia} do mês seguinte, e leva o
                 nome do mês em que fecha. Mesma regra da folha de pagamento. Use o menu abaixo
                 para ver ciclos anteriores.
               </p>
@@ -107,7 +107,7 @@ export function Consumo() {
         <div className="mb-1.5 flex items-center gap-1">
           <span className="text-xs font-semibold text-suave">Ciclo</span>
           <Help>
-            O ciclo vai do dia 21 ao dia 20 do mês seguinte, e leva o nome do mês em que fecha.
+            O ciclo vai do dia {corteVigente().dia + 1} ao dia {corteVigente().dia} do mês seguinte, e leva o nome do mês em que fecha.
             Mesma regra da folha de pagamento. Quem comprou ou almoçou em 25 de agosto está no
             ciclo de setembro.
           </Help>
@@ -121,7 +121,7 @@ export function Consumo() {
             <SelectValue placeholder="Escolha o mês" />
           </SelectTrigger>
           <SelectContent>
-{/* O ciclo fecha no dia 20, então "setembro" não é o mês do calendário.
+{/* O ciclo fecha no dia de corte, então "setembro" não é o mês do calendário.
                 Mostrar o intervalo aqui é o suficiente: é onde a pessoa escolhe. */}
             {(meses.data ?? []).map((mes) => {
               const ciclo = cicloDe(mes);

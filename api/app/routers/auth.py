@@ -11,9 +11,10 @@ from app.core.config import obter_config
 from app.core.deps import COOKIE_ACESSO, COOKIE_REFRESH, AtorAtual, Sessao
 from app.excecoes import NaoAutenticado
 from app.models.cadastro import Colaborador, Empresa
-from app.modules import termos
+from app.modules import ciclo, termos
 from app.modules.auth import servico
 from app.schemas.auth import (
+    CorteCicloSaida,
     EntradaLogin,
     EntradaSolicitacaoSenha,
     EntradaTrocaSenha,
@@ -57,6 +58,7 @@ def _montar_eu(sessao: Sessao, colaborador: Colaborador) -> Eu:
         senha_provisoria=colaborador.senha_provisoria,
         termos_pendentes=termos.pendente(colaborador),
         empresa=EmpresaResumo.model_validate(empresa) if empresa else None,
+        cortes_ciclo=[CorteCicloSaida(**vars(regra)) for regra in ciclo.regras(sessao)],
     )
 
 

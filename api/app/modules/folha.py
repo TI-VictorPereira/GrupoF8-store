@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from app.excecoes import SemPermissao
 from app.models.cadastro import Colaborador, Empresa
 from app.models.operacao import Almoco, Pedido
-from app.modules import consumo
+from app.modules import ciclo
 from app.modules.auditoria import Ator
 
 # Eventos da folha. São dois porque o holerite mostra as duas coisas separadas.
@@ -185,14 +185,13 @@ def _referencia(competencia: str) -> date:
     return date(ano, mes, 1)
 
 def _cortesias_e_isentos(
-    sessao: Session, inicio: datetime, fim: datetime
+    sessao: Session, competencia: str
 ) -> list[LinhaCortesiaIsento]:
     visitantes = sessao.execute(
         select(Almoco.visitante_nome, Almoco.criado_em, Almoco.valor).where(
             Almoco.cortesia.is_(True),
             Almoco.status == "confirmado",
-            Almoco.criado_em >= inicio,
-            Almoco.criado_em < fim,
+            Almoco.competencia == competencia,
         )
     ).all()
     isentos = sessao.execute(
@@ -201,8 +200,7 @@ def _cortesias_e_isentos(
         .where(
             Almoco.isento.is_(True),
             Almoco.status == "confirmado",
-            Almoco.criado_em >= inicio,
-            Almoco.criado_em < fim,
+            Almoco.competencia == competencia,
         )
     ).all()
     return [
@@ -245,7 +243,7 @@ def montar(
         raise SemPermissao()
 
 
-    inicio, fim = consumo.intervalo_da_competencia(competencia)
+    ciclo.validar(competencia)
 
     # Visitante não tem colaborador_id: não tem folha pra descontar, então
     # nunca pode entrar nesta soma. Sem este filtro, `pessoas[colaborador_id]`
@@ -259,14 +257,12 @@ def montar(
         ]
     else:
         onde_loja = [
-            Pedido.criado_em >= inicio,
-            Pedido.criado_em < fim,
+            Pedido.competencia == competencia,
             Pedido.status != "cancelado",
             Pedido.colaborador_id.isnot(None),
         ]
         onde_refeitorio = [
-            Almoco.criado_em >= inicio,
-            Almoco.criado_em < fim,
+            Almoco.competencia == competencia,
             Almoco.status == "confirmado",
             Almoco.colaborador_id.isnot(None),
             # Isento: a empresa paga, não desconta da pessoa — vira linha
@@ -310,7 +306,7 @@ def montar(
         pessoas=sorted(
             consolidado, key=lambda p: (p.matricula is None, p.matricula or 0, p.nome)
         ),
-        cortesias_isentos=_cortesias_e_isentos(sessao, inicio, fim),
+        cortesias_isentos=_cortesias_e_isentos(sessao, competencia),
     )
 
 

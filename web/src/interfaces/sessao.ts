@@ -1,5 +1,7 @@
 /** Quem está logado e o que ele pode fazer. */
 
+import type { CorteCiclo } from "@/comum/periodo";
+
 export type Papel = "colaborador" | "entregador" | "refeitorio" | "dp" | "admin";
 
 export interface Empresa {
@@ -16,4 +18,5 @@ export interface Eu {
   senha_provisoria: boolean;
   termos_pendentes: boolean;
   empresa: Empresa | null;
+  cortes_ciclo: CorteCiclo[];
 }

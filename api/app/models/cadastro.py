@@ -166,3 +166,21 @@ class PrecoAlmoco(Base):
     vigencia_fim: Mapped[date | None] = mapped_column(Date, nullable=True)
     criado_em: Mapped[datetime] = criado_em()
     criado_por: Mapped[uuid.UUID | None] = fk_uuid("colaboradores.id", obrigatorio=False)
+
+
+class CorteCiclo(Base):
+    """Dia em que o ciclo fecha, com vigência. Mudar o dia nunca reinterpreta
+    o passado: vale a partir de `vigente_desde` e só gera competências a partir
+    de `primeira_competencia`."""
+
+    __tablename__ = "cortes_ciclo"
+    __table_args__ = (CheckConstraint("dia between 1 and 27", name="dia_valido"),)
+
+    id: Mapped[uuid.UUID] = pk_uuid()
+    dia: Mapped[int] = mapped_column(Integer, nullable=False)
+    primeira_competencia: Mapped[str] = mapped_column(String(7), nullable=False)
+    vigente_desde: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    criado_em: Mapped[datetime] = criado_em()
+    criado_por: Mapped[uuid.UUID | None] = fk_uuid("colaboradores.id", obrigatorio=False)

@@ -40,7 +40,7 @@ SECOES: list[Secao] = [
             "refeitório e para acompanhar seu próprio consumo. O acesso é pessoal e "
             "intransferível — a senha não deve ser compartilhada.",
             "O valor consumido é descontado em folha, conforme a política já vigente na "
-            "empresa. O ciclo de apuração vai do dia 21 ao dia 20 do mês seguinte.",
+            "empresa. O ciclo de apuração fecha no dia definido pela empresa, informado no app.",
         ],
     ),
     Secao(

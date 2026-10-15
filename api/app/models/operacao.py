@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Index, Integer, String
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Index, Integer, String, event
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, criado_em, dinheiro, fk_uuid, pk_uuid
@@ -47,6 +47,7 @@ class Pedido(Base):
         DateTime(timezone=True), nullable=True
     )
     criado_em: Mapped[datetime] = criado_em()
+    competencia: Mapped[str] = mapped_column(String(7), nullable=False, index=True)
     entregue_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     entregue_por: Mapped[uuid.UUID | None] = fk_uuid("colaboradores.id", obrigatorio=False)
     cancelado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -114,6 +115,7 @@ class Almoco(Base):
     origem: Mapped[str] = mapped_column(String(20), nullable=False, server_default="totem")
     valor: Mapped[Decimal] = dinheiro()
     criado_em: Mapped[datetime] = criado_em()
+    competencia: Mapped[str] = mapped_column(String(7), nullable=False, index=True)
     expira_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     confirmado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     confirmado_por: Mapped[uuid.UUID | None] = fk_uuid("colaboradores.id", obrigatorio=False)
@@ -150,3 +152,14 @@ class AjusteEstoque(Base):
     # Não é quem paga: ajuste de estoque nunca gerou cobrança pra ninguém.
     colaborador_id: Mapped[uuid.UUID | None] = fk_uuid("colaboradores.id", obrigatorio=False)
     criado_em: Mapped[datetime] = criado_em()
+
+
+@event.listens_for(Pedido, "before_insert")
+@event.listens_for(Almoco, "before_insert")
+def _carimbar_competencia(_mapper, conexao, alvo) -> None:
+    """A competência é gravada na criação e nunca recalculada: mudar o dia de
+    corte depois não move o que já aconteceu."""
+    if alvo.competencia is None:
+        from app.modules import ciclo
+
+        alvo.competencia = ciclo.competencia_de(alvo.criado_em, ciclo.regras(conexao))

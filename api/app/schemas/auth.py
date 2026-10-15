@@ -23,8 +23,19 @@ class EntradaSolicitacaoSenha(BaseModel):
     nome_informado: str | None = Field(default=None, max_length=160)
 
 
+class CorteCicloSaida(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    dia: int
+    primeira_competencia: str
+    vigente_desde: datetime
+
+
 class Eu(BaseModel):
-    """Quem está logado. Não expõe hash, codparc nem nada do ERP."""
+    """Quem está logado. Não expõe hash, codparc nem nada do ERP.
+
+    Leva as regras de corte junto: toda tela que mostra ciclo precisa delas, e
+    a sessão é a única coisa resolvida antes de qualquer tela montar."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -35,6 +46,7 @@ class Eu(BaseModel):
     senha_provisoria: bool
     termos_pendentes: bool
     empresa: EmpresaResumo | None = None
+    cortes_ciclo: list[CorteCicloSaida] = []
 
 
 class SecaoTermosSaida(BaseModel):

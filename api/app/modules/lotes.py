@@ -25,7 +25,7 @@ from app.excecoes import (
 )
 from app.models.exportacao import Exportacao
 from app.models.operacao import Almoco, Pedido
-from app.modules import auditoria, consumo, folha
+from app.modules import auditoria, ciclo, consumo, folha
 from app.modules.auditoria import Ator
 
 
@@ -57,9 +57,9 @@ def fechar(sessao: Session, ator: Ator, competencia: str) -> Exportacao:
     if atual(sessao, competencia) is not None:
         raise CompetenciaFechada()
 
-    inicio, fim = consumo.intervalo_da_competencia(competencia)
+    ciclo.validar(competencia)
     agora = datetime.now(UTC)
-    if agora < fim:
+    if competencia >= consumo.competencia_atual(sessao):
         raise CicloAindaAberto()
 
     dados = folha.montar(sessao, ator, competencia)
@@ -87,8 +87,7 @@ def fechar(sessao: Session, ator: Ator, competencia: str) -> Exportacao:
     sessao.execute(
         update(Pedido)
         .where(
-            Pedido.criado_em >= inicio,
-            Pedido.criado_em < fim,
+            Pedido.competencia == competencia,
             Pedido.status != "cancelado",
             Pedido.lote_id.is_(None),
         )
@@ -97,8 +96,7 @@ def fechar(sessao: Session, ator: Ator, competencia: str) -> Exportacao:
     sessao.execute(
         update(Almoco)
         .where(
-            Almoco.criado_em >= inicio,
-            Almoco.criado_em < fim,
+            Almoco.competencia == competencia,
             Almoco.status == "confirmado",
             Almoco.lote_id.is_(None),
         )

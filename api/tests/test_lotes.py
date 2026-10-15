@@ -104,7 +104,7 @@ def test_competencia_nao_fecha_duas_vezes(dados, ciclo):
 
 
 def test_ciclo_ainda_aberto_nao_fecha(dados):
-    """Fechar às 14h do dia 20 deixaria de fora tudo consumido depois — e como
+    """Fechar às 14h do dia 15 deixaria de fora tudo consumido depois — e como
     a competência não fecha duas vezes, esse consumo nunca seria descontado."""
     with FabricaDeSessao() as s:
         with pytest.raises(CicloAindaAberto):

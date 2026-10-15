@@ -26,7 +26,7 @@ import { dataHora, diaMes, dinheiro, mesPorExtenso } from "@/comum/formato";
 import { cicloDe, competenciaDe } from "@/comum/periodo";
 
 const AVISOS: Record<string, string> = {
-  ciclo_ainda_aberto: "Este ciclo ainda não terminou. Espere passar o dia 20.",
+  ciclo_ainda_aberto: "Este ciclo ainda não terminou. Espere ele fechar.",
   competencia_fechada: "Esta competência já foi fechada. Descarte o lote para refazer.",
 };
 
