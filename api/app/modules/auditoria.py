@@ -10,6 +10,9 @@ from sqlalchemy.orm import Session
 from app.core import contexto
 from app.models.auditoria import LogAuditoria
 
+PAPEIS_BALCAO = ("admin", "entregador")
+PAPEIS_REFEITORIO = ("admin", "refeitorio", "entregador")
+
 
 @dataclass(frozen=True)
 class Ator:
@@ -24,6 +27,14 @@ class Ator:
     @property
     def eh_admin(self) -> bool:
         return self.papel == "admin"
+
+    @property
+    def atende_balcao(self) -> bool:
+        return self.papel in PAPEIS_BALCAO
+
+    @property
+    def atende_refeitorio(self) -> bool:
+        return self.papel in PAPEIS_REFEITORIO
 
 
 ATOR_CONSOLE = Ator(id=None, codigo="console", nome="Console do servidor", papel="admin")

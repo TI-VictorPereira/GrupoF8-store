@@ -236,11 +236,11 @@ def vender_a_visitante(
     """Venda avulsa a quem não tem colaborador cadastrado, cobrada por Pix.
 
     Cortesia é por item (não por unidade, como o brinde de aniversário): o
-    admin marca a linha inteira como cortesia ou não, sem regra de limite —
+    balcão marca a linha inteira como cortesia ou não, sem regra de limite —
     é decisão dele, não um direito automático. Se o total pago der zero, a
     venda já sai confirmada, sem gerar Pix de R$ 0,00.
     """
-    if not ator.eh_admin:
+    if not ator.atende_balcao:
         raise SemPermissao()
     if not itens:
         raise CarrinhoVazio()
@@ -359,9 +359,9 @@ def vender_a_visitante(
 
 
 def confirmar_pix(sessao: Session, ator: Ator, pedido_id: uuid.UUID) -> Pedido:
-    """O admin viu o Pix cair na própria conta (fora do sistema) e confirma
+    """O balcão viu o Pix cair na conta (fora do sistema) e confirma
     aqui — não há webhook de banco ou PSP nesta versão."""
-    if not ator.eh_admin:
+    if not ator.atende_balcao:
         raise SemPermissao()
     pedido = sessao.get(Pedido, pedido_id)
     if pedido is None or pedido.status != "aguardando_pagamento":
@@ -395,7 +395,7 @@ def listar_vendas_a_visitante(
     sessao: Session, ator: Ator, de: date, ate: date
 ) -> list[LinhaVendaAVisitante]:
     """Vendas a visitante do período, pra aba própria da tela de Vendas."""
-    if not ator.eh_admin:
+    if not ator.atende_balcao:
         raise SemPermissao()
     if ate < de:
         raise PeriodoInvalido()
@@ -415,6 +415,28 @@ def listar_vendas_a_visitante(
             .order_by(Pedido.criado_em.desc())
         )
     )
+    return _com_itens(sessao, pedidos)
+
+
+def listar_visitantes_aguardando(
+    sessao: Session, ator: Ator, *, pagina: int = 1, por_pagina: int = 20
+) -> tuple[list[LinhaVendaAVisitante], int]:
+    """Vendas a visitante esperando o Pix, mais antigas primeiro: a fila de
+    cobrança do balcão."""
+    if not ator.atende_balcao:
+        raise SemPermissao()
+    consulta = (
+        select(Pedido)
+        .where(Pedido.colaborador_id.is_(None), Pedido.status == "aguardando_pagamento")
+        .order_by(Pedido.criado_em)
+    )
+    total = contar(sessao, consulta)
+    pagina_consulta = consulta.limit(por_pagina).offset((pagina - 1) * por_pagina)
+    return _com_itens(sessao, list(sessao.scalars(pagina_consulta))), total
+
+
+def _com_itens(sessao: Session, pedidos: list[Pedido]) -> list[LinhaVendaAVisitante]:
+    """Itens num SELECT só, pelo mesmo motivo de `_montar`."""
     if not pedidos:
         return []
 
@@ -445,7 +467,7 @@ def entregar(sessao: Session, ator: Ator, pedido_id: uuid.UUID) -> Pedido:
     quem confirmou e quando, que é o que permite voltar atrás numa cobrança
     contestada.
     """
-    if not ator.eh_admin:
+    if not ator.atende_balcao:
         raise SemPermissao()
     pedido = sessao.get(Pedido, pedido_id)
     if pedido is None or pedido.status != "pendente":
@@ -524,7 +546,7 @@ def expirar_vencidos(sessao: Session) -> list[Pedido]:
 
 
 def cancelar(sessao: Session, ator: Ator, pedido_id: uuid.UUID, motivo: str) -> Pedido:
-    if not ator.eh_admin:
+    if not ator.atende_balcao:
         raise SemPermissao()
     pedido = sessao.get(Pedido, pedido_id)
     # Venda a visitante ainda não paga (aguardando_pagamento) também pode ser
@@ -624,7 +646,7 @@ def listar_pendentes_detalhado(
     já é usado em `almocos.gerar`, pelo mesmo motivo — nada expira sozinho no
     banco, e o primeiro que olha é quem descobre.
     """
-    if not ator.eh_admin:
+    if not ator.atende_balcao:
         raise SemPermissao()
     expirar_vencidos(sessao)
     consulta = _com_pessoa().where(Pedido.status == "pendente").order_by(Pedido.criado_em)
@@ -636,14 +658,14 @@ def listar_pendentes_detalhado(
 def listar_cancelados_detalhado(
     sessao: Session, ator: Ator, *, pagina: int = 1, por_pagina: int = 20
 ) -> tuple[list[LinhaPedido], int]:
-    """Os últimos pedidos que o admin cancelou manualmente, para a aba
+    """Os últimos pedidos que o balcão cancelou manualmente, para a aba
     "Cancelados" da tela de Entregas.
 
     Não inclui os expirados pelo relógio: ambos ficam com `status="cancelado"`,
     mas só o cancelamento manual grava `cancelado_por` — é esse campo que
     separa os dois casos, não o status.
     """
-    if not ator.eh_admin:
+    if not ator.atende_balcao:
         raise SemPermissao()
     consulta = (
         _com_pessoa()

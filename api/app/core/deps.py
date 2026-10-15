@@ -12,7 +12,7 @@ from app.core.db import sessao as _sessao
 from app.excecoes import NaoAutenticado, SemPermissao, SenhaProvisoriaPendente, TermosNaoAceitos
 from app.models.cadastro import Colaborador
 from app.modules import termos
-from app.modules.auditoria import Ator
+from app.modules.auditoria import PAPEIS_BALCAO, PAPEIS_REFEITORIO, Ator
 
 COOKIE_ACESSO = "f8_acesso"
 COOKIE_REFRESH = "f8_refresh"
@@ -112,9 +112,10 @@ SomenteAdmin = Annotated[Ator, Depends(exige_papel("admin"))]
 AdminOuRefeitorio = Annotated[Ator, Depends(exige_papel("admin", "refeitorio"))]
 AtorLiberado = Annotated[Ator, Depends(exige_senha_definitiva)]
 AdminLiberado = Annotated[Ator, Depends(exige_papel_com_senha_definitiva("admin"))]
-RefeitorioOuAdminLiberado = Annotated[
-    Ator, Depends(exige_papel_com_senha_definitiva("admin", "refeitorio"))
+BalcaoLiberado = Annotated[Ator, Depends(exige_papel_com_senha_definitiva(*PAPEIS_BALCAO))]
+RefeitorioLiberado = Annotated[
+    Ator, Depends(exige_papel_com_senha_definitiva(*PAPEIS_REFEITORIO))
 ]
 # O DP fecha a folha: enxerga o consumo de todo mundo para exportar e conferir,
-# e nada além disso. Estoque, preço, cadastro e entrega continuam só do admin.
+# e nada além disso. Estoque, preço e cadastro continuam só do admin.
 DpOuAdminLiberado = Annotated[Ator, Depends(exige_papel_com_senha_definitiva("admin", "dp"))]

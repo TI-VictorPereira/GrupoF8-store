@@ -6,6 +6,7 @@ import {
   redirect,
 } from "@tanstack/react-router";
 
+import { abasAdmin, podeAbrir, type Destino } from "@/comum/navegacao";
 import type { Eu } from "@/interfaces/sessao";
 import { Almoco } from "@/telas/Almoco";
 import { Almocos as AdminAlmocos } from "@/telas/admin/Almocos";
@@ -32,6 +33,12 @@ export interface ContextoRota {
 }
 
 const TELA_DO_POSTO = "/refeitorio";
+
+function barreira(para: Destino["para"]) {
+  return ({ context }: { context: ContextoRota }) => {
+    if (!podeAbrir(context.eu.papel, para)) throw redirect({ to: "/" });
+  };
+}
 
 const raiz = createRootRouteWithContext<ContextoRota>()({
   beforeLoad: ({ context, location }) => {
@@ -61,9 +68,7 @@ const consumo = createRoute({ getParentRoute: () => raiz, path: "/consumo", comp
 const refeitorio = createRoute({
   getParentRoute: () => raiz,
   path: "/refeitorio",
-  beforeLoad: ({ context }) => {
-    if (!["refeitorio", "admin"].includes(context.eu.papel)) throw redirect({ to: "/" });
-  },
+  beforeLoad: barreira("/refeitorio"),
   component: function TelaRefeitorio() {
     const { eu } = raiz.useRouteContext();
     return <PainelRefeitorio eu={eu} />;
@@ -73,9 +78,7 @@ const refeitorio = createRoute({
 const fechamento = createRoute({
   getParentRoute: () => raiz,
   path: "/fechamento",
-  beforeLoad: ({ context }) => {
-    if (!["dp", "admin"].includes(context.eu.papel)) throw redirect({ to: "/" });
-  },
+  beforeLoad: barreira("/fechamento"),
   component: Fechamento,
 });
 
@@ -89,13 +92,14 @@ const pedido = createRoute({
 });
 
 // --- administração ---------------------------------------------------------
-// Rota de layout: a barreira e a navegação ficam no pai, as abas são filhas.
+// Rota de layout: a navegação fica no pai, as abas são filhas. Cada aba tem a
+// própria barreira, porque nem todo papel que entra aqui pode abrir todas.
 
 const admin = createRoute({
   getParentRoute: () => raiz,
   path: "/admin",
   beforeLoad: ({ context }) => {
-    if (context.eu.papel !== "admin") throw redirect({ to: "/" });
+    if (abasAdmin(context.eu.papel).length === 0) throw redirect({ to: "/" });
   },
   component: function TelaAdmin() {
     const { eu } = raiz.useRouteContext();
@@ -114,30 +118,35 @@ const adminInicio = createRoute({
 const adminEntregas = createRoute({
   getParentRoute: () => admin,
   path: "/entregas",
+  beforeLoad: barreira("/admin/entregas"),
   component: Entregas,
 });
 
 const adminAlmocos = createRoute({
   getParentRoute: () => admin,
   path: "/almocos",
+  beforeLoad: barreira("/admin/almocos"),
   component: AdminAlmocos,
 });
 
 const adminEstoque = createRoute({
   getParentRoute: () => admin,
   path: "/estoque",
+  beforeLoad: barreira("/admin/estoque"),
   component: Estoque,
 });
 
 const adminVendas = createRoute({
   getParentRoute: () => admin,
   path: "/vendas",
+  beforeLoad: barreira("/admin/vendas"),
   component: Vendas,
 });
 
 const adminColaboradores = createRoute({
   getParentRoute: () => admin,
   path: "/colaboradores",
+  beforeLoad: barreira("/admin/colaboradores"),
   component: Colaboradores,
 });
 

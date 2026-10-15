@@ -72,6 +72,7 @@ const AVISOS: Record<string, string> = {
 
 const PAPEIS: { valor: Papel; rotulo: string }[] = [
   { valor: "colaborador", rotulo: "Colaborador" },
+  { valor: "entregador", rotulo: "Entregador" },
   { valor: "refeitorio", rotulo: "Refeitório" },
   { valor: "dp", rotulo: "Departamento Pessoal" },
   { valor: "admin", rotulo: "Administrador" },
@@ -332,7 +333,7 @@ export function Colaboradores() {
       matricula: vinculo === "clt" && matricula ? Number(matricula) : null,
       mes_aniversario: mesAniversario ? Number(mesAniversario) : null,
       isento_almoco: simOuNao(coluna(linha, "isento almoco", "isento_almoco")) ?? false,
-      papel: (["refeitorio", "dp", "admin"].includes(normalizar(coluna(linha, "papel")))
+      papel: (["entregador", "refeitorio", "dp", "admin"].includes(normalizar(coluna(linha, "papel")))
         ? normalizar(coluna(linha, "papel"))
         : "colaborador") as Papel,
       departamento_id:

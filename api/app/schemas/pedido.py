@@ -47,7 +47,7 @@ class ItemPedidoSaida(BaseModel):
     categoria: str | None
     quantidade: int
     preco_unitario: Decimal
-    custo_unitario: Decimal
+    custo_unitario: Decimal | None
     brinde: bool = False
 
 

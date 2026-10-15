@@ -7,8 +7,9 @@ from fastapi import APIRouter, Query
 
 from app.core.deps import (
     AdminLiberado,
+    BalcaoLiberado,
     ConsumidorLiberado,
-    RefeitorioOuAdminLiberado,
+    RefeitorioLiberado,
     Sessao,
 )
 from app.models.cadastro import Departamento, PrecoAlmoco
@@ -40,7 +41,7 @@ def preco_vigente(ator: ConsumidorLiberado, sessao: Sessao) -> PrecoAlmoco | Non
 
 
 @rotas.get("/preco-visitante", response_model=PrecoAlmocoSaida | None)
-def preco_para_visitante(ator: RefeitorioOuAdminLiberado, sessao: Sessao) -> PrecoAlmoco | None:
+def preco_para_visitante(ator: RefeitorioLiberado, sessao: Sessao) -> PrecoAlmoco | None:
     """Mesmo valor de `/preco`, mas liberado pro totem — `ConsumidorLiberado`
     barra o posto do refeitório de propósito, e aqui é ele quem precisa
     informar o visitante de quanto vai custar a refeição de hoje."""
@@ -65,14 +66,14 @@ def gerar(ator: ConsumidorLiberado, sessao: Sessao) -> Almoco:
 
 @rotas.get("/departamentos-visitante", response_model=list[DepartamentoSaida])
 def departamentos_para_visitante(
-    ator: RefeitorioOuAdminLiberado, sessao: Sessao
+    ator: RefeitorioLiberado, sessao: Sessao
 ) -> list[Departamento]:
     return almocos.listar_departamentos_para_visitante(sessao, ator)
 
 
 @rotas.post("/visitante", response_model=VisitanteAlmocoSaida, status_code=201)
 def visitante(
-    dados: EntradaVisitanteAlmoco, ator: RefeitorioOuAdminLiberado, sessao: Sessao
+    dados: EntradaVisitanteAlmoco, ator: RefeitorioLiberado, sessao: Sessao
 ) -> VisitanteAlmocoSaida:
     """Cadastra e já libera — feito no totem, não tem conferência depois."""
     resultado = almocos.registrar_visitante(
@@ -85,13 +86,13 @@ def visitante(
 
 
 @rotas.post("/{almoco_id}/confirmar-pix", response_model=AlmocoSaida)
-def confirmar_pix(almoco_id: uuid.UUID, ator: RefeitorioOuAdminLiberado, sessao: Sessao) -> Almoco:
+def confirmar_pix(almoco_id: uuid.UUID, ator: RefeitorioLiberado, sessao: Sessao) -> Almoco:
     return almocos.confirmar_pix(sessao, ator, almoco_id)
 
 
 @rotas.post("/confirmar", response_model=ConfirmacaoSaida)
 def confirmar(
-    dados: EntradaConfirmacaoAlmoco, ator: RefeitorioOuAdminLiberado, sessao: Sessao
+    dados: EntradaConfirmacaoAlmoco, ator: RefeitorioLiberado, sessao: Sessao
 ) -> ConfirmacaoSaida:
     almoco = almocos.confirmar(sessao, ator, dados.codigo_barras.strip())
     nome = almoco.visitante_nome or almocos.nome_de(sessao, almoco.colaborador_id)
@@ -102,7 +103,7 @@ def confirmar(
 
 
 @rotas.post("/manual", response_model=AlmocoSaida, status_code=201)
-def manual(dados: EntradaAlmocoManual, ator: AdminLiberado, sessao: Sessao) -> Almoco:
+def manual(dados: EntradaAlmocoManual, ator: BalcaoLiberado, sessao: Sessao) -> Almoco:
     return almocos.registrar_manual(sessao, ator, dados.colaborador_id)
 
 
@@ -114,7 +115,7 @@ def meu_hoje(ator: ConsumidorLiberado, sessao: Sessao) -> Almoco | None:
 
 @rotas.get("/hoje", response_model=list[LinhaPainelSaida])
 def do_dia(
-    ator: AdminLiberado, sessao: Sessao, status: str | None = None
+    ator: BalcaoLiberado, sessao: Sessao, status: str | None = None
 ) -> list[LinhaPainelSaida]:
     return [
         LinhaPainelSaida(
@@ -130,7 +131,7 @@ def do_dia(
 
 @rotas.post("/{almoco_id}/desfazer", response_model=AlmocoSaida)
 def desfazer(
-    almoco_id: uuid.UUID, ator: AdminLiberado, sessao: Sessao
+    almoco_id: uuid.UUID, ator: BalcaoLiberado, sessao: Sessao
 ) -> Almoco:
     """Corrige leitura feita por engano. Volta para pendente, não cancela."""
     return almocos.desfazer_confirmacao(sessao, ator, almoco_id)
@@ -138,7 +139,7 @@ def desfazer(
 
 @rotas.get("/colaboradores", response_model=list[ColaboradorResumo])
 def colaboradores_para_lancamento(
-    busca: str, ator: AdminLiberado, sessao: Sessao
+    busca: str, ator: BalcaoLiberado, sessao: Sessao
 ) -> list[almocos.ColaboradorParaAlmoco]:
     """Só para o lançamento manual. Devolve menos que a listagem do admin."""
     return almocos.buscar_colaboradores(sessao, ator, busca)

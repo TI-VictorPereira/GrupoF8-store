@@ -19,7 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, criado_em, dinheiro, fk_uuid, pk_uuid
 
-PAPEIS = ("colaborador", "refeitorio", "dp", "admin")
+PAPEIS = ("colaborador", "refeitorio", "dp", "admin", "entregador")
 VINCULOS = ("clt", "pj")
 
 

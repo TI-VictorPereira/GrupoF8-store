@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Badge } from "@/componentes/ui/badge";
 import { Button } from "@/componentes/ui/button";
 import { PAGINA_ADMIN } from "@/comum/layout";
-import { ABAS_ADMIN } from "@/comum/navegacao";
+import { abasAdmin } from "@/comum/navegacao";
 import { cn } from "@/comum/utilitarios";
 import { usePendencias } from "@/hooks/pendencias";
 import { useSair } from "@/hooks/sessao";
@@ -25,6 +25,7 @@ export function MolduraAdmin({ eu }: { eu: Eu }) {
   const [menuAberto, setMenuAberto] = useState(false);
   const caminho = useRouterState({ select: (s) => s.location.pathname });
   const pendencias = usePendencias(eu.papel);
+  const abas = abasAdmin(eu.papel);
 
   return (
     <div className="min-h-screen">
@@ -41,10 +42,12 @@ export function MolduraAdmin({ eu }: { eu: Eu }) {
               <ArrowLeft />
             </Link>
           </Button>
-          <span className="text-sm font-bold">Administração</span>
+          <span className="text-sm font-bold">
+            {eu.papel === "admin" ? "Administração" : "Balcão"}
+          </span>
 
           <nav className="ml-6 hidden gap-1 md:flex">
-            {ABAS_ADMIN.map((aba) => {
+            {abas.map((aba) => {
               const ativa = caminho.startsWith(String(aba.para));
               const contador = aba.contador ? pendencias[aba.contador] : 0;
               return (
@@ -100,7 +103,7 @@ export function MolduraAdmin({ eu }: { eu: Eu }) {
         </div>
         {menuAberto && (
           <nav className="flex flex-col gap-1 border-t border-white/10 px-5 py-3 md:hidden">
-            {ABAS_ADMIN.map((aba) => (
+            {abas.map((aba) => (
               <Link
                 key={aba.rotulo}
                 to={aba.para}

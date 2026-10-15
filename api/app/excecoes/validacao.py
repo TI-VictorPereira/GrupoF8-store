@@ -11,7 +11,7 @@ class VinculoInvalido(DadosInvalidos):
 
 class PapelInvalido(DadosInvalidos):
     codigo = "papel_invalido"
-    mensagem = "Papel inválido. Use colaborador, refeitorio, dp ou admin."
+    mensagem = "Papel inválido. Use colaborador, refeitorio, dp, admin ou entregador."
 
 
 class MatriculaObrigatoria(DadosInvalidos):

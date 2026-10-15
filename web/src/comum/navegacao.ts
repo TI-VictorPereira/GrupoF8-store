@@ -5,6 +5,8 @@ import type { Papel } from "@/interfaces/sessao";
 
 export type ChaveContador = "almocos" | "pedidos";
 
+export const PAPEIS_BALCAO: readonly Papel[] = ["admin", "entregador"];
+
 export interface Destino {
  
   para: LinkProps["to"];
@@ -26,7 +28,7 @@ export const DESTINOS: readonly Destino[] = [
     grupo: "balcao",
     area: "app",
     contador: "almocos",
-    papeis: ["refeitorio", "admin"],
+    papeis: ["refeitorio", "admin", "entregador"],
   },
   {
     para: "/admin/entregas",
@@ -35,7 +37,7 @@ export const DESTINOS: readonly Destino[] = [
     grupo: "balcao",
     area: "admin",
     contador: "pedidos",
-    papeis: ["admin"],
+    papeis: PAPEIS_BALCAO,
   },
   {
     para: "/fechamento",
@@ -85,4 +87,10 @@ export function visiveis(papel: Papel, grupo?: Destino["grupo"]): Destino[] {
   );
 }
 
-export const ABAS_ADMIN = DESTINOS.filter((destino) => destino.area === "admin");
+export function podeAbrir(papel: Papel, para: Destino["para"]): boolean {
+  return DESTINOS.some((destino) => destino.para === para && destino.papeis.includes(papel));
+}
+
+export function abasAdmin(papel: Papel): Destino[] {
+  return visiveis(papel).filter((destino) => destino.area === "admin");
+}

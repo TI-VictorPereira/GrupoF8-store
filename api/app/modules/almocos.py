@@ -131,12 +131,12 @@ def registrar_visitante(
     que continua acontecendo na hora. Confirmar o pagamento é uma ação
     separada e manual (`confirmar_pix`), sem pressa.
 
-    Quem chama precisa estar no totem autenticado como refeitório/admin; é a
+    Quem chama precisa estar autenticado como refeitório/admin/entregador; é a
     tela quem garante que o visitante leu o termo antes de digitar o nome, e
     é por isso que `termos_aceitos` é conferido aqui de novo — a tela pode
     até deixar de checar por algum bug, o servidor não deixa passar.
     """
-    if ator.papel not in {"admin", "refeitorio"}:
+    if not ator.atende_refeitorio:
         raise SemPermissao()
     if not termos_aceitos:
         raise TermosNaoAceitos()
@@ -194,7 +194,7 @@ def registrar_visitante(
 def confirmar_pix(sessao: Session, ator: Ator, almoco_id: uuid.UUID) -> Almoco:
     """Admin viu o Pix cair (fora do sistema) e confirma — só bookkeeping,
     não libera nem bloqueia nada, o visitante já comeu."""
-    if ator.papel not in {"admin", "refeitorio"}:
+    if not ator.atende_refeitorio:
         raise SemPermissao()
     almoco = sessao.get(Almoco, almoco_id)
     if almoco is None:
@@ -213,7 +213,7 @@ def confirmar_pix(sessao: Session, ator: Ator, almoco_id: uuid.UUID) -> Almoco:
 
 
 def confirmar(sessao: Session, ator: Ator, codigo_barras: str) -> Almoco:
-    if ator.papel not in {"admin", "refeitorio"}:
+    if not ator.atende_refeitorio:
         raise SemPermissao()
     agora = _agora()
     almoco = sessao.execute(
@@ -325,7 +325,7 @@ def expirar_vencidos(sessao: Session) -> int:
 
 
 def listar_do_dia(sessao: Session, ator: Ator, status: str | None = None) -> list[LinhaPainel]:
-    if not ator.eh_admin:
+    if not ator.atende_balcao:
         raise SemPermissao()
 
 
@@ -382,7 +382,7 @@ def desfazer_confirmacao(sessao: Session, ator: Ator, almoco_id: uuid.UUID) -> A
     confirmado de novo no mesmo dia — o índice parcial aceita, porque continua
     existindo um único almoço ativo.
     """
-    if not ator.eh_admin:
+    if not ator.atende_balcao:
         raise SemPermissao()
 
     almoco = sessao.get(Almoco, almoco_id)
@@ -409,7 +409,7 @@ def desfazer_confirmacao(sessao: Session, ator: Ator, almoco_id: uuid.UUID) -> A
 
 
 def registrar_manual(sessao: Session, ator: Ator, colaborador_id: uuid.UUID) -> Almoco:
-    if not ator.eh_admin:
+    if not ator.atende_balcao:
         raise SemPermissao()
     agora = _agora()
     colaborador = sessao.get(Colaborador, colaborador_id)
@@ -484,7 +484,7 @@ def listar_departamentos_para_visitante(sessao: Session, ator: Ator) -> list[Dep
     e quem cadastra visitante é o refeitório — mesmo motivo de existir
     `buscar_colaboradores` em vez de reaproveitar a listagem do admin.
     """
-    if ator.papel not in {"admin", "refeitorio"}:
+    if not ator.atende_refeitorio:
         raise SemPermissao()
     return list(sessao.scalars(select(Departamento).order_by(Departamento.nome)))
 
@@ -497,7 +497,7 @@ def buscar_colaboradores(sessao: Session, ator: Ator, busca: str) -> list[Colabo
     departamento, e nada de codparc, matrícula, papel ou empresa — que é o que
     a listagem do admin devolve.
     """
-    if not ator.eh_admin:
+    if not ator.atende_balcao:
         raise SemPermissao()
 
     termo = busca.strip()

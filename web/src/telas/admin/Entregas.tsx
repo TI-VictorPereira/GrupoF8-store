@@ -7,6 +7,7 @@ import { Aviso } from "@/componentes/Aviso";
 import { Carregando } from "@/componentes/Carregando";
 import { PaginacaoControles } from "@/componentes/PaginacaoControles";
 import { Vazio } from "@/componentes/Vazio";
+import { CartaoVendaVisitante, VendaAVisitante } from "@/componentes/VendaAVisitante";
 import { Button } from "@/componentes/ui/button";
 import { Card, CardContent } from "@/componentes/ui/card";
 import {
@@ -22,7 +23,7 @@ import { Label } from "@/componentes/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/componentes/ui/tabs";
 import { mensagemDeErro } from "@/comum/erros";
 import { dataHora, dinheiro } from "@/comum/formato";
-import type { LinhaEntrega } from "@/interfaces/admin";
+import type { LinhaEntrega, PedidoCompleto } from "@/interfaces/admin";
 import type { Pagina } from "@/interfaces/comum";
 
 const POR_PAGINA = 20;
@@ -31,17 +32,23 @@ const CHAVE = ["pedidos-pendentes"] as const;
 
 const AVISOS: Record<string, string> = {
   pedido_nao_pendente: "Alguém já tratou este pedido. A lista foi atualizada.",
+  pedido_nao_aguardando_pagamento: "Esta venda já foi tratada.",
 };
 
 const CHAVE_CANCELADOS = ["pedidos-cancelados"] as const;
 
+const CHAVE_VISITANTES = ["visitantes-aguardando"] as const;
+
+type Aba = "pendentes" | "visitantes" | "cancelados";
+
 export function Entregas() {
   const clienteConsulta = useQueryClient();
-  const [aba, setAba] = useState<"pendentes" | "cancelados">("pendentes");
+  const [aba, setAba] = useState<Aba>("pendentes");
   const [aCancelar, setACancelar] = useState<LinhaEntrega | null>(null);
   const [motivo, setMotivo] = useState("");
   const [busca, setBuscaBruta] = useState("");
   const [paginaPendentes, setPaginaPendentes] = useState(1);
+  const [paginaVisitantes, setPaginaVisitantes] = useState(1);
   const [paginaCancelados, setPaginaCancelados] = useState(1);
   const [confirmado, setConfirmado] = useState<string | null>(null);
 
@@ -66,6 +73,16 @@ export function Entregas() {
         `/pedidos/cancelados?pagina=${paginaCancelados}&por_pagina=${POR_PAGINA}`,
       ),
     enabled: aba === "cancelados",
+  });
+
+  const visitantes = useQuery({
+    queryKey: [...CHAVE_VISITANTES, paginaVisitantes],
+    queryFn: () =>
+      api.get<Pagina<PedidoCompleto>>(
+        `/pedidos/visitante/aguardando?pagina=${paginaVisitantes}&por_pagina=${POR_PAGINA}`,
+      ),
+    enabled: aba === "visitantes",
+    refetchInterval: 15_000,
   });
 
   function recarregar() {
@@ -99,6 +116,23 @@ export function Entregas() {
     },
   });
 
+  function recarregarVisitantes() {
+    void clienteConsulta.invalidateQueries({ queryKey: CHAVE_VISITANTES });
+    void clienteConsulta.invalidateQueries({ queryKey: ["vendas-visitante"] });
+    recarregarEstoque();
+  }
+
+  const confirmarVisitante = useMutation({
+    mutationFn: (id: string) => api.post(`/pedidos/${id}/confirmar-pix`),
+    onSuccess: recarregarVisitantes,
+  });
+
+  const cancelarVisitante = useMutation({
+    mutationFn: (id: string) =>
+      api.post(`/pedidos/${id}/cancelar`, { motivo: "Visitante desistiu antes de pagar." }),
+    onSuccess: recarregarVisitantes,
+  });
+
   
   const linhas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -112,7 +146,13 @@ export function Entregas() {
   }, [pendentes.data, busca]);
   const total = pendentes.data?.total ?? 0;
   const totalCancelados = cancelados.data?.total ?? 0;
-  const erro = entregar.error ?? cancelar.error;
+  const totalVisitantes = visitantes.data?.total ?? 0;
+  const erro =
+    entregar.error ??
+    cancelar.error ??
+    confirmarVisitante.error ??
+    cancelarVisitante.error ??
+    visitantes.error;
 
   
   useEffect(() => {
@@ -123,11 +163,14 @@ export function Entregas() {
 
   return (
     <div>
-      <div className="mb-4 flex items-baseline justify-between">
-        <h1 className="text-lg font-bold">Entregas</h1>
-        <p className="text-xs text-suave">
-          {total} {total === 1 ? "pedido aguardando" : "pedidos aguardando"}
-        </p>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-bold">Entregas</h1>
+          <p className="text-xs text-suave">
+            {total} {total === 1 ? "pedido aguardando" : "pedidos aguardando"}
+          </p>
+        </div>
+        <VendaAVisitante />
       </div>
 
       {confirmado && (
@@ -148,9 +191,10 @@ export function Entregas() {
         </div>
       )}
 
-      <Tabs value={aba} onValueChange={(v) => setAba(v as "pendentes" | "cancelados")}>
+      <Tabs value={aba} onValueChange={(v) => setAba(v as Aba)}>
         <TabsList className="mb-3">
           <TabsTrigger value="pendentes">Pendentes</TabsTrigger>
+          <TabsTrigger value="visitantes">Visitantes</TabsTrigger>
           <TabsTrigger value="cancelados">Cancelados</TabsTrigger>
         </TabsList>
 
@@ -242,6 +286,33 @@ export function Entregas() {
             porPagina={POR_PAGINA}
             total={total}
             aoMudar={setPaginaPendentes}
+          />
+        </TabsContent>
+
+        <TabsContent value="visitantes">
+          {visitantes.isLoading && <Carregando />}
+          {visitantes.data && totalVisitantes === 0 && (
+            <Vazio>Nenhuma venda a visitante esperando Pix.</Vazio>
+          )}
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {(visitantes.data?.itens ?? []).map((pedido) => (
+              <CartaoVendaVisitante
+                key={pedido.id}
+                pedido={pedido}
+                aoConfirmar={() => confirmarVisitante.mutate(pedido.id)}
+                aoCancelar={() => cancelarVisitante.mutate(pedido.id)}
+                confirmando={confirmarVisitante.isPending}
+                cancelando={cancelarVisitante.isPending}
+              />
+            ))}
+          </div>
+
+          <PaginacaoControles
+            pagina={paginaVisitantes}
+            porPagina={POR_PAGINA}
+            total={totalVisitantes}
+            aoMudar={setPaginaVisitantes}
           />
         </TabsContent>
 

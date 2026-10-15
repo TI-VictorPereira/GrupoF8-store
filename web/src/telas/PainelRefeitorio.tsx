@@ -1,10 +1,19 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Check, CheckCircle2, Copy, UserPlus, XCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  CheckCircle2,
+  Copy,
+  ScanBarcode,
+  UserPlus,
+  XCircle,
+} from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
+import { BuscarColaborador } from "@/componentes/BuscarColaborador";
 import { Button } from "@/componentes/ui/button";
 import { Card, CardContent } from "@/componentes/ui/card";
 import {
@@ -27,16 +36,24 @@ import {
 import { mensagemDeErro } from "@/comum/erros";
 import { dinheiro, hora } from "@/comum/formato";
 import { PAGINA_PAINEL } from "@/comum/layout";
+import { PAPEIS_BALCAO } from "@/comum/navegacao";
 import { cn } from "@/comum/utilitarios";
 import { useSair } from "@/hooks/sessao";
 import type { AlmocoDoDia, VisitanteAlmocoResposta } from "@/interfaces/almoco";
 import type { Departamento, PixGerado } from "@/interfaces/admin";
+import type { ColaboradorParaAlmoco } from "@/interfaces/refeitorio";
 import type { Eu } from "@/interfaces/sessao";
 
 const AVISOS: Record<string, string> = {
   almoco_ja_confirmado: "Este código já foi usado hoje.",
   almoco_expirado: "Código expirado. Peça para gerar outro.",
   codigo_barras_invalido: "Código não encontrado.",
+};
+
+const AVISOS_MANUAL: Record<string, string> = {
+  almoco_ja_confirmado: "Esta pessoa já teve o almoço confirmado hoje.",
+  almoco_ja_gerado_hoje: "Esta pessoa já tem almoço lançado hoje.",
+  almoco_nao_confirmado: "Este almoço não está confirmado.",
 };
 
 // Rascunho: como o termo de colaborador, precisa de revisão jurídica antes
@@ -57,15 +74,18 @@ interface Feedback {
   tom: "ok" | "erro";
   titulo: string;
   detalhe?: string;
+  almocoId?: string;
 }
 
 
 export function PainelRefeitorio({ eu }: { eu: Eu }) {
   const sair = useSair();
   const campo = useRef<HTMLInputElement>(null);
+  const balcao = PAPEIS_BALCAO.includes(eu.papel);
 
   const [codigo, setCodigo] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [manualAberto, setManualAberto] = useState(false);
 
   const [visitanteAberto, setVisitanteAberto] = useState(false);
   const [nomeVisitante, setNomeVisitante] = useState("");
@@ -154,6 +174,7 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
         tom: "ok",
         titulo: resposta.colaborador_nome,
         detalhe: `Liberado às ${hora(resposta.confirmado_em ?? resposta.criado_em)}`,
+        almocoId: resposta.id,
       }),
     onError: (erro) => setFeedback({ tom: "erro", titulo: mensagemDeErro(erro, AVISOS) }),
     onSettled: () => {
@@ -162,12 +183,44 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
     },
   });
 
-  
+  const confirmarManual = useMutation({
+    mutationFn: (pessoa: ColaboradorParaAlmoco) =>
+      api.post<AlmocoDoDia>("/almocos/manual", { colaborador_id: pessoa.id }),
+    onSuccess: (almoco, pessoa) => {
+      setManualAberto(false);
+      setFeedback({
+        tom: "ok",
+        titulo: pessoa.nome_completo,
+        detalhe: `Liberado sem leitor às ${hora(almoco.confirmado_em ?? almoco.criado_em)}`,
+        almocoId: almoco.id,
+      });
+    },
+  });
+
+  const desfazer = useMutation({
+    mutationFn: ({ id }: { id: string; nome: string }) =>
+      api.post<AlmocoDoDia>(`/almocos/${id}/desfazer`),
+    onSuccess: (_almoco, { nome }) =>
+      setFeedback({
+        tom: "ok",
+        titulo: nome,
+        detalhe: "Leitura desfeita. Voltou para aguardando.",
+      }),
+    onError: (erro) => setFeedback({ tom: "erro", titulo: mensagemDeErro(erro, AVISOS_MANUAL) }),
+  });
+
+  function abrirManual() {
+    confirmarManual.reset();
+    setManualAberto(true);
+  }
+
+  const desfazivel = balcao ? feedback?.almocoId : undefined;
+
   useEffect(() => {
     if (!feedback) return;
-    const id = setTimeout(() => setFeedback(null), 6000);
+    const id = setTimeout(() => setFeedback(null), desfazivel ? 15_000 : 6000);
     return () => clearTimeout(id);
-  }, [feedback]);
+  }, [feedback, desfazivel]);
 
   function enviarCodigo(evento: FormEvent) {
     evento.preventDefault();
@@ -175,10 +228,12 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
     if (valor && !confirmar.isPending) confirmar.mutate(valor);
   }
 
-  // Pausado com o dialog de visitante aberto: do contrário, o reforço de
-  // foco tomaria o campo de volta do meio da digitação do nome.
+  const dialogAberto = visitanteAberto || manualAberto;
+
+  // Pausado com um dialog aberto: do contrário, o reforço de foco tomaria o
+  // campo de volta do meio da digitação do nome.
   useEffect(() => {
-    if (visitanteAberto) return;
+    if (dialogAberto) return;
     function refocar() {
       campo.current?.focus();
     }
@@ -189,34 +244,47 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
       clearInterval(intervalo);
       window.removeEventListener("focus", refocar);
     };
-  }, [visitanteAberto]);
+  }, [dialogAberto]);
 
   return (
     <div
       className={cn(PAGINA_PAINEL, "min-h-screen pb-10")}
-      onClick={() => !visitanteAberto && campo.current?.focus()}
+      onClick={() => !dialogAberto && campo.current?.focus()}
     >
-      <header className="flex items-center gap-3 py-5">
-        {eu.papel === "admin" && (
+      <header className="flex flex-wrap items-center gap-3 py-5">
+        {eu.papel !== "refeitorio" && (
           <Button asChild variant="ghost" size="icon" aria-label="Voltar ao início">
             <Link to="/">
               <ArrowLeft />
             </Link>
           </Button>
         )}
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="text-base font-bold">Refeitório</h1>
           <p className="truncate text-xs text-suave">{eu.nome_completo}</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-auto"
-          onClick={abrirVisitante}
-        >
-          <UserPlus />
-          Novo visitante
-        </Button>
+        <div className="order-last flex w-full flex-wrap gap-2 sm:order-none sm:w-auto">
+          {balcao && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 flex-1 sm:h-8 sm:flex-none"
+              onClick={abrirManual}
+            >
+              <ScanBarcode />
+              Confirmar sem leitor
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-10 flex-1 sm:h-8 sm:flex-none"
+            onClick={abrirVisitante}
+          >
+            <UserPlus />
+            Novo visitante
+          </Button>
+        </div>
         <Button variant="ghost" size="sm" onClick={() => sair.mutate()}>
           Sair
         </Button>
@@ -255,13 +323,13 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
               : "border-perigo/30 bg-perigo/10",
           )}
         >
-          <CardContent className="flex items-center gap-3 p-5">
+          <CardContent className="flex flex-wrap items-center gap-3 p-5">
             {feedback.tom === "ok" ? (
               <CheckCircle2 className="size-10 shrink-0 text-sucesso" />
             ) : (
               <XCircle className="size-10 shrink-0 text-perigo" />
             )}
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p
                 className={cn(
                   "truncate text-2xl font-extrabold",
@@ -272,9 +340,41 @@ export function PainelRefeitorio({ eu }: { eu: Eu }) {
               </p>
               {feedback.detalhe && <p className="text-sm text-suave">{feedback.detalhe}</p>}
             </div>
+            {desfazivel && (
+              <Button
+                variant="outline"
+                className="h-10 w-full sm:h-9 sm:w-auto"
+                disabled={desfazer.isPending}
+                onClick={() => desfazer.mutate({ id: desfazivel, nome: feedback.titulo })}
+              >
+                {desfazer.isPending ? "Desfazendo…" : "Desfazer"}
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={manualAberto} onOpenChange={setManualAberto}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Confirmar almoço sem leitor</DialogTitle>
+            <DialogDescription>
+              Para quando o leitor de código de barras falha. O almoço entra como lançamento
+              manual, com o seu nome e o horário registrados.
+            </DialogDescription>
+          </DialogHeader>
+
+          <BuscarColaborador
+            acao="Confirmar"
+            ocupado={confirmarManual.isPending}
+            aoEscolher={(pessoa) => confirmarManual.mutate(pessoa)}
+          />
+
+          {confirmarManual.error && (
+            <Aviso>{mensagemDeErro(confirmarManual.error, AVISOS_MANUAL)}</Aviso>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={visitanteAberto} onOpenChange={(aberto) => !aberto && fecharVisitante()}>
         <DialogContent onClick={(e) => e.stopPropagation()}>

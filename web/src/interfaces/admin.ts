@@ -9,7 +9,7 @@ export interface ItemDePedido {
   categoria: string | null;
   quantidade: number;
   preco_unitario: string;
-  custo_unitario: string;
+  custo_unitario: string | null;
   brinde: boolean;
 }
 
