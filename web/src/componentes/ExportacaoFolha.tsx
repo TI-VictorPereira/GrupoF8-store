@@ -24,6 +24,7 @@ import { Input } from "@/componentes/ui/input";
 import { mensagemDeErro } from "@/comum/erros";
 import { dataHora, diaMes, dinheiro, mesPorExtenso } from "@/comum/formato";
 import { cicloDe, competenciaDe } from "@/comum/periodo";
+import { ArquivosDeAssinatura } from "@/componentes/ArquivosDeAssinatura";
 
 const AVISOS: Record<string, string> = {
   ciclo_ainda_aberto: "Este ciclo ainda não terminou. Espere ele fechar.",
@@ -297,6 +298,8 @@ export function ExportacaoFolha() {
             </Button>
           )}
         </div>
+
+        <ArquivosDeAssinatura competencia={competencia} />
 
         {/* Descartar exige motivo: é a única coisa que explica, meses depois,
             por que um ciclo foi fechado duas vezes. */}

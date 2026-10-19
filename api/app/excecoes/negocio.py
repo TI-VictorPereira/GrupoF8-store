@@ -7,7 +7,7 @@ constraint para o erro correspondente daqui — os dois caminhos chegam à mesma
 resposta.
 """
 
-from app.excecoes.base import Conflito, ErroDaAplicacao
+from app.excecoes.base import Conflito, ErroDaAplicacao, NaoEncontrado
 
 
 class EstoqueInsuficiente(Conflito):
@@ -197,3 +197,8 @@ class CicloAindaAberto(Conflito):
 
     codigo = "ciclo_ainda_aberto"
     mensagem = "Este ciclo ainda não terminou. Espere o ciclo terminar para fechar."
+
+
+class NadaParaAssinar(NaoEncontrado):
+    codigo = "nada_para_assinar"
+    mensagem = "Ninguém nesse recorte consumiu nada no ciclo."

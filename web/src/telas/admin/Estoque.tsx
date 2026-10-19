@@ -672,7 +672,7 @@ export function Estoque() {
                   <img
                     src={formulario.foto_url}
                     alt=""
-                    className="h-14 w-14 shrink-0 rounded-md border border-borda object-cover"
+                    className="h-14 w-14 shrink-0 rounded-md border border-borda bg-white object-contain p-1"
                   />
                 )}
                 <div className="flex flex-col items-start gap-1">

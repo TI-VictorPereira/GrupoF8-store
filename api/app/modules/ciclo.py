@@ -120,7 +120,9 @@ def alterar(sessao: Session, ator: Ator, dia: int) -> list[Regra]:
             acao="ciclo.corte_alterado",
             entidade="corte_ciclo",
             entidade_id=None,
-            descricao=f"Dia de fechamento passa a {dia} a partir da competência {_seguinte(atual)}.",
+            descricao=(
+                f"Dia de fechamento passa a {dia} a partir da competência {_seguinte(atual)}."
+            ),
             dados_novos={"dia": dia, "primeira_competencia": _seguinte(atual)},
         )
         sessao.flush()

@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from io import BytesIO
+from zoneinfo import ZoneInfo
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -22,9 +23,10 @@ from openpyxl.worksheet.worksheet import Worksheet
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import obter_config
 from app.excecoes import SemPermissao
-from app.models.cadastro import Colaborador, Empresa
-from app.models.operacao import Almoco, Pedido
+from app.models.cadastro import Colaborador, Departamento, Empresa
+from app.models.operacao import Almoco, ItemPedido, Pedido
 from app.modules import ciclo
 from app.modules.auditoria import Ator
 
@@ -395,3 +397,105 @@ def planilha_sem_matricula(folha: Folha) -> bytes:
             for linha in folha.sem_matricula
         ],
     )
+
+
+@dataclass
+class DiaDeConsumo:
+    data: date
+    almoco: Decimal
+    loja: Decimal
+    itens: str
+
+
+@dataclass
+class FolhaDeAssinatura:
+    colaborador_id: uuid.UUID
+    departamento_id: uuid.UUID | None
+    nome: str
+    codigo: str
+    matricula: int | None
+    empresa: str
+    departamento: str | None
+    dias: list[DiaDeConsumo]
+
+    @property
+    def total(self) -> Decimal:
+        return sum((dia.almoco + dia.loja for dia in self.dias), Decimal("0.00"))
+
+
+def folhas_de_assinatura(
+    sessao: Session,
+    ator: Ator,
+    competencia: str,
+    *,
+    departamento_id: uuid.UUID | None = None,
+    colaborador_id: uuid.UUID | None = None,
+) -> list[FolhaDeAssinatura]:
+    """Uma folha por pessoa com o consumo dia a dia, para ela conferir e
+    assinar. Mesmas regras de `montar`: é o que vai ser descontado."""
+    if ator.papel not in {"admin", "dp"}:
+        raise SemPermissao()
+    ciclo.validar(competencia)
+
+    fuso = ZoneInfo(obter_config().fuso)
+    dias: dict[uuid.UUID, dict[date, DiaDeConsumo]] = {}
+
+    def dia_de(pessoa: uuid.UUID, instante: datetime) -> DiaDeConsumo:
+        data = instante.astimezone(fuso).date()
+        por_dia = dias.setdefault(pessoa, {})
+        return por_dia.setdefault(data, DiaDeConsumo(data, Decimal("0.00"), Decimal("0.00"), ""))
+
+    pedidos = list(
+        sessao.scalars(
+            select(Pedido).where(
+                Pedido.competencia == competencia,
+                Pedido.status != "cancelado",
+                Pedido.colaborador_id.isnot(None),
+            )
+        )
+    )
+    itens: dict[uuid.UUID, list[str]] = {}
+    if pedidos:
+        for item in sessao.scalars(
+            select(ItemPedido).where(ItemPedido.pedido_id.in_([p.id for p in pedidos]))
+        ):
+            itens.setdefault(item.pedido_id, []).append(f"{item.quantidade}x {item.nome_produto}")
+    for pedido in pedidos:
+        dia = dia_de(pedido.colaborador_id, pedido.criado_em)
+        dia.loja += pedido.valor_total
+        dia.itens = ", ".join(filter(None, [dia.itens, *itens.get(pedido.id, [])]))
+
+    for almoco in sessao.scalars(
+        select(Almoco).where(
+            Almoco.competencia == competencia,
+            Almoco.status == "confirmado",
+            Almoco.colaborador_id.isnot(None),
+            Almoco.isento.is_(False),
+        )
+    ):
+        dia_de(almoco.colaborador_id, almoco.criado_em).almoco += almoco.valor
+
+    if not dias:
+        return []
+    pessoas = sessao.execute(
+        select(Colaborador, Empresa.nome, Departamento.nome)
+        .join(Empresa, Empresa.id == Colaborador.empresa_id)
+        .outerjoin(Departamento, Departamento.id == Colaborador.departamento_id)
+        .where(Colaborador.id.in_(list(dias)))
+    ).all()
+    folhas = [
+        FolhaDeAssinatura(
+            colaborador_id=pessoa.id,
+            departamento_id=pessoa.departamento_id,
+            nome=pessoa.nome_completo,
+            codigo=pessoa.codigo,
+            matricula=pessoa.matricula,
+            empresa=empresa,
+            departamento=departamento,
+            dias=sorted(dias[pessoa.id].values(), key=lambda d: d.data),
+        )
+        for pessoa, empresa, departamento in pessoas
+        if (departamento_id is None or pessoa.departamento_id == departamento_id)
+        and (colaborador_id is None or pessoa.id == colaborador_id)
+    ]
+    return sorted(folhas, key=lambda f: ((f.departamento or "").lower(), f.nome.lower()))

@@ -176,7 +176,7 @@ export function Loja() {
             return (
               <Card key={produto.id} className="overflow-hidden">
                 <div
-                  className="flex h-24 items-center justify-center"
+                  className="flex aspect-square items-center justify-center bg-white"
                   style={
                     produto.foto_url
                       ? undefined
@@ -188,7 +188,7 @@ export function Loja() {
                       src={produto.foto_url}
                       alt=""
                       loading="lazy"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-contain p-2"
                     />
                   ) : (
                     <span style={{ color: ESTILO_CATEGORIA[categoriaDe(produto)].fg }}>

@@ -1,15 +1,19 @@
 """Exportação do ciclo para o Sankhya."""
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
+from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
 
+from app.core.config import obter_config
 from app.core.deps import DpOuAdminLiberado, Sessao
+from app.excecoes import NadaParaAssinar
+from app.modules import assinaturas, consumo, lotes
 from app.modules import folha as servico
-from app.modules import lotes
 
 rotas = APIRouter(prefix="/exportacoes", tags=["exportações"])
 
@@ -181,4 +185,83 @@ def planilha_dos_sem_matricula(
     return _arquivo(
         servico.planilha_sem_matricula(_montar(sessao, ator, competencia)),
         f"sem-matricula-{competencia}.xlsx",
+    )
+
+
+class DiaDeConsumoSaida(BaseModel):
+    data: date
+    almoco: Decimal
+    loja: Decimal
+    itens: str
+
+
+class FolhaDeAssinaturaSaida(BaseModel):
+    colaborador_id: uuid.UUID
+    departamento_id: uuid.UUID | None
+    nome: str
+    codigo: str
+    matricula: int | None
+    empresa: str
+    departamento: str | None
+    dias: list[DiaDeConsumoSaida]
+    total: Decimal
+
+
+@rotas.get("/folha/assinaturas", response_model=list[FolhaDeAssinaturaSaida])
+def folhas_de_assinatura(
+    competencia: str, ator: DpOuAdminLiberado, sessao: Sessao
+) -> list[FolhaDeAssinaturaSaida]:
+    """Uma folha por pessoa, dia a dia, para imprimir e colher a assinatura."""
+    return [
+        FolhaDeAssinaturaSaida(
+            colaborador_id=folha.colaborador_id,
+            departamento_id=folha.departamento_id,
+            nome=folha.nome,
+            codigo=folha.codigo,
+            matricula=folha.matricula,
+            empresa=folha.empresa,
+            departamento=folha.departamento,
+            dias=[DiaDeConsumoSaida(**vars(dia)) for dia in folha.dias],
+            total=folha.total,
+        )
+        for folha in servico.folhas_de_assinatura(sessao, ator, competencia)
+    ]
+
+
+@rotas.get("/folha/assinaturas/arquivo")
+def arquivo_de_assinaturas(
+    competencia: str,
+    ator: DpOuAdminLiberado,
+    sessao: Sessao,
+    departamento_id: uuid.UUID | None = None,
+    colaborador_id: uuid.UUID | None = None,
+) -> Response:
+    """Uma pessoa: o PDF dela. Uma área: zip com os PDFs. Sem filtro: zip
+    "Grupo F8" com uma pasta por área."""
+    folhas = servico.folhas_de_assinatura(
+        sessao, ator, competencia, departamento_id=departamento_id, colaborador_id=colaborador_id
+    )
+    if not folhas:
+        raise NadaParaAssinar()
+
+    inicio, fim = consumo.intervalo_da_competencia(competencia, sessao)
+    fuso = ZoneInfo(obter_config().fuso)
+    de, ate = inicio.astimezone(fuso).date(), (fim - timedelta(seconds=1)).astimezone(fuso).date()
+
+    if colaborador_id is not None:
+        folha = folhas[0]
+        conteudo, tipo = assinaturas.pdf(folha, competencia, de, ate), "application/pdf"
+        nome = f"{assinaturas.nome_de_arquivo(folha.nome)}.pdf"
+    elif departamento_id is not None:
+        conteudo = assinaturas.zip_das_folhas(folhas, competencia, de, ate, por_area=False)
+        area = folhas[0].departamento or assinaturas.SEM_DEPARTAMENTO
+        tipo, nome = "application/zip", f"{assinaturas.nome_de_arquivo(area)}.zip"
+    else:
+        conteudo = assinaturas.zip_das_folhas(folhas, competencia, de, ate, por_area=True)
+        tipo, nome = "application/zip", f"{assinaturas.GRUPO}.zip"
+
+    return Response(
+        content=conteudo,
+        media_type=tipo,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(nome)}"},
     )
