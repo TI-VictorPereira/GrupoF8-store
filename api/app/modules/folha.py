@@ -21,7 +21,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.core.config import obter_config
 from app.excecoes import SemPermissao
@@ -321,7 +321,19 @@ def _escrever(
     célula que carrega o tipo para quem lê o arquivo depois.
     """
     livro = Workbook()
-    aba: Worksheet = livro.active
+    _preencher(livro.active, titulo, colunas, fileiras)
+
+    buffer = BytesIO()
+    livro.save(buffer)
+    return buffer.getvalue()
+
+
+def _preencher(
+    aba: Worksheet,
+    titulo: str,
+    colunas: tuple[tuple[str, str, int], ...],
+    fileiras: list[list],
+) -> None:
     aba.title = titulo
 
     aba.append([nome for nome, _formato, _largura in colunas])
@@ -338,10 +350,6 @@ def _escrever(
         aba.column_dimensions[aba.cell(row=1, column=indice).column_letter].width = largura
         for fileira_excel in range(2, aba.max_row + 1):
             aba.cell(row=fileira_excel, column=indice).number_format = formato
-
-    buffer = BytesIO()
-    livro.save(buffer)
-    return buffer.getvalue()
 
 
 def planilha(folha: Folha) -> bytes:
@@ -379,10 +387,10 @@ COLUNAS_SEM_MATRICULA: tuple[tuple[str, str, int], ...] = (
 
 
 def planilha_sem_matricula(folha: Folha) -> bytes:
-    """Quem ficou de fora da folha. Layout nosso, não do Sankhya: este arquivo
-    não é importado, é lido por gente para cobrar por outro caminho."""
+    """Consumo dos PJ. Layout nosso, não do Sankhya: este arquivo não é
+    importado, é lido por gente para cobrar por outro caminho."""
     return _escrever(
-        "SEM MATRICULA",
+        "PJ",
         COLUNAS_SEM_MATRICULA,
         [
             [
@@ -405,6 +413,8 @@ class DiaDeConsumo:
     almoco: Decimal
     loja: Decimal
     itens: str
+    # Almoço que a empresa paga: aparece na folha, mas não entra no desconto.
+    almoco_isento: Decimal = Decimal("0.00")
 
 
 @dataclass
@@ -420,7 +430,12 @@ class FolhaDeAssinatura:
 
     @property
     def total(self) -> Decimal:
+        """O que vai ser descontado em folha. Almoço isento fica de fora."""
         return sum((dia.almoco + dia.loja for dia in self.dias), Decimal("0.00"))
+
+    @property
+    def total_isento(self) -> Decimal:
+        return sum((dia.almoco_isento for dia in self.dias), Decimal("0.00"))
 
 
 def folhas_de_assinatura(
@@ -432,7 +447,8 @@ def folhas_de_assinatura(
     colaborador_id: uuid.UUID | None = None,
 ) -> list[FolhaDeAssinatura]:
     """Uma folha por pessoa com o consumo dia a dia, para ela conferir e
-    assinar. Mesmas regras de `montar`: é o que vai ser descontado."""
+    assinar. O desconto segue as regras de `montar`. O isento também assina:
+    o almoço dele aparece pelo valor real, mas com desconto zero."""
     if ator.papel not in {"admin", "dp"}:
         raise SemPermissao()
     ciclo.validar(competencia)
@@ -470,10 +486,13 @@ def folhas_de_assinatura(
             Almoco.competencia == competencia,
             Almoco.status == "confirmado",
             Almoco.colaborador_id.isnot(None),
-            Almoco.isento.is_(False),
         )
     ):
-        dia_de(almoco.colaborador_id, almoco.criado_em).almoco += almoco.valor
+        dia = dia_de(almoco.colaborador_id, almoco.criado_em)
+        if almoco.isento:
+            dia.almoco_isento += almoco.valor
+        else:
+            dia.almoco += almoco.valor
 
     if not dias:
         return []
@@ -499,3 +518,155 @@ def folhas_de_assinatura(
         and (colaborador_id is None or pessoa.id == colaborador_id)
     ]
     return sorted(folhas, key=lambda f: ((f.departamento or "").lower(), f.nome.lower()))
+
+
+@dataclass
+class AlmocoSemDesconto:
+    data: date
+    nome: str
+    tipo: str
+    departamento: str | None
+    pagamento: str
+    valor: Decimal
+    pago_pela_empresa: Decimal
+    pago_pelo_consumidor: Decimal
+
+
+def _pagamento(almoco: Almoco) -> str:
+    if almoco.isento:
+        return "Isento (empresa paga)"
+    if almoco.cortesia:
+        return "Cortesia"
+    return "Pix confirmado" if almoco.pix_confirmado_em else "Pix pendente"
+
+
+def almocos_sem_desconto(
+    sessao: Session, ator: Ator, competencia: str
+) -> list[AlmocoSemDesconto]:
+    """Todo almoço do ciclo que não vira desconto em folha: funcionário isento
+    e visitante (cortesia ou Pix). Para o DP ver quanto a empresa banca."""
+    if ator.papel not in {"admin", "dp"}:
+        raise SemPermissao()
+    ciclo.validar(competencia)
+
+    fuso = ZoneInfo(obter_config().fuso)
+    area_do_visitante = aliased(Departamento)
+    linhas = sessao.execute(
+        select(
+            Almoco,
+            Colaborador.nome_completo,
+            Departamento.nome,
+            area_do_visitante.nome,
+        )
+        .outerjoin(Colaborador, Colaborador.id == Almoco.colaborador_id)
+        .outerjoin(Departamento, Departamento.id == Colaborador.departamento_id)
+        .outerjoin(area_do_visitante, area_do_visitante.id == Almoco.visitante_departamento_id)
+        .where(
+            Almoco.competencia == competencia,
+            Almoco.status == "confirmado",
+            Almoco.isento.is_(True) | Almoco.visitante_nome.isnot(None),
+        )
+    ).all()
+
+    zero = Decimal("0.00")
+    resultado = []
+    for almoco, nome_colaborador, area, area_visitante in linhas:
+        empresa_paga = almoco.isento or almoco.cortesia
+        resultado.append(
+            AlmocoSemDesconto(
+                data=almoco.criado_em.astimezone(fuso).date(),
+                nome=almoco.visitante_nome or nome_colaborador,
+                tipo="Visitante" if almoco.visitante_nome else "Funcionário isento",
+                departamento=area_visitante if almoco.visitante_nome else area,
+                pagamento=_pagamento(almoco),
+                valor=almoco.valor,
+                pago_pela_empresa=almoco.valor if empresa_paga else zero,
+                pago_pelo_consumidor=(
+                    almoco.valor if almoco.pix_confirmado_em and not empresa_paga else zero
+                ),
+            )
+        )
+    return sorted(
+        resultado, key=lambda a: ((a.departamento or "").lower(), a.nome.lower(), a.data)
+    )
+
+
+COLUNAS_ALMOCOS_DETALHADO: tuple[tuple[str, str, int], ...] = (
+    ("DATA", DATA, 13),
+    ("NOME", TEXTO, 34),
+    ("TIPO", TEXTO, 20),
+    ("DEPARTAMENTO", TEXTO, 26),
+    ("PAGAMENTO", TEXTO, 22),
+    ("VALOR DO ALMOCO", DECIMAL, 17),
+    ("PAGO PELA EMPRESA", DECIMAL, 19),
+    ("PAGO PELO CONSUMIDOR", DECIMAL, 22),
+)
+
+COLUNAS_ALMOCOS_POR_PESSOA: tuple[tuple[str, str, int], ...] = (
+    ("NOME", TEXTO, 34),
+    ("TIPO", TEXTO, 20),
+    ("DEPARTAMENTO", TEXTO, 26),
+    ("ALMOCOS", INTEIRO, 10),
+    ("VALOR DOS ALMOCOS", DECIMAL, 19),
+    ("PAGO PELA EMPRESA", DECIMAL, 19),
+    ("PAGO PELO CONSUMIDOR", DECIMAL, 22),
+)
+
+
+def planilha_almocos_sem_desconto(almocos: list[AlmocoSemDesconto]) -> bytes:
+    """Duas abas: o detalhe, um almoço por linha, e o total por pessoa. Layout
+    nosso, lido por gente: não é importado em lugar nenhum."""
+    por_pessoa: dict[tuple[str, str, str | None], list] = {}
+    for a in almocos:
+        acumulado = por_pessoa.setdefault(
+            (a.nome, a.tipo, a.departamento), [0, Decimal("0.00"), Decimal("0.00"), Decimal("0.00")]
+        )
+        acumulado[0] += 1
+        acumulado[1] += a.valor
+        acumulado[2] += a.pago_pela_empresa
+        acumulado[3] += a.pago_pelo_consumidor
+
+    linhas_pessoa = [
+        [nome, tipo, departamento or "Sem departamento", *numeros]
+        for (nome, tipo, departamento), numeros in sorted(
+            por_pessoa.items(), key=lambda i: ((i[0][2] or "").lower(), i[0][0].lower())
+        )
+    ]
+    linhas_pessoa.append(
+        [
+            "TOTAL",
+            None,
+            None,
+            sum(p[3] for p in linhas_pessoa),
+            sum((p[4] for p in linhas_pessoa), Decimal("0.00")),
+            sum((p[5] for p in linhas_pessoa), Decimal("0.00")),
+            sum((p[6] for p in linhas_pessoa), Decimal("0.00")),
+        ]
+    )
+
+    livro = Workbook()
+    _preencher(
+        livro.active,
+        "DETALHADO",
+        COLUNAS_ALMOCOS_DETALHADO,
+        [
+            [
+                a.data,
+                a.nome,
+                a.tipo,
+                a.departamento or "Sem departamento",
+                a.pagamento,
+                a.valor,
+                a.pago_pela_empresa,
+                a.pago_pelo_consumidor,
+            ]
+            for a in almocos
+        ],
+    )
+    _preencher(livro.create_sheet(), "POR PESSOA", COLUNAS_ALMOCOS_POR_PESSOA, linhas_pessoa)
+    for celula in livro["POR PESSOA"][livro["POR PESSOA"].max_row]:
+        celula.font = Font(bold=True)
+
+    buffer = BytesIO()
+    livro.save(buffer)
+    return buffer.getvalue()

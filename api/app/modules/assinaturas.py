@@ -59,36 +59,51 @@ def pdf(folha: FolhaDeAssinatura, competencia: str, de: date, ate: date) -> byte
     documento.ln(4)
 
     with documento.table(
-        col_widths=(22, 22, 78, 22, 22),
+        col_widths=(18, 34, 54, 26, 28),
         text_align=("LEFT", "RIGHT", "LEFT", "RIGHT", "RIGHT"),
         headings_style=sem_fundo,
     ) as tabela:
         cabecalho = tabela.row()
-        for titulo in ("Data", "Almoço", "Loja", "Valor loja", "Total do dia"):
+        for titulo in ("Data", "Almoço", "Loja", "Valor loja", "A descontar"):
             cabecalho.cell(titulo)
         for dia in folha.dias:
             linha = tabela.row()
             linha.cell(_data(dia.data))
-            linha.cell(_dinheiro(dia.almoco) if dia.almoco else "")
+            if dia.almoco_isento:
+                linha.cell(f"{_dinheiro(dia.almoco_isento)} (isento)")
+            else:
+                linha.cell(_dinheiro(dia.almoco) if dia.almoco else "")
             linha.cell(dia.itens)
             linha.cell(_dinheiro(dia.loja) if dia.loja else "")
             linha.cell(_dinheiro(dia.almoco + dia.loja))
         linha = tabela.row()
-        linha.cell("Total do ciclo", colspan=4, style=sem_fundo)
+        linha.cell("Total a descontar no ciclo", colspan=4, style=sem_fundo)
         linha.cell(_dinheiro(folha.total), style=sem_fundo)
+
+    if folha.total_isento:
+        documento.ln(2)
+        documento.set_font("helvetica", size=9)
+        documento.multi_cell(
+            0,
+            text=(
+                f"Almoços isentos: {_dinheiro(folha.total_isento)}, pagos pela empresa e "
+                "sem desconto em folha."
+            ),
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
+        documento.set_font("helvetica", size=10)
 
     if documento.will_page_break(45):
         documento.add_page()
     documento.ln(8)
-    documento.multi_cell(
-        0,
-        text=(
-            "Declaro que conferi os lançamentos acima e autorizo o desconto de "
-            f"{_dinheiro(folha.total)} em folha de pagamento."
-        ),
-        new_x="LMARGIN",
-        new_y="NEXT",
+    texto = (
+        "Declaro que conferi os lançamentos acima e autorizo o desconto de "
+        f"{_dinheiro(folha.total)} em folha de pagamento."
+        if folha.total
+        else "Declaro que conferi os lançamentos acima. Não há valor a descontar em folha."
     )
+    documento.multi_cell(0, text=texto, new_x="LMARGIN", new_y="NEXT")
     documento.ln(20)
     y = documento.get_y()
     documento.line(12, y, 140, y)

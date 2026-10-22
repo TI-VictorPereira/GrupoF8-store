@@ -34,20 +34,6 @@ const AVISOS: Record<string, string> = {
   competencia_fechada: "Esta competência já foi fechada. Descarte o lote para refazer.",
 };
 
-interface PessoaSemMatricula {
-  codemp: number;
-  codparc: number;
-  nome: string;
-  total: string;
-}
-
-interface CortesiaIsento {
-  tipo: "visitante" | "isento";
-  nome: string;
-  data: string;
-  valor: string;
-}
-
 interface ConsumoDaPessoa {
   codemp: number;
   codparc: number;
@@ -73,9 +59,9 @@ interface ResumoFolha {
   linhas: number;
   total: string;
   pessoas: ConsumoDaPessoa[];
-  sem_matricula: PessoaSemMatricula[];
-  total_sem_matricula: string;
-  cortesias_isentos: CortesiaIsento[];
+  quantidade_pj: number;
+  total_pj: string;
+  quantidade_cortesias_isentos: number;
   total_cortesias_isentos: string;
   lote: Lote | null;
 }
@@ -123,8 +109,6 @@ export function ExportacaoFolha() {
 
   const dados = resumo.data;
   const faixa = cicloDe(competencia);
-  const fora = dados?.sem_matricula ?? [];
-  const cortesiasIsentos = dados?.cortesias_isentos ?? [];
   const lote = dados?.lote ?? null;
   const fechado = lote?.status === "exportada";
 
@@ -325,77 +309,62 @@ export function ExportacaoFolha() {
           <TabsContent value="administrativo">
             {eu?.papel === "admin" && <DiaDeFechamento />}
 
-            {fora.length === 0 && cortesiasIsentos.length === 0 && (
-              <p className="text-[11px] text-suave">
-                Neste ciclo ninguém ficou fora da folha e não houve almoço sem desconto.
-              </p>
-            )}
+            <h3 className="text-sm font-bold">Relatórios do ciclo</h3>
 
-            {fora.length > 0 && (
-              <div className="rounded-lg border border-borda p-3">
-                <p className="text-xs font-bold">
-                  {fora.length} {fora.length === 1 ? "pessoa fica" : "pessoas ficam"} fora da
-                  folha
-                </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col rounded-lg border border-borda p-3">
+                <p className="text-xs font-bold">PJ (pessoa jurídica)</p>
                 <p className="mt-0.5 text-[11px] text-suave">
-                  Sem matrícula não há CODFUNC, e sem CODFUNC a importação não aceita a linha. O
-                  consumo continua existindo: {dinheiro(dados?.total_sem_matricula ?? 0)} para
-                  cobrar por outro caminho.
+                  PJ não tem matrícula, então não entra no arquivo do Sankhya. Consumo de loja e
+                  refeitório de cada um, para cobrar por outro caminho.
                 </p>
-                <ul className="mt-2 space-y-0.5">
-                  {fora.map((pessoa) => (
-                    <li key={pessoa.codparc} className="flex justify-between gap-2 text-[11px]">
-                      <span className="min-w-0 truncate">{pessoa.nome}</span>
-                      <span className="shrink-0 font-semibold">{dinheiro(pessoa.total)}</span>
-                    </li>
-                  ))}
-                </ul>
+                <p className="mt-2 text-sm font-semibold">
+                  {dados?.quantidade_pj ?? 0} {dados?.quantidade_pj === 1 ? "pessoa" : "pessoas"}{" "}
+                  · {dinheiro(dados?.total_pj ?? 0)}
+                </p>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="mt-3"
-                  disabled={baixar.isPending}
+                  className="mt-3 w-full self-start sm:w-auto"
+                  disabled={!dados?.quantidade_pj || baixar.isPending}
                   onClick={() =>
                     baixar.mutate({
                       rota: `/exportacoes/sem-matricula?competencia=${competencia}`,
-                      nome: `sem-matricula-${competencia}.xlsx`,
+                      nome: `pj-${competencia}.xlsx`,
                     })
                   }
                 >
-                  Baixar quem ficou de fora
+                  Baixar relatório de PJ
                 </Button>
               </div>
-            )}
 
-            {cortesiasIsentos.length > 0 && (
-              <div className="mt-4 rounded-lg border border-borda p-3">
-                <p className="text-xs font-bold">
-                  {cortesiasIsentos.length} almoço(s) sem desconto de ninguém
-                </p>
+              <div className="flex flex-col rounded-lg border border-borda p-3">
+                <p className="text-xs font-bold">Isentos, cortesias e visitantes</p>
                 <p className="mt-0.5 text-[11px] text-suave">
-                  Visitante liberado de cortesia, ou funcionário isento (a empresa cobre). Nenhum
-                  dos dois entra na folha: {dinheiro(dados?.total_cortesias_isentos ?? 0)} pra
-                  empresa bancar por fora.
+                  Almoços que não descontam em folha: funcionário isento, cortesia e visitante
+                  (inclusive quem pagou no Pix). Detalhado e total por pessoa.
                 </p>
-                <ul className="mt-2 space-y-0.5">
-                  {cortesiasIsentos.map((linha, indice) => (
-                    <li
-                      key={`${linha.nome}-${linha.data}-${indice}`}
-                      className="flex justify-between gap-2 text-[11px]"
-                    >
-                      <span className="min-w-0 truncate">
-                        {linha.nome}{" "}
-                        <span className="text-muito-suave">
-                          · {linha.tipo === "visitante" ? "visitante" : "isento"} ·{" "}
-                          {diaMes(linha.data)}
-                        </span>
-                      </span>
-                      <span className="shrink-0 font-semibold">{dinheiro(linha.valor)}</span>
-                    </li>
-                  ))}
-                </ul>
+                <p className="mt-2 text-sm font-semibold">
+                  {dados?.quantidade_cortesias_isentos ?? 0}{" "}
+                  {dados?.quantidade_cortesias_isentos === 1 ? "almoço" : "almoços"} ·{" "}
+                  {dinheiro(dados?.total_cortesias_isentos ?? 0)} pagos pela empresa
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 w-full self-start sm:w-auto"
+                  disabled={baixar.isPending}
+                  onClick={() =>
+                    baixar.mutate({
+                      rota: `/exportacoes/almocos-sem-desconto?competencia=${competencia}`,
+                      nome: `almocos-isentos-cortesias-visitantes-${competencia}.xlsx`,
+                    })
+                  }
+                >
+                  Baixar relatório de isentos
+                </Button>
               </div>
-            )}
+            </div>
 
             <ArquivosDeAssinatura competencia={competencia} />
           </TabsContent>

@@ -20,21 +20,12 @@ rotas = APIRouter(prefix="/exportacoes", tags=["exportações"])
 PLANILHA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
-class PessoaSemMatriculaSaida(BaseModel):
-    codemp: int
-    codparc: int
-    nome: str
-    total: Decimal
-
-
 class ConsumoDaPessoaSaida(BaseModel):
     """A conferência do DP: de onde veio cada valor, pessoa a pessoa.
 
-    `codparc` vem sempre, mesmo quando `codfunc` existe — é o PJ que precisa
-    dele: sem matrícula não há CODFUNC, e sem CODFUNC a linha nem entra na
-    folha. Sem o codparc aqui, a tela diria só "sem matrícula" sem dizer qual
-    é a pessoa por nenhum código, obrigando a abrir a lista separada de quem
-    ficou de fora só para descobrir isso.
+    `codparc` vem sempre, mesmo quando `codfunc` existe: o PJ não tem matrícula,
+    então sem CODFUNC a linha dele não entra na folha, e o codparc é o único
+    código que identifica a pessoa na tela.
     """
 
     codemp: int
@@ -45,13 +36,6 @@ class ConsumoDaPessoaSaida(BaseModel):
     loja: Decimal
     refeitorio: Decimal
     total: Decimal
-
-
-class CortesiaIsentoSaida(BaseModel):
-    tipo: str
-    nome: str
-    data: date
-    valor: Decimal
 
 
 class LoteSaida(BaseModel):
@@ -65,19 +49,18 @@ class LoteSaida(BaseModel):
 
 
 class ResumoSaida(BaseModel):
-    """O que a tela mostra antes de baixar: quantas linhas, quanto, quem fica
-    de fora e se o ciclo já foi fechado. A pessoa sem matrícula precisa
-    aparecer ANTES do download, senão o consumo dela some sem ninguém
-    perceber."""
+    """O que a tela mostra antes de baixar: quantas linhas, quanto e se o ciclo
+    já foi fechado. O PJ não entra no arquivo do Sankhya, então a quantidade e
+    o total dele aparecem aqui, antes do download, para o consumo não sumir."""
 
     competencia: str
     referencia: date
     linhas: int
     total: Decimal
     pessoas: list[ConsumoDaPessoaSaida]
-    sem_matricula: list[PessoaSemMatriculaSaida]
-    total_sem_matricula: Decimal
-    cortesias_isentos: list[CortesiaIsentoSaida]
+    quantidade_pj: int
+    total_pj: Decimal
+    quantidade_cortesias_isentos: int
     total_cortesias_isentos: Decimal
     lote: LoteSaida | None
 
@@ -130,24 +113,9 @@ def resumo(competencia: str, ator: DpOuAdminLiberado, sessao: Sessao) -> ResumoS
             )
             for pessoa in dados.pessoas
         ],
-        sem_matricula=[
-            PessoaSemMatriculaSaida(
-                codemp=pessoa.codemp,
-                codparc=pessoa.codparc,
-                nome=pessoa.nome,
-                total=pessoa.total,
-            )
-            for pessoa in dados.sem_matricula
-        ],
-        total_sem_matricula=sum(
-            (pessoa.total for pessoa in dados.sem_matricula), Decimal("0.00")
-        ),
-        cortesias_isentos=[
-            CortesiaIsentoSaida(
-                tipo=linha.tipo, nome=linha.nome, data=linha.data, valor=linha.valor
-            )
-            for linha in dados.cortesias_isentos
-        ],
+        quantidade_pj=len(dados.sem_matricula),
+        total_pj=sum((pessoa.total for pessoa in dados.sem_matricula), Decimal("0.00")),
+        quantidade_cortesias_isentos=len(dados.cortesias_isentos),
         total_cortesias_isentos=dados.total_cortesias_isentos,
         lote=LoteSaida.model_validate(lote, from_attributes=True) if lote else None,
     )
@@ -178,13 +146,24 @@ def planilha_da_folha(competencia: str, ator: DpOuAdminLiberado, sessao: Sessao)
 
 
 @rotas.get("/sem-matricula")
-def planilha_dos_sem_matricula(
-    competencia: str, ator: DpOuAdminLiberado, sessao: Sessao
-) -> Response:
-    """Quem consumiu e não entra na folha por não ter matrícula."""
+def planilha_dos_pj(competencia: str, ator: DpOuAdminLiberado, sessao: Sessao) -> Response:
+    """Consumo dos PJ, que não têm matrícula e por isso ficam fora do arquivo da folha."""
     return _arquivo(
         servico.planilha_sem_matricula(_montar(sessao, ator, competencia)),
-        f"sem-matricula-{competencia}.xlsx",
+        f"pj-{competencia}.xlsx",
+    )
+
+
+@rotas.get("/almocos-sem-desconto")
+def planilha_dos_almocos_sem_desconto(
+    competencia: str, ator: DpOuAdminLiberado, sessao: Sessao
+) -> Response:
+    """Isentos, cortesias e visitantes do ciclo: o que a empresa banca no refeitório."""
+    return _arquivo(
+        servico.planilha_almocos_sem_desconto(
+            servico.almocos_sem_desconto(sessao, ator, competencia)
+        ),
+        f"almocos-isentos-cortesias-visitantes-{competencia}.xlsx",
     )
 
 
@@ -193,6 +172,7 @@ class DiaDeConsumoSaida(BaseModel):
     almoco: Decimal
     loja: Decimal
     itens: str
+    almoco_isento: Decimal
 
 
 class FolhaDeAssinaturaSaida(BaseModel):

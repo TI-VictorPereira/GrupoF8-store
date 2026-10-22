@@ -300,6 +300,39 @@ def test_almoco_de_isento_nao_desconta_e_cai_na_lista_de_cortesias(dados):
             s.commit()
 
 
+def test_isento_assina_com_o_almoco_pelo_valor_real_e_desconto_zero(dados):
+    with FabricaDeSessao() as s:
+        colaborador = s.get(Colaborador, dados["ativo"])
+        almoco = Almoco(
+            colaborador_id=colaborador.id,
+            empresa_id=colaborador.empresa_id,
+            vinculo=colaborador.vinculo,
+            matricula=colaborador.matricula,
+            codigo_barras=uuid.uuid4().hex[:20],
+            status="confirmado",
+            origem="totem",
+            valor=Decimal("18.50"),
+            isento=True,
+            expira_em=datetime.now(UTC),
+            confirmado_em=datetime.now(UTC),
+        )
+        s.add(almoco)
+        s.commit()
+        almoco_id, competencia = almoco.id, almoco.competencia
+
+    try:
+        with FabricaDeSessao() as s:
+            folhas = folha.folhas_de_assinatura(s, ADMIN, competencia)
+        propria = next(f for f in folhas if f.colaborador_id == dados["ativo"])
+        assert propria.total_isento == Decimal("18.50")
+        assert propria.total == Decimal("0.00")
+        assert propria.dias[0].almoco_isento == Decimal("18.50")
+    finally:
+        with FabricaDeSessao() as s:
+            s.execute(delete(Almoco).where(Almoco.id == almoco_id))
+            s.commit()
+
+
 def test_dp_exporta_e_os_outros_nao(dados):
     """O DP fecha a folha; o refeitório e o colaborador comum, não.
 
