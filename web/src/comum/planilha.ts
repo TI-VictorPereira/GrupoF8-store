@@ -96,7 +96,9 @@ export function coluna(linha: Record<string, string>, ...nomes: string[]): strin
 
 export function numeroDaPlanilha(bruto: string): string | null {
   if (!bruto) return null;
-  const limpo = bruto.replace(/[^\d,.-]/g, "").replace(",", ".");
+  const bruta = bruto.replace(/[^\d,.-]/g, "");
+  // pt-BR: com vírgula, o ponto é separador de milhar ("1.000,50").
+  const limpo = bruta.includes(",") ? bruta.replace(/\./g, "").replace(",", ".") : bruta;
   const numero = Number(limpo);
   return Number.isFinite(numero) ? String(numero) : null;
 }

@@ -202,3 +202,8 @@ class CicloAindaAberto(Conflito):
 class NadaParaAssinar(NaoEncontrado):
     codigo = "nada_para_assinar"
     mensagem = "Ninguém nesse recorte consumiu nada no ciclo."
+
+
+class LimiteDaLojaExcedido(Conflito):
+    codigo = "limite_da_loja_excedido"
+    mensagem = "Esta compra passa do seu limite da loja neste ciclo."

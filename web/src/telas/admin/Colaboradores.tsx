@@ -84,9 +84,16 @@ const FORMULARIO_VAZIO = {
   matricula: "",
   mes_aniversario: "",
   isento_almoco: false,
+  limite_mensal: "",
   papel: "colaborador" as Papel,
   departamento_id: "",
 };
+
+/** Texto do campo (pt-BR) para o formato da API. Vazio é sem limite. */
+function limiteParaApi(texto: string): string | null {
+  const valor = numeroDaPlanilha(texto);
+  return valor === null ? null : Number(valor).toFixed(2);
+}
 
 type ColunaColaborador = "nome" | "codigo" | "codparc" | "vinculo" | "matricula" | "papel";
 
@@ -149,6 +156,7 @@ export function Colaboradores() {
       matricula: formulario.vinculo === "clt" ? Number(formulario.matricula) : null,
       mes_aniversario: formulario.mes_aniversario ? Number(formulario.mes_aniversario) : null,
       isento_almoco: formulario.isento_almoco,
+      limite_mensal: limiteParaApi(formulario.limite_mensal),
       papel: formulario.papel,
       departamento_id: formulario.departamento_id || null,
     };
@@ -232,6 +240,7 @@ export function Colaboradores() {
       mes_aniversario:
         pessoa.mes_aniversario === null ? "" : String(pessoa.mes_aniversario),
       isento_almoco: pessoa.isento_almoco,
+      limite_mensal: pessoa.limite_mensal === null ? "" : pessoa.limite_mensal.replace(".", ","),
       papel: pessoa.papel,
       departamento_id: pessoa.departamento_id ?? "",
     });
@@ -274,6 +283,7 @@ export function Colaboradores() {
           Matricula: p.matricula ?? "",
           "Mes de aniversario": p.mes_aniversario ?? "",
           "Isento almoco": p.isento_almoco ? "Sim" : "Nao",
+          "Limite mensal": p.limite_mensal?.replace(".", ",") ?? "",
           Vinculo: p.vinculo,
           Empresa: nomeEmpresa(p.empresa_id),
           Departamento: nomeDepartamento(p.departamento_id),
@@ -309,6 +319,7 @@ export function Colaboradores() {
       matricula: vinculo === "clt" && matricula ? Number(matricula) : null,
       mes_aniversario: mesAniversario ? Number(mesAniversario) : null,
       isento_almoco: simOuNao(coluna(linha, "isento almoco", "isento_almoco")) ?? false,
+      limite_mensal: limiteParaApi(coluna(linha, "limite mensal", "limite_mensal", "limite")),
       papel: (["entregador", "refeitorio", "dp", "admin"].includes(normalizar(coluna(linha, "papel")))
         ? normalizar(coluna(linha, "papel"))
         : "colaborador") as Papel,
@@ -354,6 +365,7 @@ export function Colaboradores() {
               Vinculo: "clt",
               "Mes de aniversario": 5,
               "Isento almoco": "Nao",
+              "Limite mensal": "500,00",
               Empresa: empresas.data?.[0]?.codemp ?? 1,
               Departamento: departamentos.data?.[0]?.nome ?? "",
               Papel: "colaborador",
@@ -599,6 +611,25 @@ export function Colaboradores() {
               />
               Não paga almoço (empresa paga)
             </label>
+
+            <div className="grid gap-1.5">
+              <Label htmlFor="limite-mensal">Limite mensal da loja (R$)</Label>
+              <Input
+                id="limite-mensal"
+                inputMode="decimal"
+                value={formulario.limite_mensal}
+                placeholder="Sem limite"
+                onChange={(e) =>
+                  setFormulario({
+                    ...formulario,
+                    limite_mensal: e.target.value.replace(/[^\d.,]/g, ""),
+                  })
+                }
+              />
+              <p className="text-[11px] text-suave">
+                Teto de compras na loja por ciclo. Não vale para o almoço. Vazio é sem limite.
+              </p>
+            </div>
 
             <div className="grid gap-1.5">
               <Label htmlFor="empresa">Empresa</Label>

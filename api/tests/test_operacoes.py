@@ -89,6 +89,32 @@ def test_finalizar_pedido_baixa_estoque_e_mostra_apenas_o_proprio(cliente, dados
         assert s.get(Produto, produto["produto"]).estoque == 7
 
 
+def test_limite_da_loja_barra_a_compra_que_estoura_e_nao_toca_no_almoco(cliente, dados, produto):
+    _liberar_colaborador(dados)
+    with FabricaDeSessao() as s:
+        s.get(Colaborador, dados["ativo"]).limite_mensal = Decimal("12.00")
+        s.commit()
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+    item = {"produto_id": str(produto["produto"]), "quantidade": 1}
+
+    # 2 x R$ 5,00 cabem; a terceira (R$ 15,00 no ciclo) passa de R$ 12,00.
+    assert cliente.post("/pedidos", json={"itens": [{**item, "quantidade": 2}]}).status_code == 201
+    estourou = cliente.post("/pedidos", json={"itens": [item]})
+
+    assert estourou.status_code == 409
+    assert estourou.json()["codigo"] == "limite_da_loja_excedido"
+    assert estourou.json()["detalhes"]["disponivel"] == "2.00"
+    with FabricaDeSessao() as s:
+        assert s.get(Produto, produto["produto"]).estoque == 8
+
+    extrato = cliente.get("/consumo/me").json()
+    assert extrato["limite_loja"] == "12.00"
+    assert extrato["disponivel_loja"] == "2.00"
+
+    # Almoço não entra na conta do limite.
+    assert cliente.post("/almocos/gerar").status_code == 201
+
+
 def test_refeitorio_nao_acessa_pendencias_administrativas(cliente, dados):
     _liberar_colaborador(dados, papel="refeitorio")
     cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})

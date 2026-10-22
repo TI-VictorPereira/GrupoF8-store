@@ -29,6 +29,8 @@ class ExtratoSaida(BaseModel):
     total_almocos: Decimal
     quantidade_almocos: int
     lancamentos: list[LancamentoSaida]
+    limite_loja: Decimal | None = None
+    disponivel_loja: Decimal | None = None
 
 
 @rotas.get("/me", response_model=ExtratoSaida)
@@ -41,6 +43,8 @@ def meu_extrato(ator: ConsumidorLiberado, sessao: Sessao, competencia: str | Non
         total_almocos=extrato.total_almocos,
         quantidade_almocos=extrato.quantidade_almocos,
         lancamentos=[LancamentoSaida(**vars(lancamento)) for lancamento in extrato.lancamentos],
+        limite_loja=extrato.limite_loja,
+        disponivel_loja=extrato.disponivel_loja,
     )
 
 

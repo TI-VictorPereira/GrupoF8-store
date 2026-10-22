@@ -5,11 +5,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.db import FabricaDeSessao
 from app.excecoes import SemPermissao
+from app.models.cadastro import Colaborador
 from app.models.operacao import Almoco, ItemPedido, Pedido
 from app.modules import ciclo
 from app.modules.auditoria import Ator
@@ -50,6 +51,17 @@ def intervalo_da_competencia(
         with FabricaDeSessao() as propria:
             return ciclo.intervalo(competencia, ciclo.regras(propria))
     return ciclo.intervalo(competencia, ciclo.regras(sessao))
+
+
+def gasto_na_loja(sessao: Session, colaborador_id: uuid.UUID, competencia: str) -> Decimal:
+    """O que a pessoa já comprou na loja no ciclo. Cancelado não conta."""
+    return sessao.scalar(
+        select(func.coalesce(func.sum(Pedido.valor_total), 0)).where(
+            Pedido.colaborador_id == colaborador_id,
+            Pedido.competencia == competencia,
+            Pedido.status != "cancelado",
+        )
+    ) or Decimal("0")
 
 
 def meu_extrato(sessao: Session, ator: Ator, competencia: str | None = None) -> Extrato:
@@ -121,12 +133,20 @@ def meu_extrato(sessao: Session, ator: Ator, competencia: str | None = None) -> 
 
     lancamentos.sort(key=lambda lancamento: lancamento.data, reverse=True)
 
+    # O limite só faz sentido no ciclo aberto: nos passados já não há o que gastar.
+    limite = sessao.scalar(select(Colaborador.limite_mensal).where(Colaborador.id == ator.id))
+    no_ciclo_aberto = competencia == competencia_atual(sessao)
+
     return Extrato(
         competencia=competencia,
         total_loja=total_loja,
         total_almocos=total_almocos,
         quantidade_almocos=confirmados,
         lancamentos=lancamentos,
+        limite_loja=limite if no_ciclo_aberto else None,
+        disponivel_loja=max(limite - total_loja, Decimal("0"))
+        if no_ciclo_aberto and limite is not None
+        else None,
     )
 
 

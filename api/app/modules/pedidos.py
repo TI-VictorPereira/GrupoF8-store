@@ -24,6 +24,7 @@ from app.excecoes import (
     CodigoRetiradaIndisponivel,
     ColaboradorInativo,
     EstoqueInsuficiente,
+    LimiteDaLojaExcedido,
     NomeObrigatorio,
     PedidoNaoAguardandoPagamento,
     PedidoNaoPendente,
@@ -34,7 +35,7 @@ from app.excecoes import (
 )
 from app.models.cadastro import CategoriaProduto, Colaborador, Departamento, Produto
 from app.models.operacao import ItemPedido, Pedido
-from app.modules import auditoria
+from app.modules import auditoria, consumo
 from app.modules.auditoria import ATOR_RELOGIO, Ator
 
 _config = obter_config()
@@ -106,6 +107,11 @@ def brinde_do_mes(sessao: Session, ator: Ator, agora: datetime | None = None) ->
     return Brinde(mes=mes, e_meu_mes=e_meu_mes, usado=usado is not None)
 
 
+def _brl(valor: Decimal) -> str:
+    texto = f"{valor:,.2f}"
+    return "R$ " + texto.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 def finalizar(
     sessao: Session,
     ator: Ator,
@@ -122,7 +128,8 @@ def finalizar(
             raise CarrinhoVazio()
         quantidades[produto_id] += quantidade
 
-    colaborador = sessao.get(Colaborador, ator.id)
+    # Trava a linha da pessoa: duas compras simultâneas não passam juntas pelo limite.
+    colaborador = sessao.get(Colaborador, ator.id, with_for_update=True)
     if colaborador is None or not colaborador.ativo:
         raise ColaboradorInativo()
 
@@ -167,6 +174,17 @@ def finalizar(
         # O brinde zera uma unidade, nao a linha: quem leva tres paga duas.
         pagas = quantidade - 1 if produto.id == brinde_produto_id else quantidade
         total += produto.preco_venda * pagas
+
+    if colaborador.limite_mensal is not None and total > 0:
+        disponivel = colaborador.limite_mensal - consumo.gasto_na_loja(
+            sessao, colaborador.id, consumo.competencia_atual(sessao)
+        )
+        if total > disponivel:
+            raise LimiteDaLojaExcedido(
+                f"Esta compra passa do seu limite da loja neste ciclo. "
+                f"Disponível: {_brl(max(disponivel, Decimal('0')))}.",
+                detalhes={"disponivel": str(max(disponivel, Decimal("0")))},
+            )
 
     pedido: Pedido | None = None
     # O índice parcial é a garantia final caso dois sorteios coincidam. O

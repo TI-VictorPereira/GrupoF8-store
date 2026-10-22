@@ -20,4 +20,7 @@ export interface Extrato {
   total_almocos: string;
   quantidade_almocos: number;
   lancamentos: Lancamento[];
+  /** Só vem no ciclo aberto e só para quem tem limite. */
+  limite_loja: string | null;
+  disponivel_loja: string | null;
 }

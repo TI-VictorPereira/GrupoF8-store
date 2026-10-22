@@ -3,6 +3,7 @@
 
 import uuid
 from dataclasses import dataclass, field
+from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -50,6 +51,7 @@ class DadosColaborador:
     departamento_id: uuid.UUID | None = None
     mes_aniversario: int | None = None
     isento_almoco: bool = False
+    limite_mensal: Decimal | None = None
 
 
 @dataclass
@@ -109,6 +111,9 @@ def _retrato(colaborador: Colaborador) -> dict[str, Any]:
         "empresa_id": str(colaborador.empresa_id),
         "papel": colaborador.papel,
         "ativo": colaborador.ativo,
+        "limite_mensal": (
+            None if colaborador.limite_mensal is None else str(colaborador.limite_mensal)
+        ),
     }
 
 
@@ -174,6 +179,7 @@ def criar(sessao: Session, ator: Ator, dados: DadosColaborador) -> tuple[Colabor
         matricula=dados.matricula,
         mes_aniversario=dados.mes_aniversario,
         isento_almoco=dados.isento_almoco,
+        limite_mensal=dados.limite_mensal,
         empresa_id=dados.empresa_id,
         papel=dados.papel,
         departamento_id=dados.departamento_id,
@@ -217,6 +223,7 @@ def alterar(
     colaborador.matricula = dados.matricula
     colaborador.mes_aniversario = dados.mes_aniversario
     colaborador.isento_almoco = dados.isento_almoco
+    colaborador.limite_mensal = dados.limite_mensal
     colaborador.empresa_id = dados.empresa_id
     colaborador.papel = dados.papel
     colaborador.departamento_id = dados.departamento_id

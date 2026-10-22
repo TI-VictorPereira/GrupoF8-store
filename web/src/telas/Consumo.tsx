@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 
 import { api } from "@/api/cliente";
@@ -53,6 +54,44 @@ function useAvisoDeCicloVisto() {
   }
 
   return { visto, marcarComoVisto };
+}
+
+/** Escondido por padrão e sem persistir: é assunto da pessoa, não de quem olha a tela. */
+function LimiteDaLoja({ limite, disponivel }: { limite: number; disponivel: number }) {
+  const [visivel, setVisivel] = useState(false);
+  const usado = limite > 0 ? Math.min(100, Math.round(((limite - disponivel) / limite) * 100)) : 100;
+
+  return (
+    <div className="mt-3 rounded-xl border border-dashed border-borda px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] text-suave">Limite da loja neste ciclo</p>
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-semibold tabular-nums">
+            {visivel ? `${dinheiro(disponivel)} de ${dinheiro(limite)}` : "R$ ••••"}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-10"
+            aria-label={visivel ? "Esconder limite" : "Mostrar limite"}
+            aria-pressed={visivel}
+            onClick={() => setVisivel((atual) => !atual)}
+          >
+            {visivel ? <EyeOff /> : <Eye />}
+          </Button>
+        </div>
+      </div>
+      {visivel && (
+        <div
+          className="mb-1 h-1 overflow-hidden rounded-full bg-borda"
+          role="img"
+          aria-label={`${usado}% do limite usado`}
+        >
+          <div className="h-full bg-ink" style={{ width: `${usado}%` }} />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function Consumo() {
@@ -149,6 +188,13 @@ export function Consumo() {
               <p className="mt-1 text-lg font-bold">{extrato.data.quantidade_almocos}</p>
             </div>
           </div>
+        )}
+
+        {extrato.data?.limite_loja != null && extrato.data.disponivel_loja != null && (
+          <LimiteDaLoja
+            limite={Number(extrato.data.limite_loja)}
+            disponivel={Number(extrato.data.disponivel_loja)}
+          />
         )}
 
         <div className="py-5">

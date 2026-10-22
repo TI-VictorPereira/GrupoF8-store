@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     Index,
     Integer,
+    Numeric,
     String,
     UniqueConstraint,
     func,
@@ -67,6 +68,7 @@ class Colaborador(Base):
     __table_args__ = (
         CheckConstraint(f"papel in {PAPEIS}", name="papel_valido"),
         CheckConstraint("codparc > 0", name="codparc_positivo"),
+        CheckConstraint("limite_mensal is null or limite_mensal >= 0", name="limite_nao_negativo"),
         CheckConstraint("matricula is null or matricula > 0", name="matricula_positiva"),
         CheckConstraint(
             "mes_aniversario is null or mes_aniversario between 1 and 12",
@@ -101,6 +103,8 @@ class Colaborador(Base):
     # Almoço dele é bancado pela empresa: entra confirmado igual a todo mundo,
     # mas não desconta na folha — vira linha separada pro DP ver e cobrir.
     isento_almoco: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    # Teto de compras na loja por ciclo. Nulo é sem limite. Não vale pro almoço.
+    limite_mensal: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
 
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     senha_provisoria: Mapped[bool] = mapped_column(

@@ -91,6 +91,7 @@ export interface ColaboradorCompleto {
   vinculo: Vinculo;  matricula: number | null;
   mes_aniversario: number | null;
   isento_almoco: boolean;
+  limite_mensal: string | null;
   empresa_id: string;
   papel: Papel;
   departamento_id: string | null;
@@ -108,6 +109,7 @@ export interface EntradaColaborador {
   matricula: number | null;
   mes_aniversario: number | null;
   isento_almoco: boolean;
+  limite_mensal: string | null;
   papel: Papel;
   departamento_id: string | null;
 }

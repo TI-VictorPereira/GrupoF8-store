@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,6 +20,7 @@ class EntradaColaborador(BaseModel):
     departamento_id: uuid.UUID | None = None
     mes_aniversario: int | None = Field(default=None, ge=1, le=12)
     isento_almoco: bool = False
+    limite_mensal: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=2)
 
 
 class ColaboradorSaida(BaseModel):
@@ -34,6 +36,7 @@ class ColaboradorSaida(BaseModel):
     matricula: int | None
     mes_aniversario: int | None
     isento_almoco: bool
+    limite_mensal: Decimal | None
     empresa_id: uuid.UUID
     papel: str
     departamento_id: uuid.UUID | None
