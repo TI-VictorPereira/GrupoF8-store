@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { api } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { Button } from "@/componentes/ui/button";
+import { Input } from "@/componentes/ui/input";
 import { Label } from "@/componentes/ui/label";
 import {
   Select,
@@ -13,6 +14,7 @@ import {
   SelectValue,
 } from "@/componentes/ui/select";
 import { mensagemDeErro } from "@/comum/erros";
+import { normalizar } from "@/comum/planilha";
 
 interface PessoaComConsumo {
   colaborador_id: string;
@@ -36,6 +38,7 @@ function nomeDeArquivo(texto: string): string {
 export function ArquivosDeAssinatura({ competencia }: { competencia: string }) {
   const [recorte, setRecorte] = useState<Recorte>("todos");
   const [escolha, setEscolha] = useState("");
+  const [busca, setBusca] = useState("");
 
   const pessoas = useQuery({
     queryKey: ["folhas-assinatura", competencia],
@@ -69,13 +72,15 @@ export function ArquivosDeAssinatura({ competencia }: { competencia: string }) {
   function mudarRecorte(valor: string) {
     setRecorte(valor as Recorte);
     setEscolha("");
+    setBusca("");
     baixar.reset();
   }
 
-  const opcoes =
-    recorte === "area"
-      ? areas.filter(([id]) => id !== SEM_AREA)
-      : (pessoas.data ?? []).map((p) => [p.colaborador_id, p.nome] as const);
+  const termo = normalizar(busca);
+  const sugestoes =
+    recorte === "pessoa" && termo && !escolha
+      ? (pessoas.data ?? []).filter((p) => normalizar(p.nome).includes(termo)).slice(0, 8)
+      : [];
   const pronto = recorte === "todos" || !!escolha;
 
   return (
@@ -98,23 +103,62 @@ export function ArquivosDeAssinatura({ competencia }: { competencia: string }) {
             </SelectContent>
           </Select>
         </div>
-        {recorte !== "todos" && (
+        {recorte === "area" && (
           <div className="grid w-full gap-1.5 sm:w-64">
-            <Label htmlFor="escolha-assinatura">
-              {recorte === "area" ? "Departamento" : "Funcionário"}
-            </Label>
+            <Label htmlFor="escolha-assinatura">Departamento</Label>
             <Select value={escolha} onValueChange={setEscolha}>
               <SelectTrigger id="escolha-assinatura">
                 <SelectValue placeholder="Escolha" />
               </SelectTrigger>
               <SelectContent>
-                {opcoes.map(([id, nome]) => (
-                  <SelectItem key={id} value={id}>
-                    {nome}
-                  </SelectItem>
-                ))}
+                {areas
+                  .filter(([id]) => id !== SEM_AREA)
+                  .map(([id, nome]) => (
+                    <SelectItem key={id} value={id}>
+                      {nome}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
+          </div>
+        )}
+        {recorte === "pessoa" && (
+          <div className="relative grid w-full gap-1.5 sm:w-72">
+            <Label htmlFor="escolha-assinatura">Funcionário</Label>
+            <Input
+              id="escolha-assinatura"
+              value={busca}
+              onChange={(e) => {
+                setBusca(e.target.value);
+                setEscolha("");
+              }}
+              placeholder="Digite o nome"
+              autoComplete="off"
+            />
+            {sugestoes.length > 0 && (
+              <ul className="absolute top-full z-10 mt-1 w-full overflow-hidden rounded-lg border border-borda bg-white shadow-sm">
+                {sugestoes.map((pessoa) => (
+                  <li key={pessoa.colaborador_id}>
+                    <button
+                      type="button"
+                      className="w-full px-3 py-2.5 text-left text-sm hover:bg-black/5"
+                      onClick={() => {
+                        setEscolha(pessoa.colaborador_id);
+                        setBusca(pessoa.nome);
+                      }}
+                    >
+                      {pessoa.nome}
+                      <span className="block text-[11px] text-suave">
+                        {pessoa.departamento ?? "Sem departamento"}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {termo && !escolha && sugestoes.length === 0 && (
+              <p className="text-[11px] text-suave">Ninguém com esse nome consumiu no ciclo.</p>
+            )}
           </div>
         )}
         <Button

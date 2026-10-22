@@ -4,7 +4,7 @@
 
 export const BASE = "/api";
 
-const SEM_RENOVACAO = new Set(["/auth/login", "/auth/refresh", "/auth/solicitar-senha"]);
+const SEM_RENOVACAO = new Set(["/auth/login", "/auth/refresh"]);
 
 type Reacao = () => void;
 

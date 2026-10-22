@@ -15,7 +15,6 @@ from app.schemas.colaborador import (
     EntradaImportacao,
     ResultadoImportacaoSaida,
     SenhaRedefinida,
-    SolicitacaoSaida,
 )
 from app.schemas.comum import EntradaAtivo, Pagina
 
@@ -97,21 +96,3 @@ def importar(
     return ResultadoImportacaoSaida(
         criados=resultado.criados, senhas=resultado.senhas, erros=resultado.erros
     )
-
-
-@rotas.get("/solicitacoes-senha", response_model=list[SolicitacaoSaida])
-def listar_solicitacoes(ator: AdminLiberado, sessao: Sessao):
-    return colaboradores.listar_solicitacoes(sessao, ator)
-
-
-@rotas.post("/solicitacoes-senha/{solicitacao_id}/atender", response_model=SenhaRedefinida)
-def atender_solicitacao(
-    solicitacao_id: uuid.UUID, ator: AdminLiberado, sessao: Sessao
-) -> SenhaRedefinida:
-    codigo, senha = colaboradores.atender_solicitacao(sessao, ator, solicitacao_id)
-    return SenhaRedefinida(codigo=codigo, senha_provisoria=senha)
-
-
-@rotas.post("/solicitacoes-senha/{solicitacao_id}/descartar", status_code=204)
-def descartar_solicitacao(solicitacao_id: uuid.UUID, ator: AdminLiberado, sessao: Sessao) -> None:
-    colaboradores.descartar_solicitacao(sessao, ator, solicitacao_id)

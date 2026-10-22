@@ -276,15 +276,6 @@ def test_entrada_invalida_devolve_campo_com_problema(cliente, dados):
     assert {"codigo", "senha"} & campos
 
 
-def test_solicitar_senha_responde_igual_para_codigo_existente_ou_nao(cliente, dados):
-    a = cliente.post("/auth/solicitar-senha", json={"codigo": CODIGO})
-    b = cliente.post("/auth/solicitar-senha", json={"codigo": CODIGO_FANTASMA})
-
-    assert a.status_code == b.status_code == 200
-    assert a.json() == b.json()
-    assert ("senha_solicitada", None) in eventos_de(CODIGO)
-
-
 def _entrar_com_senha_definitiva(cliente, dados):
     """Login pronto pra usar o sistema: só falta os termos, que é o que os
     testes deste bloco exercitam."""

@@ -124,13 +124,6 @@ export interface Departamento {
   nome: string;
 }
 
-export interface SolicitacaoSenha {
-  id: string;
-  codigo: string;
-  nome_informado: string | null;
-  criado_em: string;
-}
-
 /** A senha provisória aparece uma única vez, na resposta que a gerou. */
 export interface SenhaRedefinida {
   codigo: string;

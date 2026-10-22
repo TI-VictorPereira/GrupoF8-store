@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 
-import { ErroApi, api } from "@/api/cliente";
+import { ErroApi } from "@/api/cliente";
 import { Aviso } from "@/componentes/Aviso";
 import { CampoSenha } from "@/componentes/CampoSenha";
 import { Button } from "@/componentes/ui/button";
@@ -12,7 +12,6 @@ import { useEntrar } from "@/hooks/sessao";
 export function Login() {
   const [codigo, setCodigo] = useState("");
   const [senha, setSenha] = useState("");
-  const [pedidoEnviado, setPedidoEnviado] = useState(false);
   const entrar = useEntrar();
 
   // O texto vem do servidor: as respostas de login já são exatamente o que a
@@ -78,31 +77,6 @@ export function Login() {
             {entrar.isPending ? "Entrando…" : "Entrar"}
           </Button>
         </form>
-
-        <div className="mt-6 text-center">
-          {pedidoEnviado ? (
-            <p className="text-xs text-suave">
-              Pedido registrado. Procure o administrador para receber a nova senha.
-            </p>
-          ) : (
-            <Button
-              variant="link"
-              size="sm"
-              className="text-xs text-suave"
-              onClick={() => {
-                // A tela não pode virar um jeito de descobrir quais códigos
-                // existem: o aviso é o mesmo com sucesso, com erro e sem
-                // sequer chamar — por isso o resultado é ignorado de propósito.
-                if (codigo.trim()) {
-                  api.post("/auth/solicitar-senha", { codigo: codigo.trim() }).catch(() => {});
-                }
-                setPedidoEnviado(true);
-              }}
-            >
-              Esqueci minha senha
-            </Button>
-          )}
-        </div>
       </div>
     </div>
   );

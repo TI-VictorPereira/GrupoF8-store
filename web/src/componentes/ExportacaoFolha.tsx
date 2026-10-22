@@ -2,9 +2,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { api } from "@/api/cliente";
+import { ArquivosDeAssinatura } from "@/componentes/ArquivosDeAssinatura";
 import { Aviso } from "@/componentes/Aviso";
+import { DiaDeFechamento } from "@/componentes/DiaDeFechamento";
 import { Button } from "@/componentes/ui/button";
 import { Card, CardContent } from "@/componentes/ui/card";
+import { Input } from "@/componentes/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/componentes/ui/select";
 import {
   Table,
   TableBody,
@@ -13,18 +23,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/componentes/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/componentes/ui/select";
-import { Input } from "@/componentes/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/componentes/ui/tabs";
 import { mensagemDeErro } from "@/comum/erros";
 import { dataHora, diaMes, dinheiro, mesPorExtenso } from "@/comum/formato";
 import { cicloDe, competenciaDe } from "@/comum/periodo";
-import { ArquivosDeAssinatura } from "@/componentes/ArquivosDeAssinatura";
+import { useSessao } from "@/hooks/sessao";
 
 const AVISOS: Record<string, string> = {
   ciclo_ainda_aberto: "Este ciclo ainda não terminou. Espere ele fechar.",
@@ -79,6 +82,7 @@ interface ResumoFolha {
 
 export function ExportacaoFolha() {
   const clienteConsulta = useQueryClient();
+  const { eu } = useSessao();
   const [competencia, setCompetencia] = useState(() => competenciaDe(new Date()));
   const [descartando, setDescartando] = useState(false);
   const [motivo, setMotivo] = useState("");
@@ -129,14 +133,14 @@ export function ExportacaoFolha() {
       <CardContent className="p-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold">Exportar para o Sankhya</h2>
+            <h2 className="text-sm font-bold">Ciclo</h2>
             <p className="mt-0.5 text-[11px] text-suave">
-              Importação de eventos da folha. Um ciclo inteiro por arquivo.
+              {diaMes(faixa.de)} a {diaMes(faixa.ate)}. Vale para as duas abas.
             </p>
           </div>
 
           <Select value={competencia} onValueChange={setCompetencia}>
-            <SelectTrigger aria-label="Competência" className="w-[17rem]">
+            <SelectTrigger aria-label="Competência" className="w-full sm:w-[17rem]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -163,217 +167,239 @@ export function ExportacaoFolha() {
           </div>
         )}
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div>
-            <p className="text-[11px] text-suave">Período</p>
-            <p className="text-sm font-semibold">
-              {diaMes(faixa.de)} a {diaMes(faixa.ate)}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] text-suave">Linhas no arquivo</p>
-            <p className="text-sm font-semibold">{dados?.linhas ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-[11px] text-suave">Total a descontar</p>
-            <p className="text-sm font-semibold">{dinheiro(dados?.total ?? 0)}</p>
-          </div>
-        </div>
-
         {aberto && (
           <p className="mt-3 text-[11px] text-muito-suave">
-            Este ciclo ainda está aberto e vai até {diaMes(faixa.ate)}. O que sair agora é
+            Este ciclo ainda está aberto e vai até {diaMes(faixa.ate)}. O que aparece agora é
             parcial.
           </p>
         )}
 
-        {fora.length > 0 && (
-          <div className="mt-4 rounded-lg border border-borda p-3">
-            <p className="text-xs font-bold">
-              {fora.length} {fora.length === 1 ? "pessoa fica" : "pessoas ficam"} fora da folha
-            </p>
-            <p className="mt-0.5 text-[11px] text-suave">
-              Sem matrícula não há CODFUNC, e sem CODFUNC a importação não aceita a linha. O
-              consumo continua existindo: {dinheiro(dados?.total_sem_matricula ?? 0)} para cobrar
-              por outro caminho.
-            </p>
-            <ul className="mt-2 space-y-0.5">
-              {fora.map((pessoa) => (
-                <li key={pessoa.codparc} className="flex justify-between gap-2 text-[11px]">
-                  <span className="min-w-0 truncate">{pessoa.nome}</span>
-                  <span className="shrink-0 font-semibold">{dinheiro(pessoa.total)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <Tabs defaultValue="sankhya" className="mt-4">
+          <TabsList className="mb-3">
+            <TabsTrigger value="sankhya">Importação Sankhya</TabsTrigger>
+            <TabsTrigger value="administrativo">Administrativo</TabsTrigger>
+          </TabsList>
 
-        {cortesiasIsentos.length > 0 && (
-          <div className="mt-4 rounded-lg border border-borda p-3">
-            <p className="text-xs font-bold">
-              {cortesiasIsentos.length} almoço(s) sem desconto de ninguém
+          <TabsContent value="sankhya">
+            <p className="text-[11px] text-suave">
+              O que entra no arquivo de eventos da folha. Um ciclo inteiro por arquivo.
             </p>
-            <p className="mt-0.5 text-[11px] text-suave">
-              Visitante liberado de cortesia, ou funcionário isento (a empresa cobre). Nenhum dos
-              dois entra na folha: {dinheiro(dados?.total_cortesias_isentos ?? 0)} pra empresa
-              bancar por fora.
-            </p>
-            <ul className="mt-2 space-y-0.5">
-              {cortesiasIsentos.map((linha, indice) => (
-                <li
-                  key={`${linha.nome}-${linha.data}-${indice}`}
-                  className="flex justify-between gap-2 text-[11px]"
-                >
-                  <span className="min-w-0 truncate">
-                    {linha.nome}{" "}
-                    <span className="text-muito-suave">
-                      · {linha.tipo === "visitante" ? "visitante" : "isento"} · {diaMes(linha.data)}
-                    </span>
-                  </span>
-                  <span className="shrink-0 font-semibold">{dinheiro(linha.valor)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
 
-        {/* O fechamento é o que distingue "baixei para conferir" de "isto foi
-            para o ERP". Sem ele, o segundo download é indistinguível de uma
-            segunda importação, e o desconto dobra no holerite. */}
-        {fechado && lote && (
-          <div className="border-sucesso/30 bg-sucesso/10 mt-4 rounded-lg border p-3">
-            <p className="text-xs font-bold text-sucesso">
-              Ciclo fechado e exportado
-              {lote.fechado_em ? ` em ${dataHora(lote.fechado_em)}` : ""}
-            </p>
-            <p className="mt-0.5 text-[11px] text-suave">
-              {lote.total_registros} linha(s) · {dinheiro(lote.valor_total ?? 0)}. O arquivo
-              não muda mais: ele sai do que foi carimbado, não do cálculo por data.
-            </p>
-          </div>
-        )}
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button
-            variant={fechado ? "outline" : "destaque"}
-            disabled={!dados?.linhas || baixar.isPending}
-            onClick={() =>
-              baixar.mutate({
-                rota: `/exportacoes/folha?competencia=${competencia}`,
-                nome: `folha-${competencia}.xlsx`,
-              })
-            }
-          >
-            {fechado ? "Baixar novamente" : "Baixar arquivo da folha"}
-          </Button>
-
-          {!fechado && (
-            <Button
-              variant="destaque"
-              disabled={aberto || !dados?.linhas || fechar.isPending}
-              title={aberto ? "O ciclo ainda não terminou." : undefined}
-              onClick={() => fechar.mutate()}
-            >
-              {fechar.isPending ? "Fechando…" : "Fechar ciclo e exportar"}
-            </Button>
-          )}
-
-          {fechado && !descartando && (
-            <Button variant="ghost" onClick={() => setDescartando(true)}>
-              Descartar lote
-            </Button>
-          )}
-          {fora.length > 0 && (
-            <Button
-              variant="outline"
-              disabled={baixar.isPending}
-              onClick={() =>
-                baixar.mutate({
-                  rota: `/exportacoes/sem-matricula?competencia=${competencia}`,
-                  nome: `sem-matricula-${competencia}.xlsx`,
-                })
-              }
-            >
-              Baixar quem ficou de fora
-            </Button>
-          )}
-        </div>
-
-        <ArquivosDeAssinatura competencia={competencia} />
-
-        {/* Descartar exige motivo: é a única coisa que explica, meses depois,
-            por que um ciclo foi fechado duas vezes. */}
-        {descartando && lote && (
-          <div className="border-perigo/30 mt-3 rounded-lg border p-3">
-            <p className="text-xs font-bold">Descartar o lote deste ciclo</p>
-            <p className="mt-0.5 mb-2 text-[11px] text-suave">
-              Solta o carimbo de tudo que entrou nele e libera a competência para ser fechada de
-              novo. Use quando a importação no Sankhya não passou.
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <Input
-                value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
-                placeholder="Por que está descartando?"
-                className="w-72"
-              />
-              <Button
-                variant="destructive"
-                disabled={motivo.trim().length < 3 || descartar.isPending}
-                onClick={() => descartar.mutate(lote.id)}
-              >
-                {descartar.isPending ? "Descartando…" : "Confirmar descarte"}
-              </Button>
-              <Button variant="ghost" onClick={() => setDescartando(false)}>
-                Cancelar
-              </Button>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <p className="text-[11px] text-suave">Linhas no arquivo</p>
+                <p className="text-sm font-semibold">{dados?.linhas ?? "—"}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-suave">Total a descontar</p>
+                <p className="text-sm font-semibold">{dinheiro(dados?.total ?? 0)}</p>
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* A conferência é o que responde "por que descontaram isso de mim"
-            sem precisar abrir a planilha e procurar a matrícula na mão. */}
-        {(dados?.pessoas.length ?? 0) > 0 && (
-          <div className="mt-5 overflow-x-auto">
-            <Table className="tabela-admin">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>CODFUNC</TableHead>
-                  <TableHead>Colaborador</TableHead>
-                  <TableHead className="text-right">Loja</TableHead>
-                  <TableHead className="text-right">Refeitório</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dados?.pessoas.map((pessoa) => (
-                  <TableRow key={`${pessoa.codigo}-${pessoa.codfunc ?? "sem"}`}>
-                    <TableCell className="font-mono text-xs">
-                      {pessoa.codfunc ?? (
-                        <span className="text-perigo" title="PJ não tem matrícula; este é o código de parceiro">
-                          parc. {pessoa.codparc}
+            {/* O fechamento é o que distingue "baixei para conferir" de "isto foi
+                para o ERP". Sem ele, o segundo download é indistinguível de uma
+                segunda importação, e o desconto dobra no holerite. */}
+            {fechado && lote && (
+              <div className="border-sucesso/30 bg-sucesso/10 mt-4 rounded-lg border p-3">
+                <p className="text-xs font-bold text-sucesso">
+                  Ciclo fechado e exportado
+                  {lote.fechado_em ? ` em ${dataHora(lote.fechado_em)}` : ""}
+                </p>
+                <p className="mt-0.5 text-[11px] text-suave">
+                  {lote.total_registros} linha(s) · {dinheiro(lote.valor_total ?? 0)}. O arquivo
+                  não muda mais: ele sai do que foi carimbado.
+                </p>
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                variant={fechado ? "outline" : "destaque"}
+                disabled={!dados?.linhas || baixar.isPending}
+                onClick={() =>
+                  baixar.mutate({
+                    rota: `/exportacoes/folha?competencia=${competencia}`,
+                    nome: `folha-${competencia}.xlsx`,
+                  })
+                }
+              >
+                {fechado ? "Baixar novamente" : "Baixar arquivo da folha"}
+              </Button>
+
+              {!fechado && (
+                <Button
+                  variant="destaque"
+                  disabled={aberto || !dados?.linhas || fechar.isPending}
+                  title={aberto ? "O ciclo ainda não terminou." : undefined}
+                  onClick={() => fechar.mutate()}
+                >
+                  {fechar.isPending ? "Fechando…" : "Fechar ciclo e exportar"}
+                </Button>
+              )}
+
+              {fechado && !descartando && (
+                <Button variant="ghost" onClick={() => setDescartando(true)}>
+                  Descartar lote
+                </Button>
+              )}
+            </div>
+
+            {/* Descartar exige motivo: é a única coisa que explica, meses depois,
+                por que um ciclo foi fechado duas vezes. */}
+            {descartando && lote && (
+              <div className="border-perigo/30 mt-3 rounded-lg border p-3">
+                <p className="text-xs font-bold">Descartar o lote deste ciclo</p>
+                <p className="mt-0.5 mb-2 text-[11px] text-suave">
+                  Solta o carimbo de tudo que entrou nele e libera a competência para ser fechada
+                  de novo. Use quando a importação no Sankhya não passou.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    value={motivo}
+                    onChange={(e) => setMotivo(e.target.value)}
+                    placeholder="Por que está descartando?"
+                    className="w-full sm:w-72"
+                  />
+                  <Button
+                    variant="destructive"
+                    disabled={motivo.trim().length < 3 || descartar.isPending}
+                    onClick={() => descartar.mutate(lote.id)}
+                  >
+                    {descartar.isPending ? "Descartando…" : "Confirmar descarte"}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setDescartando(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* A conferência é o que responde "por que descontaram isso de mim"
+                sem precisar abrir a planilha e procurar a matrícula na mão. */}
+            {(dados?.pessoas.length ?? 0) > 0 && (
+              <div className="mt-5 overflow-x-auto">
+                <Table className="tabela-admin">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>CODFUNC</TableHead>
+                      <TableHead>Colaborador</TableHead>
+                      <TableHead className="text-right">Loja</TableHead>
+                      <TableHead className="text-right">Refeitório</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dados?.pessoas.map((pessoa) => (
+                      <TableRow key={`${pessoa.codigo}-${pessoa.codfunc ?? "sem"}`}>
+                        <TableCell className="font-mono text-xs">
+                          {pessoa.codfunc ?? (
+                            <span
+                              className="text-perigo"
+                              title="PJ não tem matrícula; este é o código de parceiro"
+                            >
+                              parc. {pessoa.codparc}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <p className="text-sm font-semibold">{pessoa.nome}</p>
+                          <p className="text-[11px] text-suave">{pessoa.codigo}</p>
+                        </TableCell>
+                        <TableCell className="text-right text-sm">
+                          {Number(pessoa.loja) ? dinheiro(pessoa.loja) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right text-sm">
+                          {Number(pessoa.refeitorio) ? dinheiro(pessoa.refeitorio) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right text-sm font-bold">
+                          {dinheiro(pessoa.total)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="administrativo">
+            {eu?.papel === "admin" && <DiaDeFechamento />}
+
+            {fora.length === 0 && cortesiasIsentos.length === 0 && (
+              <p className="text-[11px] text-suave">
+                Neste ciclo ninguém ficou fora da folha e não houve almoço sem desconto.
+              </p>
+            )}
+
+            {fora.length > 0 && (
+              <div className="rounded-lg border border-borda p-3">
+                <p className="text-xs font-bold">
+                  {fora.length} {fora.length === 1 ? "pessoa fica" : "pessoas ficam"} fora da
+                  folha
+                </p>
+                <p className="mt-0.5 text-[11px] text-suave">
+                  Sem matrícula não há CODFUNC, e sem CODFUNC a importação não aceita a linha. O
+                  consumo continua existindo: {dinheiro(dados?.total_sem_matricula ?? 0)} para
+                  cobrar por outro caminho.
+                </p>
+                <ul className="mt-2 space-y-0.5">
+                  {fora.map((pessoa) => (
+                    <li key={pessoa.codparc} className="flex justify-between gap-2 text-[11px]">
+                      <span className="min-w-0 truncate">{pessoa.nome}</span>
+                      <span className="shrink-0 font-semibold">{dinheiro(pessoa.total)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  disabled={baixar.isPending}
+                  onClick={() =>
+                    baixar.mutate({
+                      rota: `/exportacoes/sem-matricula?competencia=${competencia}`,
+                      nome: `sem-matricula-${competencia}.xlsx`,
+                    })
+                  }
+                >
+                  Baixar quem ficou de fora
+                </Button>
+              </div>
+            )}
+
+            {cortesiasIsentos.length > 0 && (
+              <div className="mt-4 rounded-lg border border-borda p-3">
+                <p className="text-xs font-bold">
+                  {cortesiasIsentos.length} almoço(s) sem desconto de ninguém
+                </p>
+                <p className="mt-0.5 text-[11px] text-suave">
+                  Visitante liberado de cortesia, ou funcionário isento (a empresa cobre). Nenhum
+                  dos dois entra na folha: {dinheiro(dados?.total_cortesias_isentos ?? 0)} pra
+                  empresa bancar por fora.
+                </p>
+                <ul className="mt-2 space-y-0.5">
+                  {cortesiasIsentos.map((linha, indice) => (
+                    <li
+                      key={`${linha.nome}-${linha.data}-${indice}`}
+                      className="flex justify-between gap-2 text-[11px]"
+                    >
+                      <span className="min-w-0 truncate">
+                        {linha.nome}{" "}
+                        <span className="text-muito-suave">
+                          · {linha.tipo === "visitante" ? "visitante" : "isento"} ·{" "}
+                          {diaMes(linha.data)}
                         </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm font-semibold">{pessoa.nome}</p>
-                      <p className="text-[11px] text-suave">{pessoa.codigo}</p>
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      {Number(pessoa.loja) ? dinheiro(pessoa.loja) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      {Number(pessoa.refeitorio) ? dinheiro(pessoa.refeitorio) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-bold">
-                      {dinheiro(pessoa.total)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+                      </span>
+                      <span className="shrink-0 font-semibold">{dinheiro(linha.valor)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <ArquivosDeAssinatura competencia={competencia} />
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );

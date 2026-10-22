@@ -23,7 +23,6 @@ from app.excecoes import (
     SenhaProvisoriaExpirada,
     SenhaRepetida,
 )
-from app.models.acesso import SolicitacaoSenha
 from app.models.cadastro import Colaborador
 from app.modules.auditoria import Ator
 from app.modules.auth import registro
@@ -155,26 +154,6 @@ def trocar_senha_propria(
         codigo=ator.codigo, evento="senha_trocada", usuario_id=ator.id, usuario_nome=ator.nome
     )
     return colaborador
-
-
-def solicitar_nova_senha(sessao: Session, codigo: str, nome_informado: str | None) -> None:
-    """Nunca levanta exceção: a resposta é a mesma exista o código ou não,
-    senão a rota vira um oráculo de quais códigos existem."""
-    codigo = (codigo or "").strip()
-    if not codigo:
-        return
-
-    ja_aberta = sessao.scalar(
-        select(SolicitacaoSenha.id).where(
-            SolicitacaoSenha.codigo == codigo, SolicitacaoSenha.status == "aberta"
-        )
-    )
-    if not ja_aberta:
-        sessao.add(
-            SolicitacaoSenha(codigo=codigo, nome_informado=(nome_informado or "").strip() or None)
-        )
-
-    registro.acesso(codigo=codigo, evento="senha_solicitada")
 
 
 def carregar_colaborador(sessao: Session, colaborador_id: uuid.UUID) -> Colaborador | None:

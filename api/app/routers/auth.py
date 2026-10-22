@@ -16,7 +16,6 @@ from app.modules.auth import servico
 from app.schemas.auth import (
     CorteCicloSaida,
     EntradaLogin,
-    EntradaSolicitacaoSenha,
     EntradaTrocaSenha,
     Eu,
     SecaoTermosSaida,
@@ -154,11 +153,3 @@ def aceitar_termos(ator: AtorAtual, sessao: Sessao) -> Eu:
     servidor, nunca uma versão que o cliente escolha."""
     colaborador = termos.aceitar(sessao, ator)
     return _montar_eu(sessao, colaborador)
-
-
-@rotas.post("/solicitar-senha", response_model=Mensagem)
-def solicitar_senha(dados: EntradaSolicitacaoSenha, sessao: Sessao) -> Mensagem:
-    """Rota pública. A resposta é sempre a mesma, exista o código ou não —
-    senão ela vira um oráculo de quais códigos existem."""
-    servico.solicitar_nova_senha(sessao, dados.codigo, dados.nome_informado)
-    return Mensagem(mensagem="Pedido registrado. Procure o administrador.")

@@ -29,11 +29,8 @@ from app.excecoes import (
     MesAniversarioInvalido,
     PapelInvalido,
     SemPermissao,
-    SolicitacaoJaTratada,
-    SolicitacaoNaoEncontrada,
     VinculoInvalido,
 )
-from app.models.acesso import SolicitacaoSenha
 from app.models.cadastro import PAPEIS, Colaborador, Departamento, Empresa
 from app.modules import auditoria
 from app.modules.auditoria import Ator
@@ -358,57 +355,3 @@ def importar(
         dados_novos={"criados": resultado.criados, "erros": resultado.erros},
     )
     return resultado
-
-
-# ------------------------------------------------------- solicitações de senha
-
-
-def listar_solicitacoes(sessao: Session, ator: Ator) -> list[SolicitacaoSenha]:
-    _exigir_admin(ator)
-    return list(
-        sessao.scalars(
-            select(SolicitacaoSenha)
-            .where(SolicitacaoSenha.status == "aberta")
-            .order_by(SolicitacaoSenha.criado_em)
-        )
-    )
-
-
-def atender_solicitacao(sessao: Session, ator: Ator, solicitacao_id: uuid.UUID) -> tuple[str, str]:
-    """Redefine a senha do código pedido e fecha a solicitação.
-
-    Devolve (código do colaborador, senha provisória).
-    """
-    _exigir_admin(ator)
-    solicitacao = sessao.get(SolicitacaoSenha, solicitacao_id)
-    if solicitacao is None:
-        raise SolicitacaoNaoEncontrada()
-    if solicitacao.status != "aberta":
-        raise SolicitacaoJaTratada()
-
-    colaborador = sessao.scalar(
-        select(Colaborador).where(Colaborador.codigo == solicitacao.codigo)
-    )
-    if colaborador is None:
-        # O pedido é aberto sem validar o código, de propósito: a tela de login
-        # não pode revelar quais existem. A conferência acontece aqui.
-        raise ColaboradorNaoEncontrado("Não existe colaborador com o código informado.")
-
-    senha = redefinir_senha(sessao, ator, colaborador.id)
-    solicitacao.status = "atendida"
-    solicitacao.atendido_em = datetime.now(timezone.utc)
-    solicitacao.atendido_por = ator.id
-    return colaborador.codigo, senha
-
-
-def descartar_solicitacao(sessao: Session, ator: Ator, solicitacao_id: uuid.UUID) -> None:
-    _exigir_admin(ator)
-    solicitacao = sessao.get(SolicitacaoSenha, solicitacao_id)
-    if solicitacao is None:
-        raise SolicitacaoNaoEncontrada()
-    if solicitacao.status != "aberta":
-        raise SolicitacaoJaTratada()
-
-    solicitacao.status = "descartada"
-    solicitacao.atendido_em = datetime.now(timezone.utc)
-    solicitacao.atendido_por = ator.id

@@ -19,11 +19,6 @@ class EntradaTrocaSenha(BaseModel):
     senha_nova: str = Field(min_length=1, max_length=128)
 
 
-class EntradaSolicitacaoSenha(BaseModel):
-    codigo: str = Field(min_length=1, max_length=40)
-    nome_informado: str | None = Field(default=None, max_length=160)
-
-
 class CorteCicloSaida(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

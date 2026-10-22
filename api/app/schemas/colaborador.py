@@ -82,14 +82,3 @@ class ResultadoImportacaoSaida(BaseModel):
     criados: int
     senhas: dict[str, str]
     erros: list[str]
-
-
-class SolicitacaoSaida(BaseModel):
-    """Pedido de senha aberto na tela de login, para o admin atender."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    codigo: str
-    nome_informado: str | None
-    criado_em: datetime

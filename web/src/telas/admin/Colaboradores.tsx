@@ -12,7 +12,7 @@ import { TableHeadOrdenavel } from "@/componentes/TableHeadOrdenavel";
 import { Vazio } from "@/componentes/Vazio";
 import { Badge } from "@/componentes/ui/badge";
 import { Button } from "@/componentes/ui/button";
-import { Card, CardContent } from "@/componentes/ui/card";
+import { Card } from "@/componentes/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -39,7 +39,6 @@ import {
   TableRow,
 } from "@/componentes/ui/table";
 import { mensagemDeErro } from "@/comum/erros";
-import { dataHora } from "@/comum/formato";
 import { ordenar, useOrdenacao } from "@/comum/ordenacao";
 import { baixarCsv, coluna, normalizar, numeroDaPlanilha, simOuNao } from "@/comum/planilha";
 import type {
@@ -50,14 +49,12 @@ import type {
   EntradaColaborador,
   ResultadoImportacaoColaboradores,
   SenhaRedefinida,
-  SolicitacaoSenha,
   Vinculo,
 } from "@/interfaces/admin";
 import type { Pagina } from "@/interfaces/comum";
 import type { Papel } from "@/interfaces/sessao";
 
 const CHAVE = ["colaboradores"] as const;
-const CHAVE_SOLICITACOES = ["solicitacoes-senha"] as const;
 const POR_PAGINA = 20;
 
 const AVISOS: Record<string, string> = {
@@ -137,10 +134,6 @@ export function Colaboradores() {
     queryKey: ["departamentos"],
     queryFn: () => api.get<Departamento[]>("/departamentos"),
   });
-  const solicitacoes = useQuery({
-    queryKey: CHAVE_SOLICITACOES,
-    queryFn: () => api.get<SolicitacaoSenha[]>("/colaboradores/solicitacoes-senha"),
-  });
 
   function recarregar() {
     void clienteConsulta.invalidateQueries({ queryKey: CHAVE });
@@ -203,22 +196,6 @@ export function Colaboradores() {
     },
   });
 
-  const atenderSolicitacao = useMutation({
-    mutationFn: (id: string) =>
-      api.post<SenhaRedefinida>(`/colaboradores/solicitacoes-senha/${id}/atender`),
-    onSuccess: (resposta) => {
-      void clienteConsulta.invalidateQueries({ queryKey: CHAVE_SOLICITACOES });
-      setSenhaGerada(resposta);
-    },
-  });
-
-  const descartarSolicitacao = useMutation({
-    mutationFn: (id: string) =>
-      api.post(`/colaboradores/solicitacoes-senha/${id}/descartar`),
-    onSuccess: () =>
-      void clienteConsulta.invalidateQueries({ queryKey: CHAVE_SOLICITACOES }),
-  });
-
   const criarDepartamento = useMutation({
     mutationFn: () => api.post<Departamento>("/departamentos", { nome: nomeNovoDepartamento.trim() }),
     onSuccess: (departamento) => {
@@ -269,7 +246,6 @@ export function Colaboradores() {
     [colaboradores.data, ordenacao],
   );
   const total = colaboradores.data?.total ?? 0;
-  const abertas = solicitacoes.data ?? [];
 
   const nomeEmpresa = (id: string) =>
     empresas.data?.find((e) => e.id === id)?.nome ?? "—";
@@ -424,48 +400,6 @@ export function Colaboradores() {
         </div>
       </div>
 
-      {abertas.length > 0 && (
-        <Card className="mb-4 border-accent">
-          <CardContent className="p-4">
-            <h2 className="mb-2 text-sm font-bold">
-              Pedidos de senha ({abertas.length})
-            </h2>
-            {abertas.map((pedido) => (
-              <div
-                key={pedido.id}
-                className="flex items-center justify-between gap-3 border-b border-borda py-2 last:border-b-0"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">
-                    {pedido.nome_informado ?? "sem nome informado"}
-                  </p>
-                  <p className="truncate text-[11px] text-suave">
-                    código {pedido.codigo} · {dataHora(pedido.criado_em)}
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    size="sm"
-                    variant="destaque"
-                    onClick={() => atenderSolicitacao.mutate(pedido.id)}
-                    disabled={atenderSolicitacao.isPending}
-                  >
-                    Gerar senha
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => descartarSolicitacao.mutate(pedido.id)}
-                    disabled={descartarSolicitacao.isPending}
-                  >
-                    Descartar
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
 
       <Input
         value={busca}
