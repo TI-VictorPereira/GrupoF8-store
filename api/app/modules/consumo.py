@@ -33,6 +33,8 @@ class Extrato:
     total_almocos: Decimal
     quantidade_almocos: int
     lancamentos: list[Lancamento]
+    limite_loja: Decimal | None = None
+    disponivel_loja: Decimal | None = None
 
 
 def competencia_atual(sessao: Session | None = None) -> str:
