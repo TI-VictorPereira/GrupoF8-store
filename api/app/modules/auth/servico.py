@@ -125,13 +125,17 @@ def registrar_logout(ator: Ator) -> None:
 
 
 def trocar_senha_propria(
-    sessao: Session, ator: Ator, senha_atual: str, senha_nova: str
+    sessao: Session, ator: Ator, senha_atual: str | None, senha_nova: str
 ) -> Colaborador:
     colaborador = sessao.get(Colaborador, ator.id)
     if colaborador is None:
         raise CredenciaisInvalidas()
 
-    if not seguranca.conferir_senha(colaborador.senha_hash, senha_atual):
+    # Com a provisória a pessoa acabou de provar a senha no login: pedir de novo
+    # só atrapalha. Troca voluntária continua exigindo a atual.
+    if not colaborador.senha_provisoria and (
+        senha_atual is None or not seguranca.conferir_senha(colaborador.senha_hash, senha_atual)
+    ):
         raise SenhaAtualIncorreta()
 
     if len(senha_nova) < _config.senha_tamanho_minimo:

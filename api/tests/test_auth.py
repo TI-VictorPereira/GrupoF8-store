@@ -117,6 +117,29 @@ def test_troca_de_senha_limpa_a_flag_de_provisoria(cliente, dados):
     assert ("senha_trocada", None) in eventos_de(CODIGO)
 
 
+def test_provisoria_troca_sem_repetir_a_senha_temporaria(cliente, dados):
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+
+    r = cliente.post("/auth/senha", json={"senha_nova": "senha-propria-forte-123"})
+
+    assert r.status_code == 200
+    assert cliente.get("/auth/eu").json()["senha_provisoria"] is False
+
+
+def test_troca_voluntaria_continua_exigindo_a_senha_atual(cliente, dados):
+    cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
+    cliente.post("/auth/senha", json={"senha_nova": "senha-propria-forte-123"})
+
+    sem = cliente.post("/auth/senha", json={"senha_nova": "outra-senha-forte-456"})
+    certa = cliente.post(
+        "/auth/senha",
+        json={"senha_atual": "senha-propria-forte-123", "senha_nova": "outra-senha-forte-456"},
+    )
+
+    assert sem.json()["codigo"] == "senha_atual_incorreta"
+    assert certa.status_code == 200
+
+
 def test_senha_nova_precisa_ser_diferente_e_ter_tamanho_minimo(cliente, dados):
     cliente.post("/auth/login", json={"codigo": CODIGO, "senha": SENHA})
 

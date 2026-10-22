@@ -65,7 +65,7 @@ export function useSair() {
 export function useTrocarSenha() {
   const clienteConsulta = useQueryClient();
   return useMutation({
-    mutationFn: (dados: { senha_atual: string; senha_nova: string }) =>
+    mutationFn: (dados: { senha_atual?: string; senha_nova: string }) =>
       api.post("/auth/senha", dados),
     onSuccess: () => clienteConsulta.invalidateQueries({ queryKey: CHAVE_EU }),
   });

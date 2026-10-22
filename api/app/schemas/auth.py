@@ -15,7 +15,7 @@ class EntradaLogin(BaseModel):
 
 
 class EntradaTrocaSenha(BaseModel):
-    senha_atual: str = Field(min_length=1, max_length=128)
+    senha_atual: str | None = Field(default=None, min_length=1, max_length=128)
     senha_nova: str = Field(min_length=1, max_length=128)
 
 

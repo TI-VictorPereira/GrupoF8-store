@@ -7,9 +7,7 @@ import { Label } from "@/componentes/ui/label";
 import { mensagemDeErro } from "@/comum/erros";
 import { useTrocarSenha } from "@/hooks/sessao";
 
-// Só o que a tela sabe e o servidor não: aqui a "senha atual" é a temporária.
 const AVISOS: Record<string, string> = {
-  senha_atual_incorreta: "A senha temporária não confere.",
   senha_repetida: "A senha nova precisa ser diferente da temporária.",
 };
 
@@ -20,7 +18,6 @@ const AVISOS: Record<string, string> = {
  * esta tela é conveniência, não o controle de acesso.
  */
 export function TrocaSenhaObrigatoria() {
-  const [atual, setAtual] = useState("");
   const [nova, setNova] = useState("");
   const [confirmacao, setConfirmacao] = useState("");
   const trocar = useTrocarSenha();
@@ -33,7 +30,6 @@ export function TrocaSenhaObrigatoria() {
       : null;
 
   const campos = [
-    { id: "atual", rotulo: "Senha temporária", valor: atual, definir: setAtual },
     { id: "nova", rotulo: "Nova senha", valor: nova, definir: setNova },
     {
       id: "confirmacao",
@@ -46,7 +42,7 @@ export function TrocaSenhaObrigatoria() {
   function enviar(evento: FormEvent) {
     evento.preventDefault();
     if (naoConfere) return;
-    trocar.mutate({ senha_atual: atual, senha_nova: nova });
+    trocar.mutate({ senha_nova: nova });
   }
 
   return (
@@ -74,7 +70,7 @@ export function TrocaSenhaObrigatoria() {
           <Button
             type="submit"
             variant="destaque"
-            disabled={trocar.isPending || !atual || !nova || naoConfere}
+            disabled={trocar.isPending || !nova || naoConfere}
           >
             {trocar.isPending ? "Salvando…" : "Salvar senha"}
           </Button>
