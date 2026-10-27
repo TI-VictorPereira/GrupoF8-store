@@ -24,7 +24,7 @@ from app.modules import auditoria
 from app.modules.auditoria import Ator
 
 # Formato livre, só precisa mudar sempre que o texto mudar de verdade.
-VERSAO_ATUAL = "2026-09-26"
+VERSAO_ATUAL = "2026-10-26"
 
 
 @dataclass
@@ -34,13 +34,24 @@ class Secao:
 
 SECOES: list[Secao] = [
     Secao(
-        titulo="Termo de uso",
+        titulo="Termo de adesão à plataforma e autorização de desconto em folha",
         paragrafos=[
-            "Este sistema é de uso interno da empresa, para consumo na loja e no "
-            "refeitório e para acompanhar seu próprio consumo. O acesso é pessoal e "
-            "intransferível — a senha não deve ser compartilhada.",
-            "O valor consumido é descontado em folha, conforme a política já vigente na "
-            "empresa. O ciclo de apuração fecha no dia definido pela empresa, informado no app.",
+            "EMPREGADORA: SÃO BENTO LIGHTING SOLUTIONS LTDA., CNPJ nº 10.499.738/0001-07, "
+            "com sede na Avenida Central c/ Av. Manoel Nonato Silva, quadra 02, lote 01, "
+            "Polo Empresarial Nova Canaã, Senador Canedo/GO, CEP 75.257-207 e demais "
+            "empresas do Grupo F8.",
+        ],
+    ),
+    Secao(
+        titulo="1. Adesão e finalidade",
+        paragrafos=[
+            "1.1. A adesão à Loja Interna F8 é facultativa e permite ao(à) EMPREGADO(A) "
+            "adquirir, mediante pagamento, refeições, bebidas e outros produtos do "
+            "catálogo vigente. Não há obrigação de compra, consumo mínimo ou consequência "
+            "trabalhista pela não utilização.",
+            "1.2. As aquisições têm natureza comercial e não representam contraprestação "
+            "salarial, desde que efetivamente cobradas e observadas as condições legais. "
+            "A adesão não altera o contrato de trabalho nem importa renúncia a direitos.",
         ],
     ),
     Secao(

@@ -36,7 +36,7 @@ export function AceiteDeTermos() {
   return (
     <div className="flex min-h-screen items-center justify-center px-5 py-10">
       <div className="w-full max-w-md">
-        <h1 className="text-lg font-bold">Termo de uso e privacidade</h1>
+        <h1 className="text-lg font-bold">Termo de adesão e privacidade</h1>
         <p className="mt-1 mb-4 text-sm text-suave">
           Antes de continuar, leia e aceite os termos abaixo.
         </p>

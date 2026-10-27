@@ -347,7 +347,7 @@ def test_rota_de_termos_e_aceite_ficam_abertas_mesmo_pendente(cliente, dados):
     assert lidos.status_code == 200
     assert lidos.json()["versao"]
     secoes = lidos.json()["secoes"]
-    assert secoes and "termo de uso" in secoes[0]["titulo"].lower()
+    assert secoes and "termo de adesão" in secoes[0]["titulo"].lower()
     assert all(secao["paragrafos"] for secao in secoes)
 
     aceite = cliente.post("/auth/aceitar-termos")
