@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loja Interna F8 · Guia do DP</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="stylesheet" href="/guia.css">
+</head>
+<body>
+
+<button type="button" class="nav-abrir" aria-controls="menu" aria-expanded="false">☰ Menu</button>
+<a class="voltar voltar-movel" href="/">← Voltar ao sistema</a>
+
+<aside class="nav" id="menu" aria-label="Seções do guia do DP">
+  <div class="nav-topo">
+    <a class="voltar" href="/">← Voltar ao sistema</a>
+    <div class="marca">LOJA <span>INTERNA F8</span></div>
+    <div class="nav-sub">Guia do DP · acesso restrito</div>
+    <input class="busca" type="search" placeholder="Buscar no menu…" aria-label="Buscar seção">
+  </div>
+  <nav class="nav-links">
+    <div class="nav-grupo"><span>Guia do DP</span>
+      <a href="#dp-visao-geral">Acesso do DP (Gestão)</a>
+      <a href="#aba-sankhya">Aba Importação Sankhya</a>
+      <a href="#aba-administrativo">Aba Administrativo (PJ/Isentos)</a>
+      <a href="#folhas-assinatura">Folhas de assinatura</a>
+      <a href="#regra-isentos">Regra de Isentos</a>
+      <a href="#roteiro-fechamento">Roteiro de fechamento</a>
+    </div>
+    <div class="nav-grupo"><span>Outros guias</span>
+      <a href="/guia.html">Guia do colaborador</a>
+    </div>
+    <p class="nav-vazio" hidden>Nada encontrado.</p>
+  </nav>
+</aside>
+
+<main>
+<div class="conteudo">
+  <section class="parte" id="dp-visao-geral" style="margin-top:0">
+    <div class="rotulo">Guia do Departamento Pessoal</div>
+    <h2>Fechamento do ciclo e Sankhya</h2>
+    <p class="lead">O DP utiliza o sistema exatamente como qualquer colaborador para consumo, compras e almoço, mas conta com uma permissão restrita: o <strong>Fechamento do ciclo</strong>. O DP não altera cadastros de pessoas, estoque de itens nem tabelas de preços.</p>
+
+    <div class="caixa caixa--info">
+      <strong>Como acessar a tela de Fechamento</strong>
+      No <strong>Início</strong>, localize o cartão <strong>Gestão</strong> e clique em <strong>Fechamento do ciclo</strong>. No cabeçalho, selecione o ciclo desejado. Note que ciclos ainda em andamento exibem valores parciais atualizados em tempo real.
+    </div>
+
+    <!-- ABA IMPORTAÇÃO SANKHYA -->
+    <article class="modulo" id="aba-sankhya">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Aba Importação Sankhya <span class="onde">Gestão → Fechamento do ciclo → Aba Importação Sankhya</span></h3>
+      
+      <p>Apresenta a quantidade consolidada de linhas a serem geradas e o montante global a descontar. A grade detalhada lista colaborador por colaborador: <strong>CODFUNC</strong>, total de loja, total de refeitório e soma geral.</p>
+      
+      <div class="caixa caixa--dica">
+        <strong>Tratamento de colaboradores PJ</strong>
+        Prestadores PJ não possuem matrícula CLT/Sankhya, de modo que figuram com o indicativo <code>parc.</code> e <strong>não são incluídos</strong> no arquivo de exportação da folha do Sankhya.
+      </div>
+
+      <h4>Passo a passo operacional</h4>
+      <ol>
+        <li><strong>Conferir valores:</strong> faça a auditoria prévia dos números na grade analítica.</li>
+        <li><strong>Baixar arquivo da folha:</strong> gera uma planilha Excel já estruturada no layout exigido pelo Sankhya. Enquanto o ciclo não for fechado, este arquivo tem finalidade exclusiva de conferência preliminar.</li>
+        <li><strong>Fechar ciclo e exportar:</strong> com o ciclo encerrado (após as 23:59 do dia 15), clique neste botão. A partir dessa trava de fechamento, o arquivo torna-se imutável, garantindo que nenhum cancelamento posterior altere os números.</li>
+        <li><strong>Importar no Sankhya:</strong> faça o upload do arquivo gerado no módulo de folha de pagamento do ERP Sankhya.</li>
+        <li><strong>Descartar lote (se necessário):</strong> se porventura ocorrer rejeição ou inconsistência durante a importação no ERP, utilize o botão <strong>Descartar lote</strong> preenchendo a justificativa obrigatória. O ciclo voltará ao status anterior, liberado para correções e novo fechamento.</li>
+      </ol>
+
+      <figure class="print">
+        <button type="button"><img src="/api/ajuda/dp/img/fechamento-sankhya.png" alt="Fechamento do ciclo: painel da aba Importação Sankhya com totais e exportação." width="2000" height="1300" loading="lazy" decoding="async"></button>
+        <figcaption>Fechamento do ciclo: painel da aba Importação Sankhya com totais e exportação.</figcaption>
+      </figure>
+
+      <div class="caixa caixa--nao">
+        <strong><svg class="mi" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Atenção crítica contra duplicidade de desconto</strong>
+        O ato de fechar formalmente o ciclo é o que impede descontos em dobro. Execute o fechamento apenas quando o ciclo estiver concluído. Durante o período em aberto, o botão permanece bloqueado e desabilitado pelo sistema.
+      </div>
+    </article>
+
+    <!-- ABA ADMINISTRATIVO -->
+    <article class="modulo" id="aba-administrativo">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Aba Administrativo (PJ, Isentos e Cortesias) <span class="onde">Gestão → Fechamento do ciclo → Aba Administrativo</span></h3>
+      
+      <p>Reúne os dados e relatórios de quem não é faturado via folha CLT Sankhya:</p>
+      <ul>
+        <li><strong>Relatório de PJ:</strong> totaliza o consumo individual de loja e refeitório de cada prestador parceiro PJ para viabilizar faturamento ou cobrança administrativa direta.</li>
+        <li><strong>Relatório de isentos, cortesias e visitantes:</strong> congrega os almoços subsidiados que não geram desconto financeiro para a pessoa física. Divide-se em:
+          <ul>
+            <li><em>Aba detalhada:</em> listagem analítica individualizada de cada almoço consumido dia a dia;</li>
+            <li><em>Aba por pessoa:</em> sumário consolidado com os totais gerais custeados diretamente pela empresa.</li>
+          </ul>
+        </li>
+      </ul>
+
+      <figure class="print">
+        <button type="button"><img src="/api/ajuda/dp/img/fechamento-administrativo.png" alt="Fechamento do ciclo: aba Administrativo com relatórios de PJ e isenções." width="2000" height="1180" loading="lazy" decoding="async"></button>
+        <figcaption>Fechamento do ciclo: aba Administrativo com relatórios de PJ e isenções.</figcaption>
+      </figure>
+    </article>
+
+    <!-- FOLHAS DE ASSINATURA -->
+    <article class="modulo" id="folhas-assinatura">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>Folhas de assinatura</h3>
+      
+      <p>O sistema gera documentos em formato PDF preto e branco padronizados para coleta de assinatura física dos colaboradores, contendo o extrato diário detalhado das operações, o valor global do desconto e o campo específico para assinatura.</p>
+
+      <div class="tabela-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 25%;">Opção "Gerar para"</th>
+              <th>Conteúdo e arquivo gerado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Todos</strong></td>
+              <td>Arquivo compactado <code>Grupo F8.zip</code>. Contém uma pasta individual para cada departamento da empresa e, em seu interior, os PDFs nominais de cada colaborador.</td>
+            </tr>
+            <tr>
+              <td><strong>Um departamento</strong></td>
+              <td>Arquivo zip nomeado conforme o departamento escolhido, reunindo os arquivos PDF de todos os colaboradores alocados naquela área.</td>
+            </tr>
+            <tr>
+              <td><strong>Um funcionário</strong></td>
+              <td>Permite pesquisar o colaborador pelo nome na lista e realizar o download instantâneo apenas do arquivo PDF individual dele.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- REGRA DE ISENTOS -->
+      <div class="caixa caixa--dica" id="regra-isentos" style="margin-top: 18px;">
+        <strong><svg class="mi" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>Regra mandatória para colaboradores isentos</strong>
+        Quem possui isenção do almoço <strong>também é obrigado a assinar a folha</strong>. 
+        O documento descreve os almoços dia a dia pelo valor nominal de tabela, explicitamente carimbados com o status de isento e com valor de desconto líquido zerado (R$ 0,00). 
+        Caso o colaborador isento tenha feito compras na loja interna, esses itens constarão na mesma folha e serão descontados regularmente em sua folha de pagamento.
+      </div>
+    </article>
+
+    <!-- ROTEIRO DE FECHAMENTO -->
+    <article class="modulo" id="roteiro-fechamento">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>Roteiro oficial de fechamento mensal</h3>
+      <p>Siga rigorosamente a sequência de cinco etapas para garantir um fechamento sem divergências:</p>
+
+      <div class="passos">
+        <div class="passo-card">
+          <span class="passo-numero">1</span>
+          <strong>Término do Ciclo</strong>
+          <p>Aguarde o encerramento do ciclo no dia 15 às 23:59. Não tente fechar com o ciclo em aberto.</p>
+        </div>
+        <div class="passo-card">
+          <span class="passo-numero">2</span>
+          <strong>Auditoria e Conferência</strong>
+          <p>Revise a grade da folha e inspecione os relatórios das abas Sankhya e Administrativo (PJ e Isentos).</p>
+        </div>
+        <div class="passo-card">
+          <span class="passo-numero">3</span>
+          <strong>Fechar e Exportar</strong>
+          <p>Clique em "Fechar ciclo e exportar" para bloquear alterações e gerar o arquivo definitivo de importação.</p>
+        </div>
+        <div class="passo-card">
+          <span class="passo-numero">4</span>
+          <strong>Importar no Sankhya</strong>
+          <p>Carregue o arquivo final no ERP Sankhya no módulo de folha de pagamento.</p>
+        </div>
+        <div class="passo-card">
+          <span class="passo-numero">5</span>
+          <strong>Colher Assinaturas</strong>
+          <p>Gere e imprima os lotes de folhas de assinatura em PDF para colher a assinatura de todos os colaboradores.</p>
+        </div>
+      </div>
+
+      <div class="caixa caixa--info">
+        <strong>Suporte e Dúvidas operacionais</strong>
+        Caso enfrente impedimentos de acesso, divergência cadastral ou necessidade de reabertura via lote descartado, contate de imediato o <strong>Administrador do Sistema</strong>.
+      </div>
+    </article>
+  </section>
+  <footer>Loja Interna F8 · Guia do DP · Grupo F8</footer>
+</div>
+</main>
+<div class="lightbox" role="dialog" aria-modal="true" aria-label="Imagem ampliada"><img alt=""></div>
+<script src="/guia.js" defer></script>
+</body>
+</html>

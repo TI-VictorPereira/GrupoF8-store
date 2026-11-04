@@ -16,6 +16,7 @@ from app.core.db import engine
 from app.core.log import configurar_log, log
 from app.excecoes import handlers
 from app.routers import (
+    ajuda,
     almocos,
     auth,
     colaboradores,
@@ -68,6 +69,7 @@ async def correlacao_e_acesso(request: Request, call_next):
 
 handlers.registrar(app)
 app.include_router(auth.rotas)
+app.include_router(ajuda.rotas)
 app.include_router(pedidos.rotas)
 app.include_router(almocos.rotas)
 app.include_router(estoque.rotas)

@@ -53,7 +53,7 @@ export function Inicio({ eu }: { eu: Eu }) {
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <a
-              href={eu.papel === "dp" ? "/guia.html#dp-visao-geral" : "/guia.html"}
+              href={eu.papel === "dp" || eu.papel === "admin" ? "/api/ajuda/dp" : "/guia.html"}
               className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/25 px-3 text-[11px] font-semibold text-white/80 transition-colors hover:border-accent hover:text-accent"
             >
               <CircleHelp className="size-3.5" aria-hidden="true" />
