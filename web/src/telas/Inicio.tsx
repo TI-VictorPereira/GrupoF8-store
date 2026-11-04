@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { CircleHelp } from "lucide-react";
 
 import { api } from "@/api/cliente";
 import { Moldura } from "@/componentes/Moldura";
@@ -50,14 +51,23 @@ export function Inicio({ eu }: { eu: Eu }) {
               {eu.empresa?.nome ?? "sem empresa"}
             </p>
           </div>
-          <Button
-            variant="link"
-            size="sm"
-            onClick={() => sair.mutate()}
-            className="h-auto p-0 text-[11px] text-white/60"
-          >
-            Sair
-          </Button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <a
+              href={eu.papel === "dp" ? "/guia.html#dp-visao-geral" : "/guia.html"}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/25 px-3 text-[11px] font-semibold text-white/80 transition-colors hover:border-accent hover:text-accent"
+            >
+              <CircleHelp className="size-3.5" aria-hidden="true" />
+              Ajuda
+            </a>
+            <Button
+              variant="link"
+              size="sm"
+              onClick={() => sair.mutate()}
+              className="h-9 px-2 text-[11px] text-white/60"
+            >
+              Sair
+            </Button>
+          </div>
         </div>
       </header>
 

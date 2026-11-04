@@ -67,6 +67,7 @@ services:
     # --build basta para as dependências novas aparecerem.
     volumes:
       - ./web/src:/app/src
+      - ./web/public:/app/public
       - ./web/index.html:/app/index.html
       - ./web/vite.config.ts:/app/vite.config.ts
       - ./web/tsconfig.json:/app/tsconfig.json

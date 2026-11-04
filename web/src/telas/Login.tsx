@@ -1,3 +1,4 @@
+import { BookOpen } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 import { ErroApi } from "@/api/cliente";
@@ -77,6 +78,16 @@ export function Login() {
             {entrar.isPending ? "Entrando…" : "Entrar"}
           </Button>
         </form>
+
+        <p className="mt-6 text-center">
+          <a
+            href="/guia.html#como-entrar"
+            className="inline-flex min-h-11 items-center gap-1.5 px-3 text-xs text-suave underline underline-offset-2"
+          >
+            <BookOpen className="size-3.5" aria-hidden="true" />
+            Primeiro acesso? Veja o passo a passo
+          </a>
+        </p>
       </div>
     </div>
   );

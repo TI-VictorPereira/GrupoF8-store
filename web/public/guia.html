@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loja Interna F8 · Guia Rápido</title>
+<meta name="description" content="Guia rápido da Loja Interna F8: manual de uso para colaboradores e fechamento de ciclo para o DP.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0a0a0a">
+<style>
+  :root {
+    --preto: #0a0a0a;
+    --amarelo: #ffd600;
+    --amarelo-claro: #fff8d6;
+    --texto: #1a1a1a;
+    --texto-2: #5b5b5b;
+    --borda: #e7e5df;
+    --fundo: #fafaf7;
+    --cartao: #ffffff;
+    --ok: #047857;
+    --ok-bg: #ecfdf5;
+    --leitura: #1d4ed8;
+    --leitura-bg: #eff6ff;
+    --nao: #b91c1c;
+    --nao-bg: #fef2f2;
+    --cond: #92400e;
+    --cond-bg: #fffbeb;
+    --raio: 12px;
+    --largura-texto: 880px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+  body {
+    margin: 0;
+    font: 15px/1.6 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--texto);
+    background: var(--fundo);
+  }
+  a { color: inherit; }
+  code {
+    font: 12.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: #f1f0ea;
+    padding: 1px 6px;
+    border-radius: 6px;
+  }
+
+  /* ---------- Menu lateral ---------- */
+  .nav {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: 272px;
+    display: flex;
+    flex-direction: column;
+    background: var(--preto);
+    color: #f5f5f5;
+    z-index: 20;
+  }
+  .nav-topo { padding: 22px 20px 14px; border-bottom: 1px solid #1f1f1f; }
+  .marca { font-weight: 800; font-size: 19px; letter-spacing: -0.01em; }
+  .marca span { color: var(--amarelo); }
+  .nav-sub { margin-top: 2px; font-size: 12px; color: #9a9a9a; }
+  .busca {
+    margin-top: 14px;
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    background: #141414;
+    color: #f5f5f5;
+    font: inherit;
+    font-size: 13px;
+  }
+  .busca::placeholder { color: #777; }
+  .busca:focus { outline: 2px solid var(--amarelo); outline-offset: 1px; }
+  .nav-links { flex: 1; overflow-y: auto; padding: 10px 0 24px; }
+
+  /* Barras de rolagem finas */
+  .nav-links { scrollbar-width: thin; scrollbar-color: #333 transparent; }
+  .nav-links::-webkit-scrollbar { width: 8px; }
+  .nav-links::-webkit-scrollbar-track { background: transparent; }
+  .nav-links::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 999px; border: 2px solid var(--preto); }
+  .nav-links::-webkit-scrollbar-thumb:hover { background: #444; }
+  .nav-links::-webkit-scrollbar-button { display: none; }
+  html { scrollbar-width: thin; scrollbar-color: #cfcdc4 transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d6d4cc; border-radius: 999px; border: 3px solid var(--fundo); }
+  ::-webkit-scrollbar-thumb:hover { background: #b9b6ac; }
+  ::-webkit-scrollbar-button { display: none; }
+
+  .nav-grupo { margin-top: 10px; }
+  .nav-grupo > span {
+    display: block;
+    padding: 6px 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8a8a8a;
+  }
+  .nav-links a {
+    display: block;
+    margin: 1px 10px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    text-decoration: none;
+    color: #e5e5e5;
+  }
+  .nav-links a:hover { background: #171717; color: var(--amarelo); }
+  .nav-links a.ativo { background: var(--amarelo); color: #111; font-weight: 600; }
+  .nav-links a[hidden] { display: none; }
+  .nav-vazio { padding: 10px 20px; font-size: 13px; color: #8a8a8a; }
+  .nav-abrir { display: none; }
+  .voltar {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: var(--amarelo);
+    color: #111;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .nav-topo .voltar { margin-bottom: 14px; }
+  .voltar-movel { display: none; }
+
+  /* ---------- Conteúdo ---------- */
+  main { margin-left: 272px; padding: 40px 48px 80px; }
+  .conteudo { max-width: var(--largura-texto); margin: 0 auto; }
+  .capa {
+    padding: 34px 36px;
+    border-radius: 18px;
+    background: var(--preto);
+    color: #fff;
+  }
+  .capa .selo {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--amarelo);
+    color: #111;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .capa h1 { margin: 14px 0 8px; font-size: 32px; line-height: 1.2; letter-spacing: -0.02em; }
+  .capa h1 span { color: var(--amarelo); }
+  .capa p { margin: 0; color: #d4d4d4; max-width: 680px; }
+  .atalhos { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 22px; }
+  .atalhos a {
+    padding: 12px 14px;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    text-decoration: none;
+    font-size: 13.5px;
+    color: #f5f5f5;
+  }
+  .atalhos a strong { display: block; color: var(--amarelo); font-size: 14px; }
+  .atalhos a:hover { border-color: var(--amarelo); }
+
+  section.parte { margin-top: 56px; }
+  .rotulo {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #a16207;
+  }
+  h2 { margin: 6px 0 10px; font-size: 26px; letter-spacing: -0.015em; line-height: 1.25; }
+  h3 { margin: 30px 0 8px; font-size: 18px; }
+  h4 { margin: 18px 0 6px; font-size: 15px; }
+  p { margin: 0 0 12px; }
+  .lead { font-size: 16px; color: var(--texto-2); }
+  ol, ul { margin: 0 0 12px; padding-left: 22px; }
+  li { margin: 4px 0; }
+
+  /* Cartão de módulo */
+  .modulo {
+    margin-top: 22px;
+    padding: 24px 26px;
+    border: 1px solid var(--borda);
+    border-radius: 16px;
+    background: var(--cartao);
+  }
+  .modulo h3 { margin-top: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .modulo .onde { font-size: 12.5px; font-weight: 500; color: var(--texto-2); }
+  .colunas { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+
+  /* Prints */
+  figure.print { margin: 16px 0 0; }
+  figure.print button {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 1px solid var(--borda);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fff;
+    cursor: zoom-in;
+    text-align: center;
+  }
+  figure.print img { display: block; width: 100%; height: auto; }
+  figure.print--app { max-width: 310px; margin-left: auto; margin-right: auto; }
+  figure.print figcaption { margin-top: 6px; font-size: 12.5px; color: var(--texto-2); text-align: center; }
+  .print-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 18px; margin-top: 16px; align-items: start; }
+
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.85);
+    cursor: zoom-out;
+  }
+  .lightbox.aberto { display: flex; }
+  .lightbox img { max-width: 95vw; max-height: 92vh; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.6); object-fit: contain; }
+
+  /* Caixas de destaque */
+  .caixa { margin: 16px 0; padding: 14px 18px; border-radius: 10px; border: 1px solid; font-size: 14px; }
+  .caixa > strong:first-child { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 14.5px; }
+  .caixa ul { margin: 0; }
+  .caixa--nao { background: var(--nao-bg); border-color: #fecaca; }
+  .caixa--dica { background: var(--amarelo-claro); border-color: #fde68a; }
+  .caixa--info { background: var(--leitura-bg); border-color: #bfdbfe; }
+  .caixa--ok { background: var(--ok-bg); border-color: #a7f3d0; }
+
+  /* Tabelas */
+  .tabela-wrap { overflow-x: auto; margin: 14px 0 10px; border: 1px solid var(--borda); border-radius: 12px; background: #fff; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { padding: 10px 14px; border-bottom: 1px solid #efeee9; text-align: left; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  thead th {
+    position: sticky;
+    top: 0;
+    background: #f6f5f0;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #444;
+    white-space: nowrap;
+  }
+  td:first-child { font-weight: 600; }
+
+  /* Roteiro em passos numéricos */
+  .passos { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 18px 0; }
+  .passo-card {
+    padding: 16px 18px;
+    border: 1px solid var(--borda);
+    border-radius: 12px;
+    background: #fff;
+    font-size: 13.5px;
+  }
+  .passo-numero {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--preto);
+    color: var(--amarelo);
+    font-weight: 800;
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  .passo-card strong { display: block; margin-bottom: 4px; font-size: 14.5px; }
+  .passo-card p { margin: 0; color: var(--texto-2); font-size: 13px; }
+
+  .mi { flex: none; vertical-align: middle; }
+
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--borda); font-size: 12.5px; color: var(--texto-2); text-align: center; }
+
+  @media (max-width: 960px) {
+    .nav { transform: translateX(-100%); transition: transform 0.2s; width: 280px; }
+    .nav.aberto { transform: none; box-shadow: 0 0 0 100vmax rgba(0,0,0,.45); }
+    .nav-abrir {
+      display: inline-flex;
+      position: fixed;
+      top: 10px;
+      left: 12px;
+      z-index: 15;
+      align-items: center;
+      gap: 6px;
+      min-height: 44px;
+      padding: 0 14px;
+      border: none;
+      border-radius: 8px;
+      background: var(--preto);
+      color: #fff;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .voltar-movel {
+      display: inline-flex;
+      position: fixed;
+      top: 10px;
+      right: 12px;
+      z-index: 15;
+      min-height: 44px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0 0 auto 0;
+      height: 64px;
+      z-index: 14;
+      background: rgba(250, 250, 247, 0.96);
+      border-bottom: 1px solid var(--borda);
+    }
+    html { scroll-padding-top: 76px; }
+    .nav-links a { padding: 11px 12px; font-size: 14.5px; }
+    .atalhos { grid-template-columns: 1fr 1fr; }
+    h2 { font-size: 23px; }
+    main { margin-left: 0; padding: 80px 16px 60px; }
+    .colunas { grid-template-columns: 1fr; }
+    .capa { padding: 24px 20px; }
+    .capa h1 { font-size: 26px; }
+    .modulo { padding: 18px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<button type="button" class="nav-abrir" aria-controls="menu" aria-expanded="false">☰ Menu</button>
+<a class="voltar voltar-movel" href="/">← Voltar ao sistema</a>
+
+<aside class="nav" id="menu" aria-label="Seções do manual">
+  <div class="nav-topo">
+    <a class="voltar" href="/">← Voltar ao sistema</a>
+    <div class="marca">LOJA <span>INTERNA F8</span></div>
+    <div class="nav-sub">Guia rápido · Colaboradores e DP</div>
+    <input class="busca" type="search" placeholder="Buscar no menu…" aria-label="Buscar seção">
+  </div>
+  <nav class="nav-links">
+    <div class="nav-grupo"><span>Início</span>
+      <a href="#visao-geral">O que é a Loja</a>
+      <a href="#como-entrar">Como entrar (login)</a>
+      <a href="#primeiro-acesso">Primeiro acesso e senha</a>
+    </div>
+    <div class="nav-grupo"><span>Guia do Colaborador</span>
+      <a href="#tela-inicial">Tela inicial (3 cartões)</a>
+      <a href="#almoco">1. Almoço no refeitório</a>
+      <a href="#loja">2. Comprar na loja</a>
+      <a href="#limite">3. Limite de compras</a>
+      <a href="#meu-consumo">4. Meu consumo (ciclo)</a>
+      <a href="#problemas">Problemas comuns</a>
+    </div>
+    <div class="nav-grupo"><span>Guia do DP</span>
+      <a href="#dp-visao-geral">Acesso do DP (Gestão)</a>
+      <a href="#aba-sankhya">Aba Importação Sankhya</a>
+      <a href="#aba-administrativo">Aba Administrativo (PJ/Isentos)</a>
+      <a href="#folhas-assinatura">Folhas de assinatura</a>
+      <a href="#regra-isentos">Regra de Isentos</a>
+      <a href="#roteiro-fechamento">Roteiro de fechamento</a>
+    </div>
+    <p class="nav-vazio" hidden>Nada encontrado.</p>
+  </nav>
+</aside>
+
+<main>
+<div class="conteudo">
+
+  <!-- ======================= CAPA ======================= -->
+  <header class="capa" id="visao-geral">
+    <span class="selo">Loja Interna F8</span>
+    <h1>Guia <span>Rápido</span></h1>
+    <p>Manual oficial de uso para todos os colaboradores e instruções operacionais de fechamento mensal para o Departamento Pessoal (DP).</p>
+    <div class="atalhos">
+      <a href="#almoco"><strong>Almoço</strong>Liberar almoço do dia</a>
+      <a href="#loja"><strong>Loja interna</strong>Itens e retirada</a>
+      <a href="#meu-consumo"><strong>Meu consumo</strong>Ciclo 16 a 15 e extrato</a>
+      <a href="#dp-visao-geral"><strong>Guia do DP</strong>Fechamento e Sankhya</a>
+    </div>
+  </header>
+
+  <!-- ======================= COMEÇO & ACESSO ======================= -->
+  <section class="parte" id="como-entrar">
+    <div class="rotulo">Começo rápido</div>
+    <h2>O que é e como entrar</h2>
+    <p class="lead"><strong>O que é:</strong> A Loja Interna F8 é o sistema para comprar na loja interna, liberar o almoço do refeitório e acompanhar o seu consumo diário. O que você consome é descontado em folha de pagamento, conforme o termo de adesão aceito no seu primeiro acesso.</p>
+
+    <div class="modulo">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M7 21v-2a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/></svg>Como entrar (todos os perfis) <span class="onde">Navegador web ou celular</span></h3>
+      
+      <div class="colunas">
+        <div>
+          <ol>
+            <li>Abra o sistema no navegador do celular ou do computador: <br><code>grupo-f8-store.vercel.app</code></li>
+            <li>Digite o seu <strong>código</strong> e a sua <strong>senha</strong> e toque em <strong>Entrar</strong>.</li>
+            <li id="primeiro-acesso"><strong>Primeiro acesso:</strong> a senha que você recebeu é provisória e vale por <strong>48 horas</strong>. O sistema solicita a criação da sua senha definitiva:
+              <ul>
+                <li>Mínimo de <strong>8 caracteres</strong>;</li>
+                <li>Obrigatoriamente <strong>diferente da provisória</strong>;</li>
+                <li>Digite a nova senha duas vezes para confirmação.</li>
+              </ul>
+            </li>
+            <li>Leia e aceite o <strong>termo de adesão</strong>. Sem o aceite formal não é possível utilizar o sistema.</li>
+          </ol>
+
+          <div class="caixa caixa--nao">
+            <strong><svg class="mi" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Importante sobre segurança</strong>
+            O acesso é estritamente pessoal e intransferível. Não compartilhe sua senha com ninguém. Se errar a senha várias vezes, o acesso é bloqueado temporariamente por alguns minutos. Caso esqueça a senha, procure o administrador do sistema para gerar uma nova senha provisória.
+          </div>
+        </div>
+
+        <div>
+          <div class="print-grid" style="grid-template-columns: 1fr; margin-top: 0;">
+            <figure class="print print--app">
+              <button type="button"><img src="/guia-img/login.png" alt="Tela de login (código e senha)." width="780" height="720" loading="lazy" decoding="async"></button>
+              <figcaption>Tela de login (código e senha).</figcaption>
+            </figure>
+            <figure class="print print--app">
+              <button type="button"><img src="/guia-img/nova-senha.png" alt="Primeiro acesso: criação de nova senha." width="780" height="620" loading="lazy" decoding="async"></button>
+              <figcaption>Primeiro acesso: criação de nova senha.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= GUIA DO COLABORADOR ======================= -->
+  <section class="parte" id="tela-inicial">
+    <div class="rotulo">Guia do Colaborador</div>
+    <h2>Usando no dia a dia</h2>
+    <p class="lead">Na tela inicial você encontra três cartões principais: <strong>Almoço de hoje</strong>, <strong>Loja interna</strong> e <strong>Meu consumo</strong>. Se houver um pedido seu aguardando retirada na recepção, ele aparecerá com destaque no topo.</p>
+
+    <!-- 1. ALMOÇO -->
+    <article class="modulo" id="almoco">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>1. Almoço no refeitório <span class="onde">Início → Liberar almoço de hoje</span></h3>
+      
+      <div class="colunas">
+        <div>
+          <ol>
+            <li>No <strong>Início</strong>, toque no cartão <strong>Liberar almoço de hoje</strong>.</li>
+            <li>A tela exibirá o seu <strong>código de barras</strong> individual.
+              <ul>
+                <li>Validade máxima de <strong>12 horas</strong>;</li>
+                <li>Uso único;</li>
+                <li>Permitido apenas <strong>1 almoço por dia</strong> por colaborador.</li>
+              </ul>
+            </li>
+            <li>No refeitório, aponte e passe o código na frente do leitor óptico. Assim que o leitor confirma, o cartão na tela atualiza exibindo <strong>Já liberado</strong> junto ao horário da validação.</li>
+            <li><strong>Falha na leitura:</strong> se o leitor não conseguir ler a tela do celular, avise imediatamente a pessoa do refeitório ou do balcão. Ela possui permissão para confirmar o seu almoço manualmente digitando seu nome.</li>
+          </ol>
+
+          <div class="caixa caixa--dica">
+            <strong><svg class="mi" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="M2 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="M12 18v4"/><path d="m19.07 19.07-2.83-2.83"/><path d="M18 12h4"/><path d="m19.07 4.93-2.83 2.83"/></svg>Dica sobre a cobrança do almoço</strong>
+            Gere o código apenas no momento em que estiver na fila do almoço. Um código que foi gerado mas não passou pelo leitor expira e <strong>não é cobrado</strong>: para desconto em folha, só é computado o almoço efetivamente confirmado no leitor ou balcão.
+          </div>
+        </div>
+
+        <div>
+          <div class="print-grid" style="grid-template-columns: 1fr; margin-top: 0;">
+            <figure class="print print--app">
+              <button type="button"><img src="/guia-img/inicio.png" alt="Início: os três cartões principais." width="780" height="1040" loading="lazy" decoding="async"></button>
+              <figcaption>Início: os três cartões principais.</figcaption>
+            </figure>
+            <figure class="print print--app">
+              <button type="button"><img src="/guia-img/almoco.png" alt="Código de barras temporário do almoço." width="780" height="520" loading="lazy" decoding="async"></button>
+              <figcaption>Código de barras temporário do almoço.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 2. COMPRAR NA LOJA -->
+    <article class="modulo" id="loja">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>2. Comprar na loja <span class="onde">Início → Comprar itens</span></h3>
+      
+      <div class="colunas">
+        <div>
+          <ol>
+            <li>No <strong>Início</strong>, toque em <strong>Comprar itens</strong>.</li>
+            <li>Use o campo de busca ou os filtros de categoria para localizar produtos. Toque no botão <strong>+</strong> para adicionar unidades ao carrinho.</li>
+            <li>Abra o carrinho, confira todos os itens, quantidades e o total do pedido, e clique em <strong>Finalizar</strong>.</li>
+            <li>Ao concluir, o sistema gera o <strong>código de retirada</strong>. Apresente o código na recepção para retirar seus produtos.</li>
+          </ol>
+
+          <div class="caixa caixa--nao">
+            <strong><svg class="mi" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Prazo de 8 horas para retirada</strong>
+            O pedido que não for retirado na recepção dentro do prazo limite de <strong>8 horas</strong> é automaticamente cancelado pelo sistema e os produtos retornam para o estoque da prateleira.
+          </div>
+
+          <div class="caixa caixa--dica">
+            <strong><svg class="mi" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Brinde de Aniversariante</strong>
+            No mês do seu aniversário você tem direito a um item de brinde especial! Ele aparece destacado na própria tela da loja e o valor desse brinde não é cobrado nem descontado.
+          </div>
+        </div>
+
+        <div>
+          <div class="print-grid" style="grid-template-columns: 1fr; margin-top: 0;">
+            <figure class="print print--app">
+              <button type="button"><img src="/guia-img/loja.png" alt="Catálogo da loja: busca e categorias." width="780" height="1240" loading="lazy" decoding="async"></button>
+              <figcaption>Catálogo da loja: busca e categorias.</figcaption>
+            </figure>
+            <figure class="print print--app">
+              <button type="button"><img src="/guia-img/carrinho.png" alt="Carrinho com conferência e botão Finalizar." width="780" height="1240" loading="lazy" decoding="async"></button>
+              <figcaption>Carrinho com conferência e botão Finalizar.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 3. LIMITE DE COMPRAS -->
+    <article class="modulo" id="limite">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>3. Limite de compras na loja <span class="onde">Início → Meu consumo → Ver tudo</span></h3>
+      
+      <p>Certos colaboradores possuem limite de crédito mensal para compras na loja (definido por ciclo). Caso a soma das compras tente ultrapassar o saldo, o sistema bloqueia a finalização e exibe o saldo exato disponível.</p>
+      
+      <div class="caixa caixa--info">
+        <strong>Regra do limite</strong>
+        O limite vale <strong>exclusivamente para a loja interna</strong>. O almoço do refeitório <strong>não consome</strong> nem conta no limite de crédito da loja.
+      </div>
+
+      <div class="colunas">
+        <div>
+          <h4>Como consultar seu limite</h4>
+          <ol>
+            <li>No <strong>Início</strong>, vá até o cartão <strong>Meu consumo</strong> e toque em <strong>Ver tudo</strong>.</li>
+            <li>Abaixo dos totais do mês, localize a faixa <strong>Limite da loja neste ciclo</strong>. Por padrão, o valor fica protegido e oculto (com asteriscos).</li>
+            <li>Toque no <strong>ícone de olho</strong> para revelar quanto você ainda pode gastar.</li>
+            <li>Por privacidade, o valor volta a ser ocultado automaticamente ao fechar ou sair da tela.</li>
+          </ol>
+        </div>
+
+        <div>
+          <div class="print-grid" style="grid-template-columns: 1fr; margin-top: 0;">
+            <figure class="print print--app">
+              <button type="button"><img src="/guia-img/limite-oculto.png" alt="Limite protegido por padrão (oculto)." width="780" height="1280" loading="lazy" decoding="async"></button>
+              <figcaption>Limite protegido por padrão (oculto).</figcaption>
+            </figure>
+            <figure class="print print--app">
+              <button type="button"><img src="/guia-img/limite-visivel.png" alt="Saldo revelado após tocar no ícone de olho." width="780" height="1280" loading="lazy" decoding="async"></button>
+              <figcaption>Saldo revelado após tocar no ícone de olho.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 4. MEU CONSUMO -->
+    <article class="modulo" id="meu-consumo">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>4. Meu consumo e organização do ciclo <span class="onde">Início → Meu consumo</span></h3>
+      
+      <p>A tela exibe a relação detalhada de tudo o que você comprou na loja e todos os almoços registrados, acompanhados de dia, horário e respectivo valor.</p>
+
+      <div class="caixa caixa--dica">
+        <strong>Entendendo o Ciclo (16 a 15)</strong>
+        O consumo é calculado pelo <strong>ciclo operacional da folha</strong>, e não pelo mês corrido do calendário comercial:
+        <ul>
+          <li>O ciclo padrão vigora sempre do <strong>dia 16 de um mês até o dia 15 do mês seguinte</strong>;</li>
+          <li>O ciclo é batizado com o nome do mês em que ocorre o fechamento e desconto (ex.: o ciclo 16/nov a 15/dez recebe o nome de Ciclo Dezembro);</li>
+          <li>O total acumulado exibido na tela é exatamente o valor consolidado para o desconto em folha.</li>
+        </ul>
+      </div>
+
+      <ul>
+        <li><strong>Seletor de ciclo:</strong> use o menu suspenso no topo para navegar pelo extrato dos ciclos anteriores.</li>
+        <li><strong>Aba Cancelados:</strong> visualize pedidos cancelados (seja por expiração do prazo de 8h ou desistência), com o respectivo motivo registrado.</li>
+      </ul>
+    </article>
+
+    <!-- PROBLEMAS COMUNS -->
+    <article class="modulo" id="problemas">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Problemas comuns e soluções</h3>
+      <p>Se tiver algum imprevisto com pedidos ou liberação de almoço, confira a orientação imediata:</p>
+
+      <div class="tabela-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 38%;">Situação</th>
+              <th>O que fazer</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>O leitor não leu o meu código</td>
+              <td>Avise a equipe do refeitório no balcão. Eles confirmam o seu almoço manualmente localizando o seu nome no sistema.</td>
+            </tr>
+            <tr>
+              <td>A compra foi recusada por limite</td>
+              <td>A tela de erro avisa exatamente quanto limite ainda está disponível. Remova itens ou reduza quantidades no carrinho.</td>
+            </tr>
+            <tr>
+              <td>O produto acabou</td>
+              <td>Outro colaborador acabou de levar o último item em estoque. Atualize o carrinho escolhendo outro produto equivalente.</td>
+            </tr>
+            <tr>
+              <td>Esqueci a minha senha</td>
+              <td>Procure o administrador do sistema da sua unidade para solicitar a emissão de uma nova senha provisória válida por 48h.</td>
+            </tr>
+            <tr>
+              <td>O pedido sumiu da tela</td>
+              <td>Se transcorreram mais de 8 horas desde a finalização sem a retirada na recepção, o pedido foi cancelado automaticamente. Confira o status em <strong>Meu consumo → aba Cancelados</strong>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <!-- ======================= GUIA DO DP ======================= -->
+  <section class="parte" id="dp-visao-geral">
+    <div class="rotulo">Guia do Departamento Pessoal</div>
+    <h2>Fechamento do ciclo e Sankhya</h2>
+    <p class="lead">O DP utiliza o sistema exatamente como qualquer colaborador para consumo, compras e almoço, mas conta com uma permissão restrita: o <strong>Fechamento do ciclo</strong>. O DP não altera cadastros de pessoas, estoque de itens nem tabelas de preços.</p>
+
+    <div class="caixa caixa--info">
+      <strong>Como acessar a tela de Fechamento</strong>
+      No <strong>Início</strong>, localize o cartão <strong>Gestão</strong> e clique em <strong>Fechamento do ciclo</strong>. No cabeçalho, selecione o ciclo desejado. Note que ciclos ainda em andamento exibem valores parciais atualizados em tempo real.
+    </div>
+
+    <!-- ABA IMPORTAÇÃO SANKHYA -->
+    <article class="modulo" id="aba-sankhya">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Aba Importação Sankhya <span class="onde">Gestão → Fechamento do ciclo → Aba Importação Sankhya</span></h3>
+      
+      <p>Apresenta a quantidade consolidada de linhas a serem geradas e o montante global a descontar. A grade detalhada lista colaborador por colaborador: <strong>CODFUNC</strong>, total de loja, total de refeitório e soma geral.</p>
+      
+      <div class="caixa caixa--dica">
+        <strong>Tratamento de colaboradores PJ</strong>
+        Prestadores PJ não possuem matrícula CLT/Sankhya, de modo que figuram com o indicativo <code>parc.</code> e <strong>não são incluídos</strong> no arquivo de exportação da folha do Sankhya.
+      </div>
+
+      <h4>Passo a passo operacional</h4>
+      <ol>
+        <li><strong>Conferir valores:</strong> faça a auditoria prévia dos números na grade analítica.</li>
+        <li><strong>Baixar arquivo da folha:</strong> gera uma planilha Excel já estruturada no layout exigido pelo Sankhya. Enquanto o ciclo não for fechado, este arquivo tem finalidade exclusiva de conferência preliminar.</li>
+        <li><strong>Fechar ciclo e exportar:</strong> com o ciclo encerrado (após as 23:59 do dia 15), clique neste botão. A partir dessa trava de fechamento, o arquivo torna-se imutável, garantindo que nenhum cancelamento posterior altere os números.</li>
+        <li><strong>Importar no Sankhya:</strong> faça o upload do arquivo gerado no módulo de folha de pagamento do ERP Sankhya.</li>
+        <li><strong>Descartar lote (se necessário):</strong> se porventura ocorrer rejeição ou inconsistência durante a importação no ERP, utilize o botão <strong>Descartar lote</strong> preenchendo a justificativa obrigatória. O ciclo voltará ao status anterior, liberado para correções e novo fechamento.</li>
+      </ol>
+
+      <figure class="print">
+        <button type="button"><img src="/guia-img/fechamento-sankhya.png" alt="Fechamento do ciclo: painel da aba Importação Sankhya com totais e exportação." width="2000" height="1300" loading="lazy" decoding="async"></button>
+        <figcaption>Fechamento do ciclo: painel da aba Importação Sankhya com totais e exportação.</figcaption>
+      </figure>
+
+      <div class="caixa caixa--nao">
+        <strong><svg class="mi" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Atenção crítica contra duplicidade de desconto</strong>
+        O ato de fechar formalmente o ciclo é o que impede descontos em dobro. Execute o fechamento apenas quando o ciclo estiver concluído. Durante o período em aberto, o botão permanece bloqueado e desabilitado pelo sistema.
+      </div>
+    </article>
+
+    <!-- ABA ADMINISTRATIVO -->
+    <article class="modulo" id="aba-administrativo">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Aba Administrativo (PJ, Isentos e Cortesias) <span class="onde">Gestão → Fechamento do ciclo → Aba Administrativo</span></h3>
+      
+      <p>Reúne os dados e relatórios de quem não é faturado via folha CLT Sankhya:</p>
+      <ul>
+        <li><strong>Relatório de PJ:</strong> totaliza o consumo individual de loja e refeitório de cada prestador parceiro PJ para viabilizar faturamento ou cobrança administrativa direta.</li>
+        <li><strong>Relatório de isentos, cortesias e visitantes:</strong> congrega os almoços subsidiados que não geram desconto financeiro para a pessoa física. Divide-se em:
+          <ul>
+            <li><em>Aba detalhada:</em> listagem analítica individualizada de cada almoço consumido dia a dia;</li>
+            <li><em>Aba por pessoa:</em> sumário consolidado com os totais gerais custeados diretamente pela empresa.</li>
+          </ul>
+        </li>
+      </ul>
+
+      <figure class="print">
+        <button type="button"><img src="/guia-img/fechamento-administrativo.png" alt="Fechamento do ciclo: aba Administrativo com relatórios de PJ e isenções." width="2000" height="1180" loading="lazy" decoding="async"></button>
+        <figcaption>Fechamento do ciclo: aba Administrativo com relatórios de PJ e isenções.</figcaption>
+      </figure>
+    </article>
+
+    <!-- FOLHAS DE ASSINATURA -->
+    <article class="modulo" id="folhas-assinatura">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>Folhas de assinatura</h3>
+      
+      <p>O sistema gera documentos em formato PDF preto e branco padronizados para coleta de assinatura física dos colaboradores, contendo o extrato diário detalhado das operações, o valor global do desconto e o campo específico para assinatura.</p>
+
+      <div class="tabela-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 25%;">Opção "Gerar para"</th>
+              <th>Conteúdo e arquivo gerado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Todos</strong></td>
+              <td>Arquivo compactado <code>Grupo F8.zip</code>. Contém uma pasta individual para cada departamento da empresa e, em seu interior, os PDFs nominais de cada colaborador.</td>
+            </tr>
+            <tr>
+              <td><strong>Um departamento</strong></td>
+              <td>Arquivo zip nomeado conforme o departamento escolhido, reunindo os arquivos PDF de todos os colaboradores alocados naquela área.</td>
+            </tr>
+            <tr>
+              <td><strong>Um funcionário</strong></td>
+              <td>Permite pesquisar o colaborador pelo nome na lista e realizar o download instantâneo apenas do arquivo PDF individual dele.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- REGRA DE ISENTOS -->
+      <div class="caixa caixa--dica" id="regra-isentos" style="margin-top: 18px;">
+        <strong><svg class="mi" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>Regra mandatória para colaboradores isentos</strong>
+        Quem possui isenção do almoço <strong>também é obrigado a assinar a folha</strong>. 
+        O documento descreve os almoços dia a dia pelo valor nominal de tabela, explicitamente carimbados com o status de isento e com valor de desconto líquido zerado (R$ 0,00). 
+        Caso o colaborador isento tenha feito compras na loja interna, esses itens constarão na mesma folha e serão descontados regularmente em sua folha de pagamento.
+      </div>
+    </article>
+
+    <!-- ROTEIRO DE FECHAMENTO -->
+    <article class="modulo" id="roteiro-fechamento">
+      <h3><svg class="mi" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>Roteiro oficial de fechamento mensal</h3>
+      <p>Siga rigorosamente a sequência de cinco etapas para garantir um fechamento sem divergências:</p>
+
+      <div class="passos">
+        <div class="passo-card">
+          <span class="passo-numero">1</span>
+          <strong>Término do Ciclo</strong>
+          <p>Aguarde o encerramento do ciclo no dia 15 às 23:59. Não tente fechar com o ciclo em aberto.</p>
+        </div>
+        <div class="passo-card">
+          <span class="passo-numero">2</span>
+          <strong>Auditoria e Conferência</strong>
+          <p>Revise a grade da folha e inspecione os relatórios das abas Sankhya e Administrativo (PJ e Isentos).</p>
+        </div>
+        <div class="passo-card">
+          <span class="passo-numero">3</span>
+          <strong>Fechar e Exportar</strong>
+          <p>Clique em "Fechar ciclo e exportar" para bloquear alterações e gerar o arquivo definitivo de importação.</p>
+        </div>
+        <div class="passo-card">
+          <span class="passo-numero">4</span>
+          <strong>Importar no Sankhya</strong>
+          <p>Carregue o arquivo final no ERP Sankhya no módulo de folha de pagamento.</p>
+        </div>
+        <div class="passo-card">
+          <span class="passo-numero">5</span>
+          <strong>Colher Assinaturas</strong>
+          <p>Gere e imprima os lotes de folhas de assinatura em PDF para colher a assinatura de todos os colaboradores.</p>
+        </div>
+      </div>
+
+      <div class="caixa caixa--info">
+        <strong>Suporte e Dúvidas operacionais</strong>
+        Caso enfrente impedimentos de acesso, divergência cadastral ou necessidade de reabertura via lote descartado, contate de imediato o <strong>Administrador do Sistema</strong>.
+      </div>
+    </article>
+  </section>
+
+  <footer>Loja Interna F8 · Manual do usuário e Guia do DP · Grupo F8</footer>
+</div>
+</main>
+
+<div class="lightbox" role="dialog" aria-modal="true" aria-label="Imagem ampliada"><img alt=""></div>
+
+<script>
+(function () {
+  // Busca no menu: filtra os links pelo texto.
+  const busca = document.querySelector(".busca");
+  const links = Array.from(document.querySelectorAll(".nav-links a"));
+  const vazio = document.querySelector(".nav-vazio");
+  const tirarAcento = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  
+  busca.addEventListener("input", () => {
+    const q = tirarAcento(busca.value.trim());
+    let algum = false;
+    links.forEach((a) => {
+      const ok = !q || tirarAcento(a.textContent).includes(q);
+      a.hidden = !ok;
+      algum = algum || ok;
+    });
+    document.querySelectorAll(".nav-grupo").forEach((g) => {
+      g.hidden = !g.querySelector("a:not([hidden])");
+    });
+    vazio.hidden = algum;
+  });
+
+  // Link ativo conforme a rolagem (scroll spy).
+  const alvos = links.map((a) => document.querySelector(a.getAttribute("href"))).filter(Boolean);
+  const observador = new IntersectionObserver((entradas) => {
+    entradas.forEach((e) => {
+      if (!e.isIntersecting) return;
+      links.forEach((a) => a.classList.toggle("ativo", a.getAttribute("href") === "#" + e.target.id));
+    });
+  }, { rootMargin: "0px 0px -70% 0px" });
+  alvos.forEach((el) => observador.observe(el));
+
+  // Menu móvel (gaveta).
+  const nav = document.querySelector(".nav");
+  const abrir = document.querySelector(".nav-abrir");
+  abrir.addEventListener("click", () => {
+    const aberto = nav.classList.toggle("aberto");
+    abrir.setAttribute("aria-expanded", String(aberto));
+  });
+  links.forEach((a) => a.addEventListener("click", () => {
+    nav.classList.remove("aberto");
+    abrir.setAttribute("aria-expanded", "false");
+  }));
+
+  // Ampliar print (Lightbox).
+  const caixa = document.querySelector(".lightbox");
+  const grande = caixa.querySelector("img");
+  document.querySelectorAll("figure.print button").forEach((b) => {
+    b.addEventListener("click", () => {
+      const img = b.querySelector("img");
+      grande.src = img.src;
+      grande.alt = img.alt;
+      caixa.classList.add("aberto");
+    });
+  });
+  caixa.addEventListener("click", () => caixa.classList.remove("aberto"));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") caixa.classList.remove("aberto"); });
+})();
+</script>
+</body>
+</html>
