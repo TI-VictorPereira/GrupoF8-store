@@ -18,6 +18,7 @@ import itertools
 import os
 import queue
 
+import requests
 from locust import HttpUser, between, events, task
 
 SENHA = "carga-Teste-123"
@@ -37,10 +38,24 @@ def _checar_host(environment, **_):
     host = (environment.host or "").rstrip("/")
     local = "localhost" in host or "127.0.0.1" in host
     preview = bool(PREVIEW) and host == f"{PREVIEW}/api"
-    if "grupo-f8-store" in host or not (local or preview):
+    # Produção só com o banco trocado para a branch de homologação (ver o teste abaixo).
+    producao = "grupo-f8-store" in host and os.environ.get("CARGA_PRODUCAO") == "SIM"
+    if not (local or preview or producao):
         raise SystemExit(
-            "Recusado: só localhost, ou o preview de CARGA_PREVIEW (--host <preview>/api)."
+            "Recusado: só localhost, o preview de CARGA_PREVIEW, ou produção com "
+            "CARGA_PRODUCAO=SIM e o DATABASE_URL apontando para a branch de homologação."
         )
+    if producao:
+        # Os CARGA-* só existem na branch. Se este login falha, o servidor ainda lê o
+        # banco real: abortar antes que 150 falhas bloqueiem o IP dos colaboradores.
+        r = requests.post(
+            f"{host}/auth/login", json={"codigo": "CARGA-0001", "senha": SENHA}, timeout=30
+        )
+        if r.status_code != 200:
+            raise SystemExit(
+                f"Abortado: login de CARGA-0001 deu {r.status_code}. O servidor não está "
+                "lendo a branch de homologação (troque o DATABASE_URL e reimplante)."
+            )
 
 
 class _Logado(HttpUser):
